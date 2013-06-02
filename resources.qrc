@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/plugins/conefor_dev">
+    <file>icon.png</file>
+  </qresource>
+</RCC>

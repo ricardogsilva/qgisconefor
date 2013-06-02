@@ -1,0 +1,17 @@
+# This file contains metadata for your plugin. Beginning
+# with version 1.8 this is the preferred way to supply information about a
+# plugin. The current method of embedding metadata in __init__.py will
+# be supported until version 2.0
+
+# This file should be included when you package your plugin.
+
+[general]
+name=Conefor inputs
+description=Conefor tool for generating txt files of calculations and attributes
+version=0.2
+qgisMinimumVersion=1.9
+class_name=ConeforProcessor
+website=
+[author]
+name=Ricardo Garcia Silva
+email=ricardo.garcia.silva@gmail.com
