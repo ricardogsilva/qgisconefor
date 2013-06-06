@@ -21,11 +21,8 @@ class ProcessLayer(object):
         self.field_names = [f.name() for f in provider.fields()]
         if any(self.field_names):
             self.id_field_name = QString(self.field_names[0])
-            #self.attribute_field_name = QString(self.field_names[0])
         else:
             self.id_field_name = None
-            #self.id_field_name = QString('')
-            #self.attribute_field_name = QString('')
         self.attribute_field_name = QString('<None>')
         self.process_area = False
         self.process_centroid_distance = True
@@ -140,14 +137,14 @@ class ProcessLayerTableModel(QAbstractTableModel):
             elif column == ATTRIBUTE:
                 layer.attribute_field_name = value.toString()
             elif column == AREA:
-                if layer.qgis_layer.geometryType() == QGis.Point:
+                if layer.qgis_layer.geometryType() != QGis.Point:
                     layer.process_area = value.toBool()
                 else:
                     layer.process_area = False
             elif column == CENTROID:
                 layer.process_centroid_distance = value.toBool()
             elif column == EDGE:
-                if layer.qgis_layer.geometryType() == QGis.Point:
+                if layer.qgis_layer.geometryType() != QGis.Point:
                     layer.process_edge_distance = value.toBool()
                 else:
                     layer.process_edge_distance = False
@@ -300,11 +297,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 'edge_distance' : la.process_edge_distance,
             }
             layers.append(the_data)
-        output_dir = self.output_dir_le.text()
+        output_dir = str(self.output_dir_le.text())
         create_distance_files = self.create_distances_files_chb.isChecked()
-        print('sending these layers:')
-        for la in layers:
-            print('\t%s' % la['qgis_layer'].name())
-            print('\t%s' % la)
-        print('------')
         self.processor.run_queries(layers, output_dir, create_distance_files)

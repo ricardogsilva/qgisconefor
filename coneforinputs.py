@@ -13,6 +13,22 @@ from qgis.core import *
 
 from conefordialog import ConeforDialog
 
+
+#TODO
+# Add a label with progress info to the GUI
+# Write the logic for the area and distance queries
+#   Calculate area and distances with QgsdistanceArea
+# Hook up the progress bar, possibly by emitting signals
+# Filter the id_attribute field choices to show only unique fields
+# create a Makefile
+# Write the help dialog
+# Provide better docstrings
+# Add more testing layers (empty features, empty fields)
+
+class NoFeaturesToProcessError(Exception):
+    pass
+
+
 class ConeforProcessor(object):
 
     def __init__(self, iface):
@@ -107,21 +123,20 @@ class ConeforProcessor(object):
             layers - A list of dictionaries that have the parameters of the
                 layers to process. Each dictionary has the following key/value
                 pairs:
-                    
-                    - layer_name : the name of the ayer, as displayed in the
-                      TOC
-                    - id_attribute : the attribute who is to be used as
-                        an id for Conefor queries
+
+                    - layer : a QgsMapLayer to be processed
+                    - id_attribute : the name of the attribute to be used as
+                      an id for Conefor queries
                     - edge_distance : a boolean indicating if the edge
-                        distance query is to be performed on this layer
+                      distance query is to be performed on this layer
                     - centroid_distance : a boolean indicating if the
-                        centroid distance query is to be performed on this
-                        layer
+                      centroid distance query is to be performed on this
+                      layer
                     - area : a boolean indicating if the area query is to 
-                        be performed on this layer
+                      be performed on this layer
                     - attribute : the name of the attribute to use for the
-                        attribute query. Can be None, resulting in no 
-                        attribute query being performed
+                      attribute query. Can be None, resulting in no
+                      attribute query being performed
 
             output_dir - The full path to the desired output directory;
 
@@ -129,57 +144,113 @@ class ConeforProcessor(object):
                 with the lines representing the distances should be created;
         '''
 
-        for layer_parameters in layers:
-            print('layer: %s' % layer_parameters['layer_name'])
-            if layer_parameters['edge_distance']:
-                e_distances = self._run_edge_distance_query(layer_parameters)
-                self._write_file(e_distances, output_dir, 'output_name.txt')
-                if create_distance_files:
-                    self._write_distance_file(layer_parameters, e_distances)
-            if layer_parameters['centroid_distance']:
-                c_distances = self._run_centroid_distance_query(layer_parameters)
-                self._write_file(c_distances, output_dir, 'output_name.txt')
-                if create_distance_files:
-                    self._write_distance_file(layer_parameters, c_distances)
-            if layer_parameters['area']:
-                area = self._run_area_query(layer_parameters)
-                self._write_file(area, output_dir, 'output_name.txt')
-            if layer_parameters['attribute'] is not None:
-                attribute = self._run_attribute_query(layer_parameters)
-                self._write_file(attribute, output_dir, 'output_name.txt')
-            print('------')
-    
+        for index, layer_parameters in enumerate(layers):
+            try:
+                self.process_layer(layer_parameters['layer'],
+                                   layer_parameters['id_attribute'],
+                                   layer_parameters['area'],
+                                   layer_parameters['attribute'],
+                                   layer_parameters['centroid_distance'],
+                                   layer_parameters['edge_distance'],
+                                   output_dir)
+            except NoFeaturesToProcessError:
+                print('Layer %s has no features to process' % \
+                      layer_parameters['layer'].name())
+
     def _write_file(self, data, output_dir, output_name):
         '''
         Write a text file with the input data.
         '''
 
         print('_write_file called')
+        output_path = os.path.join(output_dir, output_name)
+        with open(output_path, 'w') as file_handler:
+            for line in data:
+                file_handler.write(line)
 
     def _write_distance_file(layer_parameters, distances):
 
-        print('_write_distance_file called')
+        raise NotImplementedError
 
-    def _run_edge_distance_query(self, layer_parameters):
+    def process_layer(self, layer, id_attribute, area, attribute,
+                      centroid, edge, output_dir):
         '''
+        Process an individual layer.
+
+        Inputs:
+
+            layer - A QgsVector layer
+
+            id_attribute - The name of the attribute to be used as id
+
+            area - A boolean indicating if the area is to be processed
+
+            attribute - The name of the attribute to be processed. If None,
+                the attribute process does not take place
+
+            centroid - A boolean indicating if the centroid distances are to
+                be calculated
+
+            edge - A boolean indicating if the edge distances are to
+                be calculated
+
+            output_dir - The directory where the output files are to be saved
         '''
 
-        print('_run_edge_distance_query called')
+        files_progress = 10.0
+        file_write_step = files_progress / self._determine_num_files(area,
+                                                                     attribute,
+                                                                     centroid,
+                                                                     edge)
+        num_features = layer.featureCount()
+        feat_steps = 0
+        if (attribute is not None) or area:
+            feat_steps += num_features
+        if feat_steps == 0:
+            raise NoFeaturesToProcessError
+        progress_step = (100.0 - files_progress) / feat_steps
+        attribute_data = []
+        area_data = []
+        centroid_data = []
+        edge_data = []
+        feat = QgsFeature()
+        feat_iterator = layer.getFeatures()
+        progress = 0
+        while feat_iterator.nextFeature(feat):
+            id_attr = feat.attribute(id_attribute).toString()
+            if attribute is not None:
+                attr = feat.attribute(attribute).toString()
+                attribute_data.append('%s\t%s\n' % (id_attr, attr))
+            if area:
+                area = feat.geometry().area()
+                area_data.append('%s\t%s\n' % (id_attr, area))
+            progress += progress_step
+        if any(area_data):
+            output_name = 'nodes_calculated_area_%s' % layer.name()
+            self._write_file(area_data, output_dir, output_name)
+            progress += file_write_step
+        if any(attribute_data):
+            output_name = 'nodes_%s_%s' % (attribute, layer.name())
+            self._write_file(attribute_data, output_dir, output_name)
+            progress += file_write_step
+        if any(centroid_data):
+            output_name = 'distances_centroids_%s' % layer.name()
+            self._write_file(centroid_data, output_dir, output_name)
+            progress += file_write_step
+        if any(edge_data):
+            output_name = 'distances_edges_%s' % layer.name()
+            self._write_file(attribute_data, output_dir, output_name)
+            progress += file_write_step
+        return progress
 
-    def _run_centroid_distance_query(self, layer_parameters):
-        '''
-        '''
-
-        print('_run_centroid_distance_query called')
-
-    def _run_area_query(self, layer_parameters):
-        '''
-        '''
-
-        print('_run_area_query called')
-
-    def _run_attribute_query(self, layer_parameters):
-        '''
-        '''
-
-        print('_run_attribute_query called')
+    def _determine_num_files(self, area, attribute, centroid, edge):
+        files_to_write = 0
+        if area:
+            files_to_write += 1
+        if attribute is not None:
+            files_to_write += 1
+        if centroid:
+            files_to_write += 1
+        if edge:
+            files_to_write += 1
+        return files_to_write
