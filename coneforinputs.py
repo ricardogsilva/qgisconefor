@@ -25,11 +25,21 @@ from conefordialog import ConeforDialog
 # Provide better docstrings
 # Add more testing layers (empty features, empty fields)
 
+# area and distances:
+# - get layer's crs
+# - if it is projected
+#    - calculate the area
+# - if not
+#    - get project's crs
+#    - translate feature's coords to project crs
+#    - calculate the area
+
 class NoFeaturesToProcessError(Exception):
     pass
 
 
 class ConeforProcessor(object):
+
 
     def __init__(self, iface):
         self.iface = iface
@@ -172,6 +182,26 @@ class ConeforProcessor(object):
 
         raise NotImplementedError
 
+    def _get_measurer(self, layer):
+        '''
+        Return a QgsDistanceArea instance appropriate for measuring areas and
+        distances.
+
+        If layer already has a projected CRS then the measurer's sourceCRS is
+        set accordingly. If not, then the measurer's CRS is set to the
+        project's.
+        '''
+
+        layer_crs = layer.crs()
+        measurer = QgsDistanceArea()
+        measurer.setSourceCrs(layer_crs.postgisSrid())
+        if layer_crs.geographicFlag():
+            measurer.setEllipsoidalMode(True)
+            measurer.setEllipsoid('WGS84')
+        else:
+            measurer.setEllipsoidalMode(False)
+        return measurer
+
     def process_layer(self, layer, id_attribute, area, attribute,
                       centroid, edge, output_dir):
         '''
@@ -197,51 +227,37 @@ class ConeforProcessor(object):
             output_dir - The directory where the output files are to be saved
         '''
 
-        files_progress = 10.0
-        file_write_step = files_progress / self._determine_num_files(area,
-                                                                     attribute,
-                                                                     centroid,
-                                                                     edge)
-        num_features = layer.featureCount()
-        feat_steps = 0
-        if (attribute is not None) or area:
-            feat_steps += num_features
-        if feat_steps == 0:
-            raise NoFeaturesToProcessError
-        progress_step = (100.0 - files_progress) / feat_steps
         attribute_data = []
+        if attribute is not None:
+            attribute_data = self._run_attribute_query(layer, id_attribute,
+                                                       attribute)
         area_data = []
+        if area:
+            area_data = self._run_area_query(layer, id_attribute)
         centroid_data = []
+        if centroid:
+            try:
+                centroid_data = self._run_centroid_query(layer, id_attribute)
+            except NotImplementedError:
+                pass
         edge_data = []
-        feat = QgsFeature()
-        feat_iterator = layer.getFeatures()
-        progress = 0
-        while feat_iterator.nextFeature(feat):
-            id_attr = feat.attribute(id_attribute).toString()
-            if attribute is not None:
-                attr = feat.attribute(attribute).toString()
-                attribute_data.append('%s\t%s\n' % (id_attr, attr))
-            if area:
-                area = feat.geometry().area()
-                area_data.append('%s\t%s\n' % (id_attr, area))
-            progress += progress_step
-        if any(area_data):
-            output_name = 'nodes_calculated_area_%s' % layer.name()
-            self._write_file(area_data, output_dir, output_name)
-            progress += file_write_step
+        if edge:
+            try:
+                edge_data = self._run_edge_query(layer, id_attribute)
+            except NotImplementedError:
+                pass
         if any(attribute_data):
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name)
-            progress += file_write_step
+        if any(area_data):
+            output_name = 'nodes_calculated_area_%s' % layer.name()
+            self._write_file(area_data, output_dir, output_name)
         if any(centroid_data):
             output_name = 'distances_centroids_%s' % layer.name()
             self._write_file(centroid_data, output_dir, output_name)
-            progress += file_write_step
         if any(edge_data):
             output_name = 'distances_edges_%s' % layer.name()
             self._write_file(attribute_data, output_dir, output_name)
-            progress += file_write_step
-        return progress
 
     def _determine_num_files(self, area, attribute, centroid, edge):
         files_to_write = 0
@@ -254,3 +270,30 @@ class ConeforProcessor(object):
         if edge:
             files_to_write += 1
         return files_to_write
+
+    def _run_attribute_query(self, layer, id_attribute, attribute):
+        result = []
+        feat = QgsFeature()
+        feat_iterator = layer.getFeatures()
+        while feat_iterator.nextFeature(feat):
+            id_attr = feat.attribute(id_attribute).toString()
+            attr = feat.attribute(attribute).toString()
+            result.append('%s\t%s\n' % (id_attr, attr))
+        return result
+
+    def _run_area_query(self, layer, id_attribute):
+        result = []
+        measurer = self._get_measurer(layer)
+        feat = QgsFeature()
+        feat_iterator = layer.getFeatures()
+        while feat_iterator.nextFeature(feat):
+            id_attr = feat.attribute(id_attribute).toString()
+            area = measurer.measure(feat.geometry())
+            result.append('%s\t%s\n' % (id_attr, area))
+        return result
+
+    def _run_centroid_query(self, layer, id_attribute):
+        raise NotImplementedError
+
+    def _run_edge_query(self, layer, id_attribute):
+        raise NotImplementedError

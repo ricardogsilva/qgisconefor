@@ -237,6 +237,8 @@ class ProcessLayerDelegate(QItemDelegate):
 
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
+    _settings_key = 'PythonPlugins/coneforinputs'
+
     def __init__(self, layers_dict, current_layer, processor, parent=None):
         super(ConeforDialog, self).__init__(parent)
         self.layers = layers_dict
@@ -252,7 +254,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
-        self.output_dir_le.setText(os.path.expanduser('~'))
+        output_dir = self.load_settings('output_dir').toString()
+        if str(output_dir) == '':
+            output_dir = os.path.expanduser('~')
+        self.output_dir_le.setText(output_dir)
 
     def add_row(self):
         row = self.model.rowCount()
@@ -280,6 +285,16 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         if output_dir == '':
             output_dir = home_dir
         self.output_dir_le.setText(output_dir)
+        self.save_settings('%s/output_dir' % self._settings_key, output_dir)
+
+    def save_settings(self, key, value):
+        settings = QSettings()
+        settings.setValue(key, value)
+        settings.sync()
+
+    def load_settings(self, key):
+        settings = QSettings()
+        return settings.value('%s/%s' % (self._settings_key ,key))
 
     def run_queries(self):
         layers = []
