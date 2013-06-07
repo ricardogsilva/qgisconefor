@@ -38,10 +38,10 @@ class NoFeaturesToProcessError(Exception):
     pass
 
 
-class ConeforProcessor(object):
-
+class ConeforProcessor(QObject):
 
     def __init__(self, iface):
+        super(ConeforProcessor, self).__init__()
         self.iface = iface
         self.registry = QgsMapLayerRegistry.instance()
 
@@ -154,6 +154,8 @@ class ConeforProcessor(object):
                 with the lines representing the distances should be created;
         '''
 
+        layer_progress_step = 100.0 / len(layers)
+        progress = 0
         for index, layer_parameters in enumerate(layers):
             try:
                 self.process_layer(layer_parameters['layer'],
@@ -166,16 +168,25 @@ class ConeforProcessor(object):
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
+            progress += layer_progress_step
+            self.emit(SIGNAL('progress_changed'), progress)
 
     def _write_file(self, data, output_dir, output_name):
         '''
         Write a text file with the input data.
+
+        Inputs:
+
+            data - a list of two element tuples
+
+        Before being written, the data is sorted by the first element in the
+        tuple.
         '''
 
-        print('_write_file called')
+        sorted_data = sorted(data, key=lambda tup: tup[0])
         output_path = os.path.join(output_dir, output_name)
         with open(output_path, 'w') as file_handler:
-            for line in data:
+            for line in sorted_data:
                 file_handler.write(line)
 
     def _write_distance_file(layer_parameters, distances):
@@ -192,14 +203,13 @@ class ConeforProcessor(object):
         project's.
         '''
 
-        layer_crs = layer.crs()
         measurer = QgsDistanceArea()
-        measurer.setSourceCrs(layer_crs.postgisSrid())
-        if layer_crs.geographicFlag():
+        if layer.crs().geographicFlag:
             measurer.setEllipsoidalMode(True)
             measurer.setEllipsoid('WGS84')
         else:
             measurer.setEllipsoidalMode(False)
+        measurer.setSourceCrs(layer.crs().postgisSrid())
         return measurer
 
     def process_layer(self, layer, id_attribute, area, attribute,

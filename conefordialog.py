@@ -252,6 +252,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.remove_row_btn, SIGNAL('released()'),
                         self.remove_row)
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
+        QObject.connect(self.processor, SIGNAL('progress_changed'),
+                        self.update_progress)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
         output_dir = self.load_settings('output_dir').toString()
@@ -315,3 +317,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         output_dir = str(self.output_dir_le.text())
         create_distance_files = self.create_distances_files_chb.isChecked()
         self.processor.run_queries(layers, output_dir, create_distance_files)
+
+    def update_progress(self, progress_value):
+        self.progressBar.setValue(progress_value)
