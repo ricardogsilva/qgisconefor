@@ -204,10 +204,12 @@ class ConeforProcessor(QObject):
         '''
 
         measurer = QgsDistanceArea()
-        if layer.crs().geographicFlag:
+        if layer.crs().geographicFlag():
+            print('layer crs is geographic')
             measurer.setEllipsoidalMode(True)
             measurer.setEllipsoid('WGS84')
         else:
+            print('layer crs is projected')
             measurer.setEllipsoidalMode(False)
         measurer.setSourceCrs(layer.crs().postgisSrid())
         return measurer
