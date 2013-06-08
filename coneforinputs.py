@@ -44,6 +44,7 @@ class ConeforProcessor(QObject):
         super(ConeforProcessor, self).__init__()
         self.iface = iface
         self.registry = QgsMapLayerRegistry.instance()
+        self.global_progress = 0
 
     def initGui(self):
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
@@ -155,7 +156,6 @@ class ConeforProcessor(QObject):
         '''
 
         layer_progress_step = 100.0 / len(layers)
-        progress = 0
         for index, layer_parameters in enumerate(layers):
             try:
                 self.process_layer(layer_parameters['layer'],
@@ -164,12 +164,12 @@ class ConeforProcessor(QObject):
                                    layer_parameters['attribute'],
                                    layer_parameters['centroid_distance'],
                                    layer_parameters['edge_distance'],
-                                   output_dir)
+                                   output_dir, layer_progress_step)
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
-            progress += layer_progress_step
-            self.emit(SIGNAL('progress_changed'), progress)
+            self.global_progress += layer_progress_step
+            self.emit(SIGNAL('progress_changed'))
 
     def _write_file(self, data, output_dir, output_name):
         '''
@@ -193,29 +193,8 @@ class ConeforProcessor(QObject):
 
         raise NotImplementedError
 
-    def _get_measurer(self, layer):
-        '''
-        Return a QgsDistanceArea instance appropriate for measuring areas and
-        distances.
-
-        If layer already has a projected CRS then the measurer's sourceCRS is
-        set accordingly. If not, then the measurer's CRS is set to the
-        project's.
-        '''
-
-        measurer = QgsDistanceArea()
-        if layer.crs().geographicFlag():
-            print('layer crs is geographic')
-            measurer.setEllipsoidalMode(True)
-            measurer.setEllipsoid('WGS84')
-        else:
-            print('layer crs is projected')
-            measurer.setEllipsoidalMode(False)
-        measurer.setSourceCrs(layer.crs().postgisSrid())
-        return measurer
-
     def process_layer(self, layer, id_attribute, area, attribute,
-                      centroid, edge, output_dir):
+                      centroid, edge, output_dir, progress_step):
         '''
         Process an individual layer.
 
@@ -237,51 +216,83 @@ class ConeforProcessor(QObject):
                 be calculated
 
             output_dir - The directory where the output files are to be saved
+
+            progress_step - The ammount of progress available for using in
+                this method.
         '''
 
+        num_queries = self._determine_num_queries(area, attribute, centroid,
+                                                  edge)
+        num_files_to_save = num_queries # need to count the new files as well
+        running_queries_step = progress_step / 2.0
+        each_query_step = running_queries_step / num_queries
+        saving_files_step = progress_step - running_queries_step
+        each_save_file_step = saving_files_step / num_files_to_save
         attribute_data = []
         if attribute is not None:
             attribute_data = self._run_attribute_query(layer, id_attribute,
                                                        attribute)
+            self.global_progress += each_query_step
+            self.emit(SIGNAL('progress_changed'))
         area_data = []
         if area:
             area_data = self._run_area_query(layer, id_attribute)
+            self.global_progress += each_query_step
+            self.emit(SIGNAL('progress_changed'))
         centroid_data = []
         if centroid:
             try:
                 centroid_data = self._run_centroid_query(layer, id_attribute)
             except NotImplementedError:
                 pass
+            self.global_progress += each_query_step
+            self.emit(SIGNAL('progress_changed'))
         edge_data = []
         if edge:
             try:
                 edge_data = self._run_edge_query(layer, id_attribute)
             except NotImplementedError:
                 pass
+            self.global_progress += each_query_step
+            self.emit(SIGNAL('progress_changed'))
         if any(attribute_data):
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name)
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(area_data):
             output_name = 'nodes_calculated_area_%s' % layer.name()
             self._write_file(area_data, output_dir, output_name)
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
             output_name = 'distances_centroids_%s' % layer.name()
             self._write_file(centroid_data, output_dir, output_name)
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
             output_name = 'distances_edges_%s' % layer.name()
             self._write_file(attribute_data, output_dir, output_name)
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
 
-    def _determine_num_files(self, area, attribute, centroid, edge):
-        files_to_write = 0
+    def _determine_num_queries(self, area, attribute, centroid, edge):
+        '''
+        Return the number of queries that will be processed.
+
+        This method's main purpose is calculating progress steps.
+        '''
+
+        num_queries = 0
         if area:
-            files_to_write += 1
+            num_queries += 1
         if attribute is not None:
-            files_to_write += 1
+            num_queries += 1
         if centroid:
-            files_to_write += 1
+            num_queries += 1
         if edge:
-            files_to_write += 1
-        return files_to_write
+            num_queries += 1
+        return num_queries
 
     def _run_attribute_query(self, layer, id_attribute, attribute):
         result = []
@@ -293,9 +304,45 @@ class ConeforProcessor(QObject):
             result.append('%s\t%s\n' % (id_attr, attr))
         return result
 
-    def _run_area_query(self, layer, id_attribute):
+    def _run_geographic_layer_area_query(self, layer, id_attribute):
         result = []
-        measurer = self._get_measurer(layer)
+        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+        if project_crs.geographicFlag():
+            print('Neither the layer nor the project\'s coordinate ' \
+                    'system is projected. The area calculation will not ' \
+                    'be acurate.')
+        feat = QgsFeature()
+        feat_iterator = layer.getFeatures()
+        source_crs = layer.crs()
+        destination_crs = project_crs
+        measurer = QgsDistanceArea()
+        measurer.setEllipsoidalMode(False)
+        measurer.setSourceCrs(project_crs.postgisSrid())
+        transformer = QgsCoordinateTransform(source_crs, destination_crs)
+        while feat_iterator.nextFeature(feat):
+            polygon = feat.geometry().asPolygon()
+            new_polygon = []
+            for ring in polygon:
+                new_ring = []
+                for point in ring:
+                    new_ring.append(transformer.transform(point))
+                new_polygon.append(new_ring)
+            outer_area = measurer.measurePolygon(new_polygon[0])
+            hole_areas = 0
+            if len(new_polygon) > 1:
+                holes = new_polygon[1:]
+                for hole in holes:
+                    hole_areas += measurer.measurePolygon(hole)
+            total_feat_area = outer_area - hole_areas
+            id_attr = feat.attribute(id_attribute).toString()
+            result.append('%s\t%s\n' % (id_attr, total_feat_area))
+        return result
+
+    def _run_projected_layer_area_query(self, layer, id_attribute):
+        result = []
+        measurer = QgsDistanceArea()
+        measurer.setEllipsoidalMode(False)
+        measurer.setSourceCrs(layer.crs().postgisSrid())
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
@@ -304,8 +351,47 @@ class ConeforProcessor(QObject):
             result.append('%s\t%s\n' % (id_attr, area))
         return result
 
+    def _run_area_query(self, layer, id_attribute):
+        if layer.crs().geographicFlag():
+            result = self._run_geographic_layer_area_query(layer,
+                                                           id_attribute)
+        else:
+            result = self._run_projected_layer_area_query(layer, id_attribute)
+        return result
+
     def _run_centroid_query(self, layer, id_attribute):
-        raise NotImplementedError
+        if layer.crs().geographicFlag():
+            result = []
+        else:
+            feature_ids = self._get_feature_ids(layer)
+            current = QgsFeature()
+            next_ = QgsFeature()
+            i = 0
+            j = 0
+            while i < len(feature_ids):
+                iter_current = layer.getFeatures(feature_ids[i])
+                iter_current.nextFeature(current)
+                current_id_attr = current.attribute(id_attribute).toString()
+                current_geom = current.geometry()
+                current_centroid = current_geom.centroid().asPoint()
+                j = i + 1
+                while j < len(feature_ids):
+                    iter_next = layer.getFeatures(feature_ids[j])
+                    iter_next.nextFeature(next_)
+                    next_id_attr = next_.attribute(id_attribute).toString()
+                    next_geom = next_.geometry()
+                    next_centroid = next_geom.centroid().asPoint()
+                i += 1
+            result = []
+        return result
+
+    def _get_feature_ids(self, layer):
+        feature_ids = []
+        feat = QgsFeature()
+        iterator = layer.getFeatures()
+        while iterator.nextFeature(feat):
+            feature_ids.append(feat.id())
+        return feature_ids
 
     def _run_edge_query(self, layer, id_attribute):
         raise NotImplementedError

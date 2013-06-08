@@ -318,5 +318,5 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         create_distance_files = self.create_distances_files_chb.isChecked()
         self.processor.run_queries(layers, output_dir, create_distance_files)
 
-    def update_progress(self, progress_value):
-        self.progressBar.setValue(progress_value)
+    def update_progress(self):
+        self.progressBar.setValue(self.processor.global_progress)
