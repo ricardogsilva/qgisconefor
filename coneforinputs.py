@@ -16,9 +16,6 @@ from conefordialog import ConeforDialog
 
 #TODO
 # Add a label with progress info to the GUI
-# Write the logic for the area and distance queries
-#   Calculate area and distances with QgsdistanceArea
-# Hook up the progress bar, possibly by emitting signals
 # Filter the id_attribute field choices to show only unique fields
 # create a Makefile
 # Write the help dialog
@@ -241,10 +238,7 @@ class ConeforProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
         centroid_data = []
         if centroid:
-            try:
-                centroid_data = self._run_centroid_query(layer, id_attribute)
-            except NotImplementedError:
-                pass
+            centroid_data = self._run_centroid_query(layer, id_attribute)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         edge_data = []
@@ -258,23 +252,23 @@ class ConeforProcessor(QObject):
         if any(attribute_data):
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name)
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+        self.global_progress += each_save_file_step
+        self.emit(SIGNAL('progress_changed'))
         if any(area_data):
             output_name = 'nodes_calculated_area_%s' % layer.name()
             self._write_file(area_data, output_dir, output_name)
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+        self.global_progress += each_save_file_step
+        self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
             output_name = 'distances_centroids_%s' % layer.name()
             self._write_file(centroid_data, output_dir, output_name)
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+        self.global_progress += each_save_file_step
+        self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
             output_name = 'distances_edges_%s' % layer.name()
             self._write_file(attribute_data, output_dir, output_name)
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+        self.global_progress += each_save_file_step
+        self.emit(SIGNAL('progress_changed'))
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''
@@ -313,12 +307,8 @@ class ConeforProcessor(QObject):
                     'be acurate.')
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
-        source_crs = layer.crs()
-        destination_crs = project_crs
-        measurer = QgsDistanceArea()
-        measurer.setEllipsoidalMode(False)
-        measurer.setSourceCrs(project_crs.postgisSrid())
-        transformer = QgsCoordinateTransform(source_crs, destination_crs)
+        measurer = self._get_measurer(project_crs)
+        transformer = self._get_transformer(layer)
         while feat_iterator.nextFeature(feat):
             polygon = feat.geometry().asPolygon()
             new_polygon = []
@@ -340,9 +330,7 @@ class ConeforProcessor(QObject):
 
     def _run_projected_layer_area_query(self, layer, id_attribute):
         result = []
-        measurer = QgsDistanceArea()
-        measurer.setEllipsoidalMode(False)
-        measurer.setSourceCrs(layer.crs().postgisSrid())
+        measurer = self._get_measurer(layer.crs())
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
@@ -361,28 +349,85 @@ class ConeforProcessor(QObject):
 
     def _run_centroid_query(self, layer, id_attribute):
         if layer.crs().geographicFlag():
-            result = []
+            result = self._run_geographic_layer_centroid_query(layer,
+                                                               id_attribute)
         else:
-            feature_ids = self._get_feature_ids(layer)
-            current = QgsFeature()
-            next_ = QgsFeature()
-            i = 0
-            j = 0
-            while i < len(feature_ids):
-                iter_current = layer.getFeatures(feature_ids[i])
-                iter_current.nextFeature(current)
-                current_id_attr = current.attribute(id_attribute).toString()
-                current_geom = current.geometry()
-                current_centroid = current_geom.centroid().asPoint()
-                j = i + 1
-                while j < len(feature_ids):
-                    iter_next = layer.getFeatures(feature_ids[j])
-                    iter_next.nextFeature(next_)
-                    next_id_attr = next_.attribute(id_attribute).toString()
-                    next_geom = next_.geometry()
-                    next_centroid = next_geom.centroid().asPoint()
-                i += 1
-            result = []
+            result = self._run_projected_layer_centroid_query(layer,
+                                                              id_attribute)
+        return result
+
+    def _get_measurer(self, source_crs):
+        measurer = QgsDistanceArea()
+        measurer.setEllipsoidalMode(False)
+        measurer.setSourceCrs(source_crs.postgisSrid())
+        return measurer
+
+    def _get_transformer(self, layer):
+        source_crs = layer.crs()
+        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+        transformer = QgsCoordinateTransform(source_crs, project_crs)
+        return transformer
+
+    def _run_geographic_layer_centroid_query(self, layer, id_attribute):
+        result = []
+        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+        measurer = self._get_measurer(project_crs)
+        transformer = self._get_transformer(layer)
+        feature_ids = self._get_feature_ids(layer)
+        current = QgsFeature()
+        next_ = QgsFeature()
+        i = 0
+        j = 0
+        while i < len(feature_ids):
+            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
+            i_current.nextFeature(current)
+            current_id_attr = current.attribute(id_attribute).toString()
+            current_geom = current.geometry()
+            current_centroid = current_geom.centroid().asPoint()
+            the_current_centroid = transformer.transform(current_centroid)
+            j = i + 1
+            while j < len(feature_ids):
+                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
+                i_next.nextFeature(next_)
+                next_id_attr = next_.attribute(id_attribute).toString()
+                next_geom = next_.geometry()
+                next_centroid = next_geom.centroid().asPoint()
+                the_next_centroid = transformer.transform(next_centroid)
+                distance = measurer.measureLine(the_current_centroid,
+                                                the_next_centroid)
+                result.append('%s\t%s\t%s\n' % (current_id_attr, next_id_attr,
+                              distance))
+                j += 1
+            i += 1
+        return result
+
+    def _run_projected_layer_centroid_query(self, layer, id_attribute):
+        result = []
+        measurer = self._get_measurer(layer.crs())
+        feature_ids = self._get_feature_ids(layer)
+        current = QgsFeature()
+        next_ = QgsFeature()
+        i = 0
+        j = 0
+        while i < len(feature_ids):
+            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
+            i_current.nextFeature(current)
+            current_id_attr = current.attribute(id_attribute).toString()
+            current_geom = current.geometry()
+            current_centroid = current_geom.centroid().asPoint()
+            j = i + 1
+            while j < len(feature_ids):
+                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
+                i_next.nextFeature(next_)
+                next_id_attr = next_.attribute(id_attribute).toString()
+                next_geom = next_.geometry()
+                next_centroid = next_geom.centroid().asPoint()
+                distance = measurer.measureLine(current_centroid,
+                                                next_centroid)
+                result.append('%s\t%s\t%s\n' % (current_id_attr, next_id_attr,
+                              distance))
+                j += 1
+            i += 1
         return result
 
     def _get_feature_ids(self, layer):
