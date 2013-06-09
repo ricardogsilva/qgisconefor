@@ -161,7 +161,8 @@ class ConeforProcessor(QObject):
                                    layer_parameters['attribute'],
                                    layer_parameters['centroid_distance'],
                                    layer_parameters['edge_distance'],
-                                   output_dir, layer_progress_step)
+                                   output_dir, layer_progress_step,
+                                   create_distance_files)
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
@@ -186,12 +187,70 @@ class ConeforProcessor(QObject):
             for line in sorted_data:
                 file_handler.write(line)
 
-    def _write_distance_file(layer_parameters, distances):
+    def _write_distance_file(self, data, output_dir, output_name, encoding,
+                             crs, file_type='ESRI Shapefile'):
+        '''
+        Write a GIS file with distances to disk.
 
-        raise NotImplementedError
+        Inputs:
+
+            data - a list of dictionaries with key/values:
+                from: A QgsPoint with the coordinates of the
+                    start of a line
+                to: A QgsPoint with the coordinates of the
+                    end of a line
+                distance: The distance between the two QgsPoints,
+                    measured in meters
+                from_attribute - The value of the attribute used
+                    as an identifier for features in the layer
+                to_attribute - The value of the attribute used
+                    as an identifier for features in the layer
+
+            output_dir - The path to the directory where the file will
+                be written to.
+
+            output_name - The name for the file, without extension
+
+            encoding - A QString with the encoding to use when writing
+                the attributes
+
+            crs - A QgsCoordinateReferenceSystem object representing the
+                CRS of the output file
+
+            file_type - A string representing the type of file format to use
+        '''
+
+        output_path = os.path.join(output_dir, output_name)
+        if file_type == 'ESRI Shapefile':
+            output_path = '%s.shp' % output_path
+        fields = QgsFields()
+        fields.append(QgsField('from_to', QVariant.String, 'from_to', 255))
+        fields.append(QgsField('distance', QVariant.Double,
+                      'distance', 255, 1))
+        writer = QgsVectorFileWriter(output_path, encoding, fields,
+                                     QGis.WKBLineString, crs, file_type)
+        if writer.hasError() == QgsVectorFileWriter.NoError:
+            for item in data:
+                feat = QgsFeature()
+                line = [item['from'], item['to']]
+                from_to = '%s_%s' % (item['from_attribute'],
+                                     item['to_attribute'])
+                feat.setGeometry(QgsGeometry.fromPolyline(line))
+                feat.setFields(fields)
+                feat.initAttributes(2)
+                feat.setAttribute('from_to', from_to)
+                feat.setAttribute('distance', item['distance'])
+                writer.addFeature(feat)
+        else:
+            print('Error when creating distances lines file: %s' % \
+                  writer.hasError())
+        del writer
+        new_layer = QgsVectorLayer(output_path, output_name, 'ogr')
+        self.registry.addMapLayer(new_layer)
 
     def process_layer(self, layer, id_attribute, area, attribute,
-                      centroid, edge, output_dir, progress_step):
+                      centroid, edge, output_dir, progress_step,
+                      create_distance_files):
         '''
         Process an individual layer.
 
@@ -215,12 +274,18 @@ class ConeforProcessor(QObject):
             output_dir - The directory where the output files are to be saved
 
             progress_step - The ammount of progress available for using in
-                this method.
+                this method
+
+            create_distance_files - A boolean specifying if the output distance
+                files are to be created
         '''
 
+        encoding = layer.dataProvider().encoding()
         num_queries = self._determine_num_queries(area, attribute, centroid,
                                                   edge)
-        num_files_to_save = num_queries # need to count the new files as well
+        num_files_to_save = num_queries
+        if create_distance_files:
+            num_files_to_save += centroid + edge
         running_queries_step = progress_step / 2.0
         each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
@@ -261,7 +326,14 @@ class ConeforProcessor(QObject):
         self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
             output_name = 'distances_centroids_%s' % layer.name()
-            self._write_file(centroid_data, output_dir, output_name)
+            data_to_write = []
+            for c_dict in centroid_data:
+                current_id = c_dict['current']['attribute']
+                next_id = c_dict['next']['attribute']
+                distance = c_dict['distance']
+                data_to_write.append('%s\t%s\t%s\n' % (current_id, next_id,
+                                     distance))
+            self._write_file(data_to_write, output_dir, output_name)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
@@ -269,6 +341,28 @@ class ConeforProcessor(QObject):
             self._write_file(attribute_data, output_dir, output_name)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
+        if create_distance_files:
+            if any(centroid_data):
+                data_to_write = []
+                for c_dict in centroid_data:
+                    the_data = {
+                        'from' : c_dict['current']['centroid'],
+                        'to' : c_dict['next']['centroid'],
+                        'distance' : c_dict['distance'],
+                        'from_attribute' : c_dict['current']['attribute'],
+                        'to_attribute' : c_dict['next']['attribute'],
+                    }
+                    data_to_write.append(the_data)
+                output_name = 'centroid_distances_%s' % layer.name()
+                self._write_distance_file(data_to_write, output_dir,
+                                          output_name, encoding, layer.crs())
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
+            if any(edge_data):
+                output_name = 'edge_distances_%s' % layer.name()
+                self._write_distance_file(edge_data)
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''
@@ -348,12 +442,53 @@ class ConeforProcessor(QObject):
         return result
 
     def _run_centroid_query(self, layer, id_attribute):
+        result = []
         if layer.crs().geographicFlag():
-            result = self._run_geographic_layer_centroid_query(layer,
-                                                               id_attribute)
+            project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+            measurer = self._get_measurer(project_crs)
+            transformer = self._get_transformer(layer)
         else:
-            result = self._run_projected_layer_centroid_query(layer,
-                                                              id_attribute)
+            measurer = self._get_measurer(layer.crs())
+            transformer = None
+        feature_ids = self._get_feature_ids(layer)
+        current = QgsFeature()
+        next_ = QgsFeature()
+        i = 0
+        j = 0
+        while i < len(feature_ids):
+            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
+            i_current.nextFeature(current)
+            current_id_attr = current.attribute(id_attribute).toString()
+            current_geom = current.geometry()
+            original_current_centroid = current_geom.centroid().asPoint()
+            transformed_current_centroid = self._get_centroid(current_geom,
+                                                              transformer)
+            j = i + 1
+            while j < len(feature_ids):
+                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
+                i_next.nextFeature(next_)
+                next_id_attr = next_.attribute(id_attribute).toString()
+                next_geom = next_.geometry()
+                original_next_centroid = next_geom.centroid().asPoint()
+                transformed_next_centroid = self._get_centroid(next_geom, transformer)
+                distance = measurer.measureLine(transformed_current_centroid,
+                                                transformed_next_centroid)
+                feat_result = {
+                    'current' : {
+                        'attribute' : current_id_attr,
+                        'centroid' : original_current_centroid,
+                        'feature_geometry' : current_geom,
+                    },
+                    'next' : {
+                        'attribute' : next_id_attr,
+                        'centroid' : original_next_centroid,
+                        'feature_geometry' : next_geom,
+                    },
+                    'distance' : distance,
+                }
+                result.append(feat_result)
+                j += 1
+            i += 1
         return result
 
     def _get_measurer(self, source_crs):
@@ -368,68 +503,6 @@ class ConeforProcessor(QObject):
         transformer = QgsCoordinateTransform(source_crs, project_crs)
         return transformer
 
-    def _run_geographic_layer_centroid_query(self, layer, id_attribute):
-        result = []
-        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
-        measurer = self._get_measurer(project_crs)
-        transformer = self._get_transformer(layer)
-        feature_ids = self._get_feature_ids(layer)
-        current = QgsFeature()
-        next_ = QgsFeature()
-        i = 0
-        j = 0
-        while i < len(feature_ids):
-            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
-            i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute).toString()
-            current_geom = current.geometry()
-            current_centroid = current_geom.centroid().asPoint()
-            the_current_centroid = transformer.transform(current_centroid)
-            j = i + 1
-            while j < len(feature_ids):
-                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
-                i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute).toString()
-                next_geom = next_.geometry()
-                next_centroid = next_geom.centroid().asPoint()
-                the_next_centroid = transformer.transform(next_centroid)
-                distance = measurer.measureLine(the_current_centroid,
-                                                the_next_centroid)
-                result.append('%s\t%s\t%s\n' % (current_id_attr, next_id_attr,
-                              distance))
-                j += 1
-            i += 1
-        return result
-
-    def _run_projected_layer_centroid_query(self, layer, id_attribute):
-        result = []
-        measurer = self._get_measurer(layer.crs())
-        feature_ids = self._get_feature_ids(layer)
-        current = QgsFeature()
-        next_ = QgsFeature()
-        i = 0
-        j = 0
-        while i < len(feature_ids):
-            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
-            i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute).toString()
-            current_geom = current.geometry()
-            current_centroid = current_geom.centroid().asPoint()
-            j = i + 1
-            while j < len(feature_ids):
-                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
-                i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute).toString()
-                next_geom = next_.geometry()
-                next_centroid = next_geom.centroid().asPoint()
-                distance = measurer.measureLine(current_centroid,
-                                                next_centroid)
-                result.append('%s\t%s\t%s\n' % (current_id_attr, next_id_attr,
-                              distance))
-                j += 1
-            i += 1
-        return result
-
     def _get_feature_ids(self, layer):
         feature_ids = []
         feat = QgsFeature()
@@ -438,5 +511,44 @@ class ConeforProcessor(QObject):
             feature_ids.append(feat.id())
         return feature_ids
 
-    def _run_edge_query(self, layer, id_attribute):
-        raise NotImplementedError
+    def _run_edge_query(self, layer, id_attribute, centroid_query_result=None):
+        if centroid_query_result is None:
+            centroid_query_result = self._run_centroid_query
+        for centroid_analysis in centroid_query_result:
+            c_centroid = centroid_analysis['current']['centroid']
+            c_geom = centroid_analysis['current']['feature_geometry']
+            n_centroid = centroid_analysis['next']['centroid']
+            n_geom = centroid_analysis['next']['feature_geometry']
+            line_geom = QgsGeometry.fromPolyline([c_centroid, n_centroid])
+            intersection_geom = c_geom.intersect(line_geom)
+        # for each current and next features
+        #   get the current and next centroid
+        #   construct a line from current to next centroid
+        #   intersect this line with current feature
+        #      we get a list of points (there may be more than one)
+        #      now find the distance between each point and the next centroid
+        #      we want the point with the smallest distance
+        #   intersect this line with next feature
+        #      we get a list of points (there may be more than one)
+        #      now find the distance between each point and the current centroid
+        #      we want the point with the smallest distance
+
+    def _get_centroid(self, geometry, transformer=None):
+        '''
+        Return the centroid of the polygon geometry as a QgsPoint.
+
+        Inputs:
+
+            geometry - A QgsGeometry
+
+            transformer - A QgsCoordinateTransform object to convert the
+                geometry's coordinates to a projected CRS. If None, no
+                transformation is performed.
+        '''
+
+        centroid = geometry.centroid().asPoint()
+        if transformer is not None:
+            result = transformer.transform(centroid)
+        else:
+            result = centroid
+        return result
