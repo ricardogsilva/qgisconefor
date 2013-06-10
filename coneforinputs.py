@@ -552,3 +552,18 @@ class ConeforProcessor(QObject):
         else:
             result = centroid
         return result
+
+    def get_closest_segments(self, geom1, geom2):
+        pol1 = geom1.asPolygon()
+        pol2 = geom2.asPolygon()
+        border1 = pol1[0]
+        border2 = pol2[0]
+        distance_pol1 = None
+        for seg1 in border1:
+            for seg2 in border2:
+                line1 = QgsGeometry.fromPolyline(seg1)
+                line2 = QgsGeometry.fromPolyline(seg2)
+                dist = line1.distance(line2)
+                if distance is None or distance[0] > dist:
+                    distance = (dist, seg1, seg2)
+        return distance
