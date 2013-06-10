@@ -22,15 +22,6 @@ from conefordialog import ConeforDialog
 # Provide better docstrings
 # Add more testing layers (empty features, empty fields)
 
-# area and distances:
-# - get layer's crs
-# - if it is projected
-#    - calculate the area
-# - if not
-#    - get project's crs
-#    - translate feature's coords to project crs
-#    - calculate the area
-
 class NoFeaturesToProcessError(Exception):
     pass
 
@@ -308,10 +299,7 @@ class ConeforProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
         edge_data = []
         if edge:
-            try:
-                edge_data = self._run_edge_query(layer, id_attribute)
-            except NotImplementedError:
-                pass
+            edge_data = self._run_edge_query(layer, id_attribute)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         if any(attribute_data):
@@ -338,10 +326,20 @@ class ConeforProcessor(QObject):
         self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
             output_name = 'distances_edges_%s' % layer.name()
-            self._write_file(attribute_data, output_dir, output_name)
+            data_to_write = []
+            for e_dict in edge_data:
+                from_id = e_dict['from_attribute']
+                to_id = e_dict['to_attribute']
+                distance = e_dict['distance']
+                data_to_write.append('%s\t%s\t%s\n' % (from_id, to_id,
+                                     distance))
+            self._write_file(data_to_write, output_dir, output_name)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if create_distance_files:
+            output_dir = os.path.join(output_dir, 'distance_files')
+            if not os.path.isdir(output_dir):
+                os.mkdir(output_dir)
             if any(centroid_data):
                 data_to_write = []
                 for c_dict in centroid_data:
@@ -360,7 +358,8 @@ class ConeforProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
             if any(edge_data):
                 output_name = 'edge_distances_%s' % layer.name()
-                self._write_distance_file(edge_data)
+                self._write_distance_file(edge_data, output_dir, output_name,
+                                          encoding, layer.crs())
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
 
@@ -511,27 +510,70 @@ class ConeforProcessor(QObject):
             feature_ids.append(feat.id())
         return feature_ids
 
-    def _run_edge_query(self, layer, id_attribute, centroid_query_result=None):
-        if centroid_query_result is None:
-            centroid_query_result = self._run_centroid_query
-        for centroid_analysis in centroid_query_result:
-            c_centroid = centroid_analysis['current']['centroid']
-            c_geom = centroid_analysis['current']['feature_geometry']
-            n_centroid = centroid_analysis['next']['centroid']
-            n_geom = centroid_analysis['next']['feature_geometry']
-            line_geom = QgsGeometry.fromPolyline([c_centroid, n_centroid])
-            intersection_geom = c_geom.intersect(line_geom)
+    def _run_edge_query(self, layer, id_attribute):
+
         # for each current and next features
-        #   get the current and next centroid
-        #   construct a line from current to next centroid
-        #   intersect this line with current feature
-        #      we get a list of points (there may be more than one)
-        #      now find the distance between each point and the next centroid
-        #      we want the point with the smallest distance
-        #   intersect this line with next feature
-        #      we get a list of points (there may be more than one)
-        #      now find the distance between each point and the current centroid
-        #      we want the point with the smallest distance
+        #   get the closest edge from current to next -> L1
+        #   get the closest edge from next to current -> L2
+        #   project L1's vertices on L2 and get their distance from L1
+        #   project L2's vertices on L1 and get their distance from L2
+        #   the pair with the smallest distance wins!
+        result = []
+        if layer.crs().geographicFlag():
+            project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+            measurer = self._get_measurer(project_crs)
+            transformer = self._get_transformer(layer)
+        else:
+            measurer = self._get_measurer(layer.crs())
+            transformer = None
+        feature_ids = self._get_feature_ids(layer)
+        current = QgsFeature()
+        next_ = QgsFeature()
+        i = 0
+        j = 0
+        while i < len(feature_ids):
+            i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
+            i_current.nextFeature(current)
+            current_id_attr = current.attribute(id_attribute).toString()
+            current_geom = current.geometry()
+            j = i + 1
+            while j < len(feature_ids):
+                i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
+                i_next.nextFeature(next_)
+                next_id_attr = next_.attribute(id_attribute).toString()
+                next_geom = next_.geometry()
+                segments = self.get_closest_segments(current_geom, next_geom)
+                current_segment, next_segment = segments
+                candidates = []
+                for current_vertex in current_segment:
+                    projection = self.project_point(next_segment,
+                                                    current_vertex,
+                                                    measurer)
+                    if projection is not None:
+                        projected, distance = projection
+                        candidates.append((current_vertex, projected,
+                                          distance))
+                for next_vertex in next_segment:
+                    projection = self.project_point(current_segment,
+                                                    next_vertex,
+                                                    measurer)
+                    if projection is not None:
+                        projected, distance = projection
+                        candidates.append((next_vertex, projected, distance))
+                ordered_candidates = sorted(candidates, key=lambda c: c[2])
+                print('ordered_candidates: %s' % ordered_candidates)
+                winner = ordered_candidates[0]
+                feat_result = {
+                    'distance' : winner[2],
+                    'from' : winner[0],
+                    'to' : winner[1],
+                    'from_attribute' : current_id_attr,
+                    'to_attribute' : next_id_attr,
+                }
+                result.append(feat_result)
+                j += 1
+            i += 1
+        return result
 
     def _get_centroid(self, geometry, transformer=None):
         '''
@@ -554,16 +596,111 @@ class ConeforProcessor(QObject):
         return result
 
     def get_closest_segments(self, geom1, geom2):
+        '''
+        return the closest line segments between geom1 and geom2.
+
+        Inputs:
+
+            geom1 - A QgsGeometry object of type Polygon
+
+            geom2 - A QgsGeometry object of type Polygon
+
+        Returns a two-element tuple with:
+            - the closest segment in geom1
+            - the closest segment in geom2
+
+        A segment is a two-element list of QgsPoints with the vertices
+        of the segment.
+        '''
+
         pol1 = geom1.asPolygon()
         pol2 = geom2.asPolygon()
-        border1 = pol1[0]
-        border2 = pol2[0]
-        distance_pol1 = None
-        for seg1 in border1:
-            for seg2 in border2:
+        segments1 = self._get_segments(pol1[0])
+        segments2 = self._get_segments(pol2[0])
+        closest_segments = []
+        distance = None
+        for seg1 in segments1:
+            for seg2 in segments2:
                 line1 = QgsGeometry.fromPolyline(seg1)
                 line2 = QgsGeometry.fromPolyline(seg2)
                 dist = line1.distance(line2)
-                if distance is None or distance[0] > dist:
-                    distance = (dist, seg1, seg2)
-        return distance
+                if distance is None or distance > dist:
+                    distance = dist
+                    closest_segments = (seg1, seg2)
+        print('closest_segments:\n\t%s\n\t%s' % closest_segments)
+        return closest_segments
+
+    def _get_segments(self, line_string):
+        '''
+        Return the line segments that compose input line_string.
+
+        Inputs:
+
+            line_string - A QgsLineString
+
+        Returns a list of two-element lists with QgsPoint objects that
+        represent the segments of the input line_string.
+        '''
+
+        segments = []
+        for index, pt1 in enumerate(line_string):
+            if index < (len(line_string) - 1):
+                pt2 = line_string[index+1]
+                segments.append([pt1, pt2])
+        return segments
+
+    def project_point(self, line_segment, point, measurer):
+        '''
+        Project a point on a line segment.
+
+        Inputs:
+
+            line_segment - A two-element tuple of QgsPoint objects
+
+            point - A QgsPoint representing the point to project.
+
+            measurer - A QgsDistanceArea object
+
+        Returns a two-element tuple with:
+            - a QgsPoint representing the projection of the input point
+            on the line segment or None in case the projection falls outside
+            the segment
+            - the distance between the input point and the projected point
+
+        This code is adapted from:
+            http://www.vcskicks.com/code-snippet/point-projection.php
+        '''
+
+        pt1, pt2 = line_segment
+        try:
+            m = (pt2.y() - pt1.y()) / (pt2.x() - pt1.x())
+            b = pt1.y() - (m * pt1.x())
+            x = (point.x() + m * point.y() - m * b) / (m * m + 1)
+            y = (m * m * point.y() + m * point.x() + b) / (m * m + 1)
+        except ZeroDivisionError:
+            # line_string is paralel to y axis
+            x = pt1.x()
+            y = point.y()
+        projected = QgsPoint(x, y)
+        if self._is_on_the_line(projected, line_segment):
+            distance = measurer.measureLine(point, projected)
+            result = (projected, distance)
+        else:
+            result = None
+        return result
+
+    def _is_on_the_line(self, pt, line):
+        result = False
+        line_x1 = line[0].x()
+        line_y1 = line[0].y()
+        line_x2 = line[1].x()
+        line_y2 = line[1].y()
+        x = pt.x()
+        y = pt.y()
+        line_delta_x = abs(line_x2 - line_x1)
+        norm_x = abs(x - line_x1)
+        line_delta_y = abs(line_y2 - line_y1)
+        norm_y = y - abs(line_y1)
+        if norm_x < line_delta_x and norm_y < line_delta_y:
+            result = True
+        return result
