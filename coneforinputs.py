@@ -6,6 +6,8 @@ A QGIS plugin for writing input files to the Conefor software.
 '''
 
 import os
+import sys
+import codecs
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -162,21 +164,31 @@ class ConeforProcessor(QObject):
             self.global_progress += layer_progress_step
             self.emit(SIGNAL('progress_changed'))
 
-    def _write_file(self, data, output_dir, output_name):
+    def _write_file(self, data, output_dir, output_name, encoding):
         '''
         Write a text file with the input data.
 
         Inputs:
 
-            data - a list of two element tuples
+            data - A list of two element tuples
+
+            output_dir - The output directory where the file is to be written
+
+            output_name - The name of the file to write
+
+            encoding - A string with the encoding to use for writing the new
+                file.
 
         Before being written, the data is sorted by the first element in the
         tuple.
         '''
 
+        if encoding == 'System':
+            encoding = sys.getfilesystemencoding()
+            print('using system encoding, which is: %s' % encoding)
         sorted_data = sorted(data, key=lambda tup: tup[0])
         output_path = os.path.join(output_dir, output_name)
-        with open(output_path, 'w') as file_handler:
+        with codecs.open(output_path, 'w', encoding) as file_handler:
             for line in sorted_data:
                 file_handler.write(line)
 
@@ -306,12 +318,12 @@ class ConeforProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
         if any(attribute_data):
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
-            self._write_file(attribute_data, output_dir, output_name)
+            self._write_file(attribute_data, output_dir, output_name, encoding)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if any(area_data):
             output_name = 'nodes_calculated_area_%s' % layer.name()
-            self._write_file(area_data, output_dir, output_name)
+            self._write_file(area_data, output_dir, output_name, encoding)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
@@ -323,7 +335,7 @@ class ConeforProcessor(QObject):
                 distance = c_dict['distance']
                 data_to_write.append('%s\t%s\t%s\n' % (current_id, next_id,
                                      distance))
-            self._write_file(data_to_write, output_dir, output_name)
+            self._write_file(data_to_write, output_dir, output_name, encoding)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
@@ -335,7 +347,7 @@ class ConeforProcessor(QObject):
                 distance = e_dict['distance']
                 data_to_write.append('%s\t%s\t%s\n' % (from_id, to_id,
                                      distance))
-            self._write_file(data_to_write, output_dir, output_name)
+            self._write_file(data_to_write, output_dir, output_name, encoding)
         self.global_progress += each_save_file_step
         self.emit(SIGNAL('progress_changed'))
         if create_distance_files:
