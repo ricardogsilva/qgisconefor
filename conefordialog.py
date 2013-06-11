@@ -15,15 +15,15 @@ LAYER, ID, ATTRIBUTE, CENTROID, EDGE, AREA = range(6)
 class ProcessLayer(object):
 
     def __init__(self, qgis_layer):
-        self.qgis_layer_name = QString(qgis_layer.name())
+        self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
         self.field_names = [f.name() for f in provider.fields()]
         if any(self.field_names):
-            self.id_field_name = QString(self.field_names[0])
+            self.id_field_name = self.field_names[0]
         else:
             self.id_field_name = None
-        self.attribute_field_name = QString('<None>')
+        self.attribute_field_name = '<None>'
         self.process_area = False
         self.process_centroid_distance = True
         self.process_edge_distance = False
@@ -52,60 +52,60 @@ class ProcessLayerTableModel(QAbstractTableModel):
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self.layers)):
-            result = QVariant()
+            result = None
         else:
             layer = self.layers[index.row()]
             column = index.column()
             if role == Qt.DisplayRole:
                 if column == LAYER:
-                    result = QVariant(layer.qgis_layer_name)
+                    result = layer.qgis_layer_name
                 elif column == ID:
-                    result = QVariant(layer.id_field_name)
+                    result = layer.id_field_name
                 elif column == ATTRIBUTE:
-                    result = QVariant(layer.attribute_field_name)
+                    result = layer.attribute_field_name
                 elif column == AREA:
                     if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = QVariant('<Unavailable>')
+                        result = '<Unavailable>'
                     else:
-                        result = QVariant()
+                        result = None
                 elif column == EDGE:
                     if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = QVariant('<Unavailable>')
+                        result = '<Unavailable>'
                     else:
-                        result = QVariant()
+                        result = None
                 else:
-                    result = QVariant()
+                    result = None
             elif role == Qt.CheckStateRole:
                 if column == AREA:
                     if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = QVariant()
+                        result = None
                     else:
                         if layer.process_area:
-                            result = QVariant(Qt.Checked)
+                            result = Qt.Checked
                         else:
-                            result = QVariant(Qt.Unchecked)
+                            result = Qt.Unchecked
                 elif column == CENTROID:
                     if layer.process_centroid_distance:
-                        result = QVariant(Qt.Checked)
+                        result = Qt.Checked
                     else:
-                        result = QVariant(Qt.Unchecked)
+                        result = Qt.Unchecked
                 elif column == EDGE:
                     if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = QVariant()
+                        result = None
                     else:
                         if layer.process_edge_distance:
-                            result = QVariant(Qt.Checked)
+                            result = Qt.Checked
                         else:
-                            result = QVariant(Qt.Unchecked)
+                            result = Qt.Unchecked
                 else:
-                    result = QVariant()
+                    result = None
             else:
-                result = QVariant()
+                result = None
         return result
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            result = QVariant(self._header_labels[section])
+            result = self._header_labels[section]
         else:
             result = QAbstractTableModel.headerData(self, section, orientation,
                                                     role)
@@ -130,22 +130,22 @@ class ProcessLayerTableModel(QAbstractTableModel):
             layer = self.layers[index.row()]
             column = index.column()
             if column == LAYER:
-                layer.qgis_layer_name = value.toString()
-                layer.qgis_layer = self._get_qgis_layer(value.toString())
+                layer.qgis_layer_name = value
+                layer.qgis_layer = self._get_qgis_layer(value)
             elif column == ID:
-                layer.id_field_name = value.toString()
+                layer.id_field_name = value
             elif column == ATTRIBUTE:
-                layer.attribute_field_name = value.toString()
+                layer.attribute_field_name = value
             elif column == AREA:
                 if layer.qgis_layer.geometryType() != QGis.Point:
-                    layer.process_area = value.toBool()
+                    layer.process_area = value
                 else:
                     layer.process_area = False
             elif column == CENTROID:
-                layer.process_centroid_distance = value.toBool()
+                layer.process_centroid_distance = value
             elif column == EDGE:
                 if layer.qgis_layer.geometryType() != QGis.Point:
-                    layer.process_edge_distance = value.toBool()
+                    layer.process_edge_distance = value
                 else:
                     layer.process_edge_distance = False
             self.dirty = True
@@ -222,15 +222,15 @@ class ProcessLayerDelegate(QItemDelegate):
     def setModelData(self, editor, model, index):
         column = index.column()
         if column == LAYER:
-            model.setData(index, QVariant(editor.currentText()))
+            model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             field_names = model.get_field_names(selected_layer_name)
             #id_index = model.index(index.row(), index.column() + 1)
             #attr_index = model.index(index.row(), index.column() + 2)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
-            model.setData(id_index, QVariant(field_names[0]))
-            model.setData(attr_index, QVariant('<None>'))
+            model.setData(id_index, field_names[0])
+            model.setData(attr_index, '<None>')
         else:
             QItemDelegate.setModelData(self, editor, model, index)
 
@@ -256,7 +256,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                         self.update_progress)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
-        output_dir = self.load_settings('output_dir').toString()
+        output_dir = self.load_settings('output_dir')
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)

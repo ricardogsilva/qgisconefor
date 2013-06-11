@@ -69,8 +69,9 @@ class ConeforProcessor(QObject):
 
         inputs:
 
-            the_layers - can be either a QStringList or a Qlist of
-                QgsVectorLayers depending on wether the method is called
+            the_layers - can be either a list of the ids of the layers that
+                are about to be removed or a list of QgsVectorLayers that are
+                about to be added, depending on wether the method is called
                 by the 'layersWillBeRemoved' or the 'layersAdded' signals
                 of the mapLayerRegistry.
 
@@ -85,10 +86,11 @@ class ConeforProcessor(QObject):
         # mapLayerRegistry's layersWillBeRemoved signal is sent before the
         # layers are removed so we need to check which layers are going to be
         # removed and act as if they were already gone
-        if type(the_layers) == QStringList:
-            for to_delete in the_layers:
-                if usable_layers.get(QString(to_delete)) is not None:
-                    del usable_layers[QString(to_delete)]
+        if any(the_layers):
+            if type(the_layers[0]) == str:
+                for to_delete in the_layers:
+                    if usable_layers.get(to_delete) is not None:
+                        del usable_layers[to_delete]
         one_vector_loaded = False
         if any(usable_layers):
             for layer_id, layer in usable_layers.iteritems():
@@ -202,7 +204,7 @@ class ConeforProcessor(QObject):
 
             output_name - The name for the file, without extension
 
-            encoding - A QString with the encoding to use when writing
+            encoding - A string with the encoding to use when writing
                 the attributes
 
             crs - A QgsCoordinateReferenceSystem object representing the
@@ -386,8 +388,8 @@ class ConeforProcessor(QObject):
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
-            id_attr = feat.attribute(id_attribute).toString()
-            attr = feat.attribute(attribute).toString()
+            id_attr = feat.attribute(id_attribute)
+            attr = feat.attribute(attribute)
             result.append('%s\t%s\n' % (id_attr, attr))
         return result
 
@@ -417,7 +419,7 @@ class ConeforProcessor(QObject):
                 for hole in holes:
                     hole_areas += measurer.measurePolygon(hole)
             total_feat_area = outer_area - hole_areas
-            id_attr = feat.attribute(id_attribute).toString()
+            id_attr = feat.attribute(id_attribute)
             result.append('%s\t%s\n' % (id_attr, total_feat_area))
         return result
 
@@ -427,7 +429,7 @@ class ConeforProcessor(QObject):
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
-            id_attr = feat.attribute(id_attribute).toString()
+            id_attr = feat.attribute(id_attribute)
             area = measurer.measure(feat.geometry())
             result.append('%s\t%s\n' % (id_attr, area))
         return result
@@ -457,7 +459,7 @@ class ConeforProcessor(QObject):
         while i < len(feature_ids):
             i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
             i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute).toString()
+            current_id_attr = current.attribute(id_attribute)
             current_geom = current.geometry()
             original_current_centroid = current_geom.centroid().asPoint()
             transformed_current_centroid = self._get_centroid(current_geom,
@@ -466,7 +468,7 @@ class ConeforProcessor(QObject):
             while j < len(feature_ids):
                 i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
                 i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute).toString()
+                next_id_attr = next_.attribute(id_attribute)
                 next_geom = next_.geometry()
                 original_next_centroid = next_geom.centroid().asPoint()
                 transformed_next_centroid = self._get_centroid(next_geom, transformer)
@@ -534,13 +536,13 @@ class ConeforProcessor(QObject):
         while i < len(feature_ids):
             i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
             i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute).toString()
+            current_id_attr = current.attribute(id_attribute)
             current_geom = current.geometry()
             j = i + 1
             while j < len(feature_ids):
                 i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
                 i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute).toString()
+                next_id_attr = next_.attribute(id_attribute)
                 next_geom = next_.geometry()
                 segments = self.get_closest_segments(current_geom, next_geom)
                 current_segment, next_segment = segments
@@ -561,7 +563,6 @@ class ConeforProcessor(QObject):
                         projected, distance = projection
                         candidates.append((next_vertex, projected, distance))
                 ordered_candidates = sorted(candidates, key=lambda c: c[2])
-                print('ordered_candidates: %s' % ordered_candidates)
                 winner = ordered_candidates[0]
                 feat_result = {
                     'distance' : winner[2],
@@ -627,7 +628,6 @@ class ConeforProcessor(QObject):
                 if distance is None or distance > dist:
                     distance = dist
                     closest_segments = (seg1, seg2)
-        print('closest_segments:\n\t%s\n\t%s' % closest_segments)
         return closest_segments
 
     def _get_segments(self, line_string):
