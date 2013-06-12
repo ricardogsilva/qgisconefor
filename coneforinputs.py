@@ -234,12 +234,14 @@ class ConeforProcessor(QObject):
                       'distance', 255, 1))
         writer = QgsVectorFileWriter(output_path, encoding, fields,
                                      QGis.WKBLineString, crs, file_type)
+        if encoding == 'System':
+            encoding = sys.getfilesystemencoding()
         if writer.hasError() == QgsVectorFileWriter.NoError:
             for item in data:
                 feat = QgsFeature()
                 line = [item['from'], item['to']]
-                from_to = '%s_%s' % (item['from_attribute'],
-                                     item['to_attribute'])
+                from_to = '%s_%s' % (item['from_attribute'].encode(encoding),
+                                     item['to_attribute'].encode(encoding))
                 feat.setGeometry(QgsGeometry.fromPolyline(line))
                 feat.setFields(fields)
                 feat.initAttributes(2)

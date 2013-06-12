@@ -196,6 +196,8 @@ class ProcessLayerDelegate(QItemDelegate):
         column = index.column()
         if column in (LAYER, ID, ATTRIBUTE):
             combo_box = QComboBox(parent)
+            self.connect(combo_box, SIGNAL('currentIndexChanged(int)'),
+                         self.commitAndCloseEditor)
             result = combo_box
         return result
 
@@ -225,14 +227,18 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             field_names = model.get_field_names(selected_layer_name)
-            #id_index = model.index(index.row(), index.column() + 1)
-            #attr_index = model.index(index.row(), index.column() + 2)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, field_names[0])
             model.setData(attr_index, '<None>')
         else:
             QItemDelegate.setModelData(self, editor, model, index)
+
+    def commitAndCloseEditor(self):
+        editor = self.sender()
+        if isinstance(editor, QComboBox):
+            self.commitData.emit(editor)
+            self.closeEditor.emit(editor, QAbstractItemDelegate.EditNextItem)
 
 
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
