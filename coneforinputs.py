@@ -183,10 +183,9 @@ class ConeforProcessor(QObject):
         tuple.
         '''
 
-        if encoding == 'System':
-            encoding = sys.getfilesystemencoding()
-            print('using system encoding, which is: %s' % encoding)
         sorted_data = sorted(data, key=lambda tup: tup[0])
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
         output_path = os.path.join(output_dir, output_name)
         with codecs.open(output_path, 'w', encoding) as file_handler:
             for line in sorted_data:
@@ -226,6 +225,8 @@ class ConeforProcessor(QObject):
         '''
 
         output_path = os.path.join(output_dir, output_name)
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
         if file_type == 'ESRI Shapefile':
             output_path = '%s.shp' % output_path
         fields = QgsFields()
@@ -234,14 +235,12 @@ class ConeforProcessor(QObject):
                       'distance', 255, 1))
         writer = QgsVectorFileWriter(output_path, encoding, fields,
                                      QGis.WKBLineString, crs, file_type)
-        if encoding == 'System':
-            encoding = sys.getfilesystemencoding()
         if writer.hasError() == QgsVectorFileWriter.NoError:
             for item in data:
                 feat = QgsFeature()
+                from_to = u'%s_%s' % (item['from_attribute'],
+                                      item['to_attribute'])
                 line = [item['from'], item['to']]
-                from_to = '%s_%s' % (item['from_attribute'].encode(encoding),
-                                     item['to_attribute'].encode(encoding))
                 feat.setGeometry(QgsGeometry.fromPolyline(line))
                 feat.setFields(fields)
                 feat.initAttributes(2)
@@ -254,6 +253,28 @@ class ConeforProcessor(QObject):
         del writer
         new_layer = QgsVectorLayer(output_path, output_name, 'ogr')
         self.registry.addMapLayer(new_layer)
+
+    def _decode_attribute(self, the_attr, encoding):
+        '''
+        Decode the byte string the_attr to Unicode.
+
+        Inputs:
+
+            the_attr - a byte string
+
+            encoding - a string with the encoding to use when decoding to
+                Unicode.
+
+        Returns a unicode string.
+        '''
+
+        if not isinstance(the_attr, basestring):
+            the_attr = str(the_attr)
+        if isinstance(the_attr, unicode):
+            uni_str = the_attr
+        else:
+            uni_str = unicode(the_attr, encoding)
+        return uni_str
 
     def process_layer(self, layer, id_attribute, area, attribute,
                       centroid, edge, output_dir, progress_step,
@@ -288,6 +309,8 @@ class ConeforProcessor(QObject):
         '''
 
         encoding = layer.dataProvider().encoding()
+        if encoding == 'System':
+            encoding = sys.getfilesystemencoding()
         num_queries = self._determine_num_queries(area, attribute, centroid,
                                                   edge)
         num_files_to_save = num_queries
@@ -300,12 +323,12 @@ class ConeforProcessor(QObject):
         attribute_data = []
         if attribute is not None:
             attribute_data = self._run_attribute_query(layer, id_attribute,
-                                                       attribute)
+                                                       attribute, encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         area_data = []
         if area:
-            area_data = self._run_area_query(layer, id_attribute)
+            area_data = self._run_area_query(layer, id_attribute, encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         centroid_data = []
@@ -397,17 +420,18 @@ class ConeforProcessor(QObject):
             num_queries += 1
         return num_queries
 
-    def _run_attribute_query(self, layer, id_attribute, attribute):
+    def _run_attribute_query(self, layer, id_attribute, attribute, encoding):
         result = []
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
-            id_attr = feat.attribute(id_attribute)
-            attr = feat.attribute(attribute)
+            id_attr = self._decode_attribute(feat.attribute(id_attribute),
+                                             encoding)
+            attr = self._decode_attribute(feat.attribute(attribute), encoding)
             result.append('%s\t%s\n' % (id_attr, attr))
         return result
 
-    def _run_geographic_layer_area_query(self, layer, id_attribute):
+    def _run_geographic_layer_area_query(self, layer, id_attribute, encoding):
         result = []
         project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
         if project_crs.geographicFlag():
@@ -433,27 +457,31 @@ class ConeforProcessor(QObject):
                 for hole in holes:
                     hole_areas += measurer.measurePolygon(hole)
             total_feat_area = outer_area - hole_areas
-            id_attr = feat.attribute(id_attribute)
+            id_attr = self._decode_attribute(feat.attribute(id_attribute),
+                                             encoding)
             result.append('%s\t%s\n' % (id_attr, total_feat_area))
         return result
 
-    def _run_projected_layer_area_query(self, layer, id_attribute):
+    def _run_projected_layer_area_query(self, layer, id_attribute, encoding):
         result = []
         measurer = self._get_measurer(layer.crs())
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
         while feat_iterator.nextFeature(feat):
-            id_attr = feat.attribute(id_attribute)
+            id_attr = self._decode_attribute(feat.attribute(id_attribute),
+                                             encoding)
             area = measurer.measure(feat.geometry())
             result.append('%s\t%s\n' % (id_attr, area))
         return result
 
-    def _run_area_query(self, layer, id_attribute):
+    def _run_area_query(self, layer, id_attribute, encoding):
         if layer.crs().geographicFlag():
             result = self._run_geographic_layer_area_query(layer,
-                                                           id_attribute)
+                                                           id_attribute,
+                                                           encoding)
         else:
-            result = self._run_projected_layer_area_query(layer, id_attribute)
+            result = self._run_projected_layer_area_query(layer, id_attribute,
+                                                        encoding)
         return result
 
     def _run_centroid_query(self, layer, id_attribute):
