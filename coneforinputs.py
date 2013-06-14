@@ -333,12 +333,13 @@ class ConeforProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
         centroid_data = []
         if centroid:
-            centroid_data = self._run_centroid_query(layer, id_attribute)
+            centroid_data = self._run_centroid_query(layer, id_attribute,
+                                                     encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         edge_data = []
         if edge:
-            edge_data = self._run_edge_query(layer, id_attribute)
+            edge_data = self._run_edge_query(layer, id_attribute, encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         if any(attribute_data):
@@ -484,7 +485,7 @@ class ConeforProcessor(QObject):
                                                         encoding)
         return result
 
-    def _run_centroid_query(self, layer, id_attribute):
+    def _run_centroid_query(self, layer, id_attribute, encoding):
         result = []
         if layer.crs().geographicFlag():
             project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
@@ -501,7 +502,8 @@ class ConeforProcessor(QObject):
         while i < len(feature_ids):
             i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
             i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute)
+            c_id_attr = self._decode_attribute(current.attribute(id_attribute),
+                                               encoding)
             current_geom = current.geometry()
             original_current_centroid = current_geom.centroid().asPoint()
             transformed_current_centroid = self._get_centroid(current_geom,
@@ -510,20 +512,24 @@ class ConeforProcessor(QObject):
             while j < len(feature_ids):
                 i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
                 i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute)
+                n_id_attr = next_.attribute(id_attribute)
+                c_id_attr = self._decode_attribute(next_.attribute(id_attribute),
+                                                   encoding)
+
                 next_geom = next_.geometry()
                 original_next_centroid = next_geom.centroid().asPoint()
-                transformed_next_centroid = self._get_centroid(next_geom, transformer)
+                transformed_next_centroid = self._get_centroid(next_geom,
+                                                               transformer)
                 distance = measurer.measureLine(transformed_current_centroid,
                                                 transformed_next_centroid)
                 feat_result = {
                     'current' : {
-                        'attribute' : current_id_attr,
+                        'attribute' : c_id_attr,
                         'centroid' : original_current_centroid,
                         'feature_geometry' : current_geom,
                     },
                     'next' : {
-                        'attribute' : next_id_attr,
+                        'attribute' : n_id_attr,
                         'centroid' : original_next_centroid,
                         'feature_geometry' : next_geom,
                     },
@@ -554,7 +560,7 @@ class ConeforProcessor(QObject):
             feature_ids.append(feat.id())
         return feature_ids
 
-    def _run_edge_query(self, layer, id_attribute):
+    def _run_edge_query(self, layer, id_attribute, encoding):
 
         # for each current and next features
         #   get the closest edge from current to next -> L1
@@ -578,45 +584,56 @@ class ConeforProcessor(QObject):
         while i < len(feature_ids):
             i_current = layer.getFeatures(QgsFeatureRequest(feature_ids[i]))
             i_current.nextFeature(current)
-            current_id_attr = current.attribute(id_attribute)
+            c_id_attr = self._decode_attribute(current.attribute(id_attribute),
+                                               encoding)
             current_geom = current.geometry()
             j = i + 1
             while j < len(feature_ids):
                 i_next = layer.getFeatures(QgsFeatureRequest(feature_ids[j]))
                 i_next.nextFeature(next_)
-                next_id_attr = next_.attribute(id_attribute)
+                n_id_attr = self._decode_attribute(next_.attribute(id_attribute),
+                                                   encoding)
                 next_geom = next_.geometry()
                 segments = self.get_closest_segments(current_geom, next_geom)
                 current_segment, next_segment = segments
+                print('c_id_attr: %s' % c_id_attr)
+                print('n_id_attr: %s' % n_id_attr)
+                print('closest segments:\n\t%s\n\t%s' % (current_segment, next_segment))
                 candidates = []
                 for current_vertex in current_segment:
-                    projection = self.project_point(next_segment,
-                                                    current_vertex,
-                                                    measurer)
-                    if projection is not None:
-                        projected, distance = projection
-                        candidates.append((current_vertex, projected,
-                                          distance))
+                    candidate = self.find_candidate_points(current_vertex,
+                                                           next_segment,
+                                                           measurer)
+                    candidates.append(candidate)
                 for next_vertex in next_segment:
-                    projection = self.project_point(current_segment,
-                                                    next_vertex,
-                                                    measurer)
-                    if projection is not None:
-                        projected, distance = projection
-                        candidates.append((next_vertex, projected, distance))
+                    candidate = self.find_candidate_points(next_vertex,
+                                                           current_segment,
+                                                           measurer)
+                    candidates.append(candidate)
                 ordered_candidates = sorted(candidates, key=lambda c: c[2])
                 winner = ordered_candidates[0]
                 feat_result = {
                     'distance' : winner[2],
                     'from' : winner[0],
                     'to' : winner[1],
-                    'from_attribute' : current_id_attr,
-                    'to_attribute' : next_id_attr,
+                    'from_attribute' : c_id_attr,
+                    'to_attribute' : n_id_attr,
                 }
                 result.append(feat_result)
                 j += 1
             i += 1
         return result
+
+    def find_candidate_points(self, point, line_segment, measurer):
+        projected, distance = self.project_point(line_segment, point, measurer)
+        #print('projected: %s\tdistance: %s' % (projected, distance))
+        if self._is_on_the_line(projected, line_segment):
+            candidate = (point, projected, distance)
+        else:
+            close = self.get_closest_vertex(projected, line_segment, measurer)
+            closest_vertex, vertex_distance = close
+            candidate = (point, closest_vertex, vertex_distance)
+        return candidate
 
     def _get_centroid(self, geometry, transformer=None):
         '''
@@ -705,8 +722,7 @@ class ConeforProcessor(QObject):
 
         Returns a two-element tuple with:
             - a QgsPoint representing the projection of the input point
-            on the line segment or None in case the projection falls outside
-            the segment
+            on the line segment
             - the distance between the input point and the projected point
 
         This code is adapted from:
@@ -724,12 +740,8 @@ class ConeforProcessor(QObject):
             x = pt1.x()
             y = point.y()
         projected = QgsPoint(x, y)
-        if self._is_on_the_line(projected, line_segment):
-            distance = measurer.measureLine(point, projected)
-            result = (projected, distance)
-        else:
-            result = None
-        return result
+        distance = measurer.measureLine(point, projected)
+        return projected, distance
 
     def _is_on_the_line(self, pt, line):
         result = False
@@ -746,3 +758,28 @@ class ConeforProcessor(QObject):
         if norm_x < line_delta_x and norm_y < line_delta_y:
             result = True
         return result
+
+    def get_closest_vertex(self, pt, line, measurer):
+        '''
+        Return the closest vertex to an input point.
+
+        Inputs:
+
+            pt - A QgsPoint representing the point to analyze
+
+            line - A QgsLineString representing the line to analyze.
+
+            measurer - A QgsDistanceArea object used to measure the distance
+
+        Returns a two-element tuple with a QgsPoint of vertex of the line
+        that is closest to the input point and the distance.
+        '''
+
+        distance = None
+        closest = None
+        for vertex in line:
+            dist = measurer.measureLine(pt, vertex)
+            if distance is None or distance > dist:
+                closest = vertex
+                distance = dist
+        return closest, distance
