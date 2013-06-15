@@ -144,8 +144,9 @@ class ProcessLayerTableModel(QAbstractTableModel):
             elif column == CENTROID:
                 layer.process_centroid_distance = value
             elif column == EDGE:
+                print('bool(value): %s' % bool(value))
                 if layer.qgis_layer.geometryType() != QGis.Point:
-                    layer.process_edge_distance = value
+                    layer.process_edge_distance = bool(value)
                 else:
                     layer.process_edge_distance = False
             self.dirty = True
@@ -260,12 +261,23 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
         QObject.connect(self.processor, SIGNAL('progress_changed'),
                         self.update_progress)
+        QObject.connect(self.progressBar, SIGNAL('valueChanged(int)'),
+                        self.toggle_progress_bar)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
         output_dir = self.load_settings('output_dir')
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)
+        print('global_progress: %s' % self.processor.global_progress)
+        self.progressBar.setValue(self.processor.global_progress)
+        self.progressBar.setVisible(False)
+
+    def toggle_progress_bar(self, progress):
+        if progress >= 100 or progress == 0:
+            self.progressBar.setVisible(False)
+        else:
+            self.progressBar.setVisible(True)
 
     def add_row(self):
         row = self.model.rowCount()

@@ -147,7 +147,9 @@ class ConeforProcessor(QObject):
                 with the lines representing the distances should be created;
         '''
 
+        print('----- starting -----')
         layer_progress_step = 100.0 / len(layers)
+        print('layer_progress_step: %s' % layer_progress_step)
         for index, layer_parameters in enumerate(layers):
             try:
                 self.process_layer(layer_parameters['layer'],
@@ -161,8 +163,13 @@ class ConeforProcessor(QObject):
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
-            self.global_progress += layer_progress_step
+            #self.global_progress += layer_progress_step
             self.emit(SIGNAL('progress_changed'))
+            print('layer is done. global progress: %s' % self.global_progress)
+        self.global_progress = 0
+        print('all done. global progress: %s' % self.global_progress)
+        print('----------------')
+        self.emit(SIGNAL('progress_changed'))
 
     def _write_file(self, data, output_dir, output_name, encoding):
         '''
@@ -315,11 +322,17 @@ class ConeforProcessor(QObject):
                                                   edge)
         num_files_to_save = num_queries
         if create_distance_files:
+            print('centroid: %s' % centroid)
+            print('edge: %s' % edge)
             num_files_to_save += centroid + edge
         running_queries_step = progress_step / 2.0
         each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
         each_save_file_step = saving_files_step / num_files_to_save
+        print('num_queries: %s' % num_queries)
+        print('each_query_step: %s' % each_query_step)
+        print('num_files_to_save: %s' % num_files_to_save)
+        print('each_save_file_step: %s' % each_save_file_step)
         attribute_data = []
         if attribute is not None:
             attribute_data = self._run_attribute_query(layer, id_attribute,
@@ -345,13 +358,13 @@ class ConeforProcessor(QObject):
         if any(attribute_data):
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name, encoding)
-        self.global_progress += each_save_file_step
-        self.emit(SIGNAL('progress_changed'))
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(area_data):
             output_name = 'nodes_calculated_area_%s' % layer.name()
             self._write_file(area_data, output_dir, output_name, encoding)
-        self.global_progress += each_save_file_step
-        self.emit(SIGNAL('progress_changed'))
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
             output_name = 'distances_centroids_%s' % layer.name()
             data_to_write = []
@@ -362,8 +375,8 @@ class ConeforProcessor(QObject):
                 data_to_write.append('%s\t%s\t%s\n' % (current_id, next_id,
                                      distance))
             self._write_file(data_to_write, output_dir, output_name, encoding)
-        self.global_progress += each_save_file_step
-        self.emit(SIGNAL('progress_changed'))
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
             output_name = 'distances_edges_%s' % layer.name()
             data_to_write = []
@@ -374,8 +387,8 @@ class ConeforProcessor(QObject):
                 data_to_write.append('%s\t%s\t%s\n' % (from_id, to_id,
                                      distance))
             self._write_file(data_to_write, output_dir, output_name, encoding)
-        self.global_progress += each_save_file_step
-        self.emit(SIGNAL('progress_changed'))
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
         if create_distance_files:
             output_dir = os.path.join(output_dir, 'distance_files')
             if not os.path.isdir(output_dir):
@@ -394,14 +407,14 @@ class ConeforProcessor(QObject):
                 output_name = 'centroid_distances_%s' % layer.name()
                 self._write_distance_file(data_to_write, output_dir,
                                           output_name, encoding, layer.crs())
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+                self.global_progress += each_save_file_step
+                self.emit(SIGNAL('progress_changed'))
             if any(edge_data):
                 output_name = 'edge_distances_%s' % layer.name()
                 self._write_distance_file(edge_data, output_dir, output_name,
                                           encoding, layer.crs())
-            self.global_progress += each_save_file_step
-            self.emit(SIGNAL('progress_changed'))
+                self.global_progress += each_save_file_step
+                self.emit(SIGNAL('progress_changed'))
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''
@@ -596,9 +609,6 @@ class ConeforProcessor(QObject):
                 next_geom = next_.geometry()
                 segments = self.get_closest_segments(current_geom, next_geom)
                 current_segment, next_segment = segments
-                print('c_id_attr: %s' % c_id_attr)
-                print('n_id_attr: %s' % n_id_attr)
-                print('closest segments:\n\t%s\n\t%s' % (current_segment, next_segment))
                 candidates = []
                 for current_vertex in current_segment:
                     candidate = self.find_candidate_points(current_vertex,
@@ -626,13 +636,13 @@ class ConeforProcessor(QObject):
 
     def find_candidate_points(self, point, line_segment, measurer):
         projected, distance = self.project_point(line_segment, point, measurer)
-        #print('projected: %s\tdistance: %s' % (projected, distance))
         if self._is_on_the_line(projected, line_segment):
             candidate = (point, projected, distance)
         else:
-            close = self.get_closest_vertex(projected, line_segment, measurer)
-            closest_vertex, vertex_distance = close
-            candidate = (point, closest_vertex, vertex_distance)
+            close_vertex = self.get_closest_vertex(projected, line_segment,
+                                                   measurer)
+            distance = measurer.measureLine(point, close_vertex)
+            candidate = (point, close_vertex, distance)
         return candidate
 
     def _get_centroid(self, geometry, transformer=None):
@@ -771,8 +781,8 @@ class ConeforProcessor(QObject):
 
             measurer - A QgsDistanceArea object used to measure the distance
 
-        Returns a two-element tuple with a QgsPoint of vertex of the line
-        that is closest to the input point and the distance.
+        Returns a QgsPoint of the vertex of the line that is closest to the
+        input point.
         '''
 
         distance = None
@@ -782,4 +792,4 @@ class ConeforProcessor(QObject):
             if distance is None or distance > dist:
                 closest = vertex
                 distance = dist
-        return closest, distance
+        return closest
