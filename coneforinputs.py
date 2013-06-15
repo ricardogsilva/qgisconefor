@@ -445,24 +445,31 @@ class ConeforProcessor(QObject):
             result.append('%s\t%s\n' % (id_attr, attr))
         return result
 
-    def _run_geographic_layer_area_query(self, layer, id_attribute, encoding):
+    def _run_area_query(self, layer, id_attribute, encoding):
         result = []
-        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
-        if project_crs.geographicFlag():
-            print('Neither the layer nor the project\'s coordinate ' \
-                    'system is projected. The area calculation will not ' \
-                    'be acurate.')
+        if layer.crs().geographicFlag():
+            project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+            if project_crs.geographicFlag():
+                print('Neither the layer nor the project\'s coordinate ' \
+                        'system is projected. The area calculation will not ' \
+                        'be acurate.')
+            measurer = self._get_measurer(project_crs)
+            transformer = self._get_transformer(layer)
+        else:
+            measurer = self._get_measurer(layer.crs())
+            transformer = None
         feat = QgsFeature()
         feat_iterator = layer.getFeatures()
-        measurer = self._get_measurer(project_crs)
-        transformer = self._get_transformer(layer)
         while feat_iterator.nextFeature(feat):
             polygon = feat.geometry().asPolygon()
             new_polygon = []
             for ring in polygon:
                 new_ring = []
                 for point in ring:
-                    new_ring.append(transformer.transform(point))
+                    if transformer is None:
+                        new_ring.append(point)
+                    else:
+                        new_ring.append(transformer.transform(point))
                 new_polygon.append(new_ring)
             outer_area = measurer.measurePolygon(new_polygon[0])
             hole_areas = 0
@@ -474,28 +481,6 @@ class ConeforProcessor(QObject):
             id_attr = self._decode_attribute(feat.attribute(id_attribute),
                                              encoding)
             result.append('%s\t%s\n' % (id_attr, total_feat_area))
-        return result
-
-    def _run_projected_layer_area_query(self, layer, id_attribute, encoding):
-        result = []
-        measurer = self._get_measurer(layer.crs())
-        feat = QgsFeature()
-        feat_iterator = layer.getFeatures()
-        while feat_iterator.nextFeature(feat):
-            id_attr = self._decode_attribute(feat.attribute(id_attribute),
-                                             encoding)
-            area = measurer.measure(feat.geometry())
-            result.append('%s\t%s\n' % (id_attr, area))
-        return result
-
-    def _run_area_query(self, layer, id_attribute, encoding):
-        if layer.crs().geographicFlag():
-            result = self._run_geographic_layer_area_query(layer,
-                                                           id_attribute,
-                                                           encoding)
-        else:
-            result = self._run_projected_layer_area_query(layer, id_attribute,
-                                                        encoding)
         return result
 
     def _run_centroid_query(self, layer, id_attribute, encoding):

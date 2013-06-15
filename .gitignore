@@ -1,2 +1,5 @@
+#python files
 *.pyc
+#vim files
+*.swp
 *un~

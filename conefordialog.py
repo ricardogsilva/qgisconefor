@@ -261,8 +261,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
         QObject.connect(self.processor, SIGNAL('progress_changed'),
                         self.update_progress)
-        QObject.connect(self.progressBar, SIGNAL('valueChanged(int)'),
-                        self.toggle_progress_bar)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
         output_dir = self.load_settings('output_dir')
@@ -271,13 +269,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.output_dir_le.setText(output_dir)
         print('global_progress: %s' % self.processor.global_progress)
         self.progressBar.setValue(self.processor.global_progress)
-        self.progressBar.setVisible(False)
-
-    def toggle_progress_bar(self, progress):
-        if progress >= 100 or progress == 0:
-            self.progressBar.setVisible(False)
-        else:
-            self.progressBar.setVisible(True)
 
     def add_row(self):
         row = self.model.rowCount()
