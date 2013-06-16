@@ -283,7 +283,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
     def exist_selected_features(self):
         exist_selected = False
         for layer in self.layers.values():
-            if layer.selectedFeatureCount() != 0:
+            if layer.selectedFeatureCount() > 1:
                 exist_selected = True
         return exist_selected
 
