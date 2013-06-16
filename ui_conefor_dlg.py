@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'conefor_dlg.ui'
 #
-# Created: Sat Jun  8 11:37:20 2013
+# Created: Sun Jun 16 00:35:39 2013
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -17,7 +17,7 @@ except AttributeError:
 class Ui_ConeforDialog(object):
     def setupUi(self, ConeforDialog):
         ConeforDialog.setObjectName(_fromUtf8("ConeforDialog"))
-        ConeforDialog.resize(577, 458)
+        ConeforDialog.resize(577, 529)
         self.gridLayout = QtGui.QGridLayout(ConeforDialog)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
         self.horizontalLayout_3 = QtGui.QHBoxLayout()
@@ -76,31 +76,34 @@ class Ui_ConeforDialog(object):
         self.output_dir_btn.setObjectName(_fromUtf8("output_dir_btn"))
         self.horizontalLayout_2.addWidget(self.output_dir_btn)
         self.gridLayout.addLayout(self.horizontalLayout_2, 6, 0, 1, 1)
-        self.horizontalLayout_7 = QtGui.QHBoxLayout()
-        self.horizontalLayout_7.setObjectName(_fromUtf8("horizontalLayout_7"))
-        spacerItem4 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
-        self.horizontalLayout_7.addItem(spacerItem4)
+        self.line = QtGui.QFrame(ConeforDialog)
+        self.line.setFrameShape(QtGui.QFrame.HLine)
+        self.line.setFrameShadow(QtGui.QFrame.Sunken)
+        self.line.setObjectName(_fromUtf8("line"))
+        self.gridLayout.addWidget(self.line, 7, 0, 1, 1)
         self.progress_la = QtGui.QLabel(ConeforDialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.progress_la.sizePolicy().hasHeightForWidth())
+        self.progress_la.setSizePolicy(sizePolicy)
         self.progress_la.setObjectName(_fromUtf8("progress_la"))
-        self.horizontalLayout_7.addWidget(self.progress_la)
-        spacerItem5 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
-        self.horizontalLayout_7.addItem(spacerItem5)
-        self.gridLayout.addLayout(self.horizontalLayout_7, 7, 0, 1, 1)
+        self.gridLayout.addWidget(self.progress_la, 8, 0, 1, 1)
         self.progressBar = QtGui.QProgressBar(ConeforDialog)
         self.progressBar.setProperty("value", 24)
         self.progressBar.setObjectName(_fromUtf8("progressBar"))
-        self.gridLayout.addWidget(self.progressBar, 8, 0, 1, 1)
+        self.gridLayout.addWidget(self.progressBar, 9, 0, 1, 1)
         self.horizontalLayout_5 = QtGui.QHBoxLayout()
         self.horizontalLayout_5.setObjectName(_fromUtf8("horizontalLayout_5"))
         self.help_btn = QtGui.QPushButton(ConeforDialog)
         self.help_btn.setObjectName(_fromUtf8("help_btn"))
         self.horizontalLayout_5.addWidget(self.help_btn)
-        spacerItem6 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
-        self.horizontalLayout_5.addItem(spacerItem6)
+        spacerItem4 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        self.horizontalLayout_5.addItem(spacerItem4)
         self.run_btn = QtGui.QPushButton(ConeforDialog)
         self.run_btn.setObjectName(_fromUtf8("run_btn"))
         self.horizontalLayout_5.addWidget(self.run_btn)
-        self.gridLayout.addLayout(self.horizontalLayout_5, 9, 0, 1, 1)
+        self.gridLayout.addLayout(self.horizontalLayout_5, 10, 0, 1, 1)
         self.output_la.setBuddy(self.output_dir_le)
 
         self.retranslateUi(ConeforDialog)

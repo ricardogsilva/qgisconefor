@@ -99,6 +99,11 @@ class ProcessLayerTableModel(QAbstractTableModel):
                             result = Qt.Unchecked
                 else:
                     result = None
+            elif role == Qt.TextAlignmentRole:
+                if column in (AREA, CENTROID, EDGE):
+                    result = int(Qt.AlignHCenter|Qt.AlignVCenter)
+                else:
+                    result = None
             else:
                 result = None
         return result
@@ -116,8 +121,6 @@ class ProcessLayerTableModel(QAbstractTableModel):
             result = Qt.ItemIsEnabled()
         else:
             if index.column() in (AREA, CENTROID, EDGE):
-                #result = Qt.ItemFlags(QAbstractTableModel.flags(self, index)|
-                #                      Qt.ItemIsUserCheckable)
                 result = Qt.ItemFlags(Qt.ItemIsEnabled|Qt.ItemIsUserCheckable)
             else:
                 result = Qt.ItemFlags(QAbstractTableModel.flags(self, index)|
@@ -261,14 +264,28 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
         QObject.connect(self.processor, SIGNAL('progress_changed'),
                         self.update_progress)
+        QObject.connect(self.processor, SIGNAL('update_info'),
+                        self.update_info)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
         output_dir = self.load_settings('output_dir')
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)
+        if self.exist_selected_features():
+            self.use_selected_features_chb.setEnabled(True)
+        else:
+            self.use_selected_features_chb.setEnabled(False)
         print('global_progress: %s' % self.processor.global_progress)
         self.progressBar.setValue(self.processor.global_progress)
+        self.update_info('')
+
+    def exist_selected_features(self):
+        exist_selected = False
+        for layer in self.layers.values():
+            if layer.selectedFeatureCount() != 0:
+                exist_selected = True
+        return exist_selected
 
     def add_row(self):
         row = self.model.rowCount()
@@ -308,6 +325,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         return settings.value('%s/%s' % (self._settings_key ,key))
 
     def run_queries(self):
+        self.update_progress()
         layers = []
         for la in self.model.layers:
             if str(la.attribute_field_name) == '<None>':
@@ -325,7 +343,25 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             layers.append(the_data)
         output_dir = str(self.output_dir_le.text())
         create_distance_files = self.create_distances_files_chb.isChecked()
-        self.processor.run_queries(layers, output_dir, create_distance_files)
+        only_selected_features = self.use_selected_features_chb.isChecked()
+        self.processor.run_queries(layers, output_dir, create_distance_files,
+                                   only_selected_features)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
+
+    def update_info(self, info, section=0):
+        '''
+        Update the progess label with the input info string.
+        '''
+
+        if section == 0:
+            self.progress_la.setText(info)
+        else:
+            current_text = self.progress_la.text()
+            sections = current_text.split(' - ')
+            try:
+                sections[section] = info
+            except IndexError:
+                sections.append(info)
+            self.progress_la.setText(' - '.join(sections))

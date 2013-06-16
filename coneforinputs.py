@@ -8,6 +8,7 @@ A QGIS plugin for writing input files to the Conefor software.
 import os
 import sys
 import codecs
+from math import ceil
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -17,15 +18,42 @@ from conefordialog import ConeforDialog
 
 
 #TODO
-# Add a label with progress info to the GUI
+# Test the FeatureIterator class
 # Filter the id_attribute field choices to show only unique fields
-# create a Makefile
 # Write the help dialog
-# Provide better docstrings
-# Add more testing layers (empty features, empty fields)
 
 class NoFeaturesToProcessError(Exception):
     pass
+
+class FeatureIterator(object):
+
+    def __init__(self, obj):
+        '''
+        Inputs:
+
+            obj - an object to become the source of iteration
+        '''
+
+        if isinstance(obj, QgsFeatureIterator):
+            self.obj = obj
+            self._feature = QgsFeature()
+        elif isinstance(obj, (list, tuple)):
+            self.obj = iter(obj)
+            self._feature = None
+
+    def __iter__(self):
+        return self
+
+    def next():
+        if isinstance(self.obj, QgsFeatureIterator):
+            found_feat = self.obj.nextFeature(self._feature)
+            if found_feat:
+                result = self._feature
+            else:
+                raise StopIteration
+        else:
+            result = self.obj.next()
+        return result
 
 
 class ConeforProcessor(QObject):
@@ -117,7 +145,8 @@ class ConeforProcessor(QObject):
                     usable_layers[layer_id] = the_layer
         return usable_layers
 
-    def run_queries(self, layers, output_dir, create_distance_files):
+    def run_queries(self, layers, output_dir, create_distance_files,
+                    only_selected_features):
         '''
         Create the Conefor inputs files.
 
@@ -145,13 +174,18 @@ class ConeforProcessor(QObject):
 
             create_distance_files - A boolean indicating if the vector files
                 with the lines representing the distances should be created;
+
+            only_selected_features - A boolean indicating if the processing
+                should be restricted to the currently selected features on
+                each layer.
         '''
 
-        print('----- starting -----')
+        self.emit(SIGNAL('update_info'), 'Processing started...')
         layer_progress_step = 100.0 / len(layers)
-        print('layer_progress_step: %s' % layer_progress_step)
         for index, layer_parameters in enumerate(layers):
             try:
+                self.emit(SIGNAL('update_info'), 'layer: %s' % \
+                                 layer_parameters['layer'].name())
                 self.process_layer(layer_parameters['layer'],
                                    layer_parameters['id_attribute'],
                                    layer_parameters['area'],
@@ -159,17 +193,14 @@ class ConeforProcessor(QObject):
                                    layer_parameters['centroid_distance'],
                                    layer_parameters['edge_distance'],
                                    output_dir, layer_progress_step,
-                                   create_distance_files)
+                                   create_distance_files,
+                                   only_selected_features)
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
-            #self.global_progress += layer_progress_step
             self.emit(SIGNAL('progress_changed'))
-            print('layer is done. global progress: %s' % self.global_progress)
+        self.emit(SIGNAL('update_info'), 'Processing finished!')
         self.global_progress = 0
-        print('all done. global progress: %s' % self.global_progress)
-        print('----------------')
-        self.emit(SIGNAL('progress_changed'))
 
     def _write_file(self, data, output_dir, output_name, encoding):
         '''
@@ -285,7 +316,7 @@ class ConeforProcessor(QObject):
 
     def process_layer(self, layer, id_attribute, area, attribute,
                       centroid, edge, output_dir, progress_step,
-                      create_distance_files):
+                      create_distance_files, only_selected_features):
         '''
         Process an individual layer.
 
@@ -313,8 +344,18 @@ class ConeforProcessor(QObject):
 
             create_distance_files - A boolean specifying if the output distance
                 files are to be created
+
+            only_selected_features - A boolean indicating if the processing
+                should be restricted to the currently selected features on
+                each layer.
         '''
 
+        if only_selected_features:
+            the_features = layer.selectedFeatures()
+            if not any(the_features):
+                the_features = None
+        else:
+            the_features = None
         encoding = layer.dataProvider().encoding()
         if encoding == 'System':
             encoding = sys.getfilesystemencoding()
@@ -322,50 +363,53 @@ class ConeforProcessor(QObject):
                                                   edge)
         num_files_to_save = num_queries
         if create_distance_files:
-            print('centroid: %s' % centroid)
-            print('edge: %s' % edge)
             num_files_to_save += centroid + edge
         running_queries_step = progress_step / 2.0
         each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
         each_save_file_step = saving_files_step / num_files_to_save
-        print('num_queries: %s' % num_queries)
-        print('each_query_step: %s' % each_query_step)
-        print('num_files_to_save: %s' % num_files_to_save)
-        print('each_save_file_step: %s' % each_save_file_step)
         attribute_data = []
         if attribute is not None:
+            self.emit(SIGNAL('update_info'), 'Running attribute query...', 1)
             attribute_data = self._run_attribute_query(layer, id_attribute,
-                                                       attribute, encoding)
+                                                       attribute, encoding,
+                                                       the_features)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         area_data = []
         if area:
-            area_data = self._run_area_query(layer, id_attribute, encoding)
+            self.emit(SIGNAL('update_info'), 'Running area query...', 1)
+            area_data = self._run_area_query(layer, id_attribute, encoding,
+                                             the_features)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         centroid_data = []
         if centroid:
+            self.emit(SIGNAL('update_info'), 'Running centroid query...', 1)
             centroid_data = self._run_centroid_query(layer, id_attribute,
                                                      encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         edge_data = []
         if edge:
+            self.emit(SIGNAL('update_info'), 'Running edge query...', 1)
             edge_data = self._run_edge_query(layer, id_attribute, encoding)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
         if any(attribute_data):
+            self.emit(SIGNAL('update_info'), 'Writing attribute file...', 1)
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
         if any(area_data):
+            self.emit(SIGNAL('update_info'), 'Writing area file...', 1)
             output_name = 'nodes_calculated_area_%s' % layer.name()
             self._write_file(area_data, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
         if any(centroid_data):
+            self.emit(SIGNAL('update_info'), 'Writing centroids file...', 1)
             output_name = 'distances_centroids_%s' % layer.name()
             data_to_write = []
             for c_dict in centroid_data:
@@ -378,6 +422,7 @@ class ConeforProcessor(QObject):
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
         if any(edge_data):
+            self.emit(SIGNAL('update_info'), 'Writing edges file...', 1)
             output_name = 'distances_edges_%s' % layer.name()
             data_to_write = []
             for e_dict in edge_data:
@@ -390,10 +435,12 @@ class ConeforProcessor(QObject):
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
         if create_distance_files:
+            self.emit(SIGNAL('update_info'), 'Creating distance files', 1)
             output_dir = os.path.join(output_dir, 'distance_files')
             if not os.path.isdir(output_dir):
                 os.mkdir(output_dir)
             if any(centroid_data):
+                self.emit(SIGNAL('update_info'), 'centroids...', 2)
                 data_to_write = []
                 for c_dict in centroid_data:
                     the_data = {
@@ -410,10 +457,12 @@ class ConeforProcessor(QObject):
                 self.global_progress += each_save_file_step
                 self.emit(SIGNAL('progress_changed'))
             if any(edge_data):
+                self.emit(SIGNAL('update_info'), 'edges...', 2)
                 output_name = 'edge_distances_%s' % layer.name()
                 self._write_distance_file(edge_data, output_dir, output_name,
                                           encoding, layer.crs())
                 self.global_progress += each_save_file_step
+                self.global_progress = ceil(self.global_progress)
                 self.emit(SIGNAL('progress_changed'))
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
@@ -434,15 +483,25 @@ class ConeforProcessor(QObject):
             num_queries += 1
         return num_queries
 
-    def _run_attribute_query(self, layer, id_attribute, attribute, encoding):
+    def _run_attribute_query(self, layer, id_attribute, attribute, encoding,
+                             the_features):
         result = []
-        feat = QgsFeature()
-        feat_iterator = layer.getFeatures()
-        while feat_iterator.nextFeature(feat):
-            id_attr = self._decode_attribute(feat.attribute(id_attribute),
-                                             encoding)
-            attr = self._decode_attribute(feat.attribute(attribute), encoding)
-            result.append('%s\t%s\n' % (id_attr, attr))
+        if the_features is not None:
+            for feat in the_features:
+                id_attr = self._decode_attribute(feat.attribute(id_attribute),
+                                                encoding)
+                attr = self._decode_attribute(feat.attribute(attribute),
+                                              encoding)
+                result.append('%s\t%s\n' % (id_attr, attr))
+        else:
+            feat = QgsFeature()
+            feat_iterator = layer.getFeatures()
+            while feat_iterator.nextFeature(feat):
+                id_attr = self._decode_attribute(feat.attribute(id_attribute),
+                                                encoding)
+                attr = self._decode_attribute(feat.attribute(attribute),
+                                              encoding)
+                result.append('%s\t%s\n' % (id_attr, attr))
         return result
 
     def _run_area_query(self, layer, id_attribute, encoding):
