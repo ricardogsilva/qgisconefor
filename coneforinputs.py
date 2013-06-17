@@ -320,9 +320,12 @@ class ConeforProcessor(QObject):
             encoding = sys.getfilesystemencoding()
         num_queries = self._determine_num_queries(area, attribute, centroid,
                                                   edge)
+        print('num_queries: %i' % num_queries)
         num_files_to_save = num_queries
         if create_distance_files:
             num_files_to_save += centroid + edge
+        print('centroid: %s\tedge: %s' % (centroid, edge))
+        print('num_files_to_save: %i' % num_files_to_save)
         running_queries_step = progress_step / 2.0
         each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
@@ -423,8 +426,8 @@ class ConeforProcessor(QObject):
                 self._write_distance_file(edge_data, output_dir, output_name,
                                           encoding, layer.crs())
                 self.global_progress += each_save_file_step
-                self.global_progress = ceil(self.global_progress)
                 self.emit(SIGNAL('progress_changed'))
+            self.global_progress = ceil(self.global_progress)
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''

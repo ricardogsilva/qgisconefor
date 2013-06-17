@@ -145,9 +145,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 else:
                     layer.process_area = False
             elif column == CENTROID:
-                layer.process_centroid_distance = value
+                layer.process_centroid_distance = bool(value)
             elif column == EDGE:
-                print('bool(value): %s' % bool(value))
                 if layer.qgis_layer.geometryType() != QGis.Point:
                     layer.process_edge_distance = bool(value)
                 else:
