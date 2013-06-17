@@ -191,8 +191,43 @@ class ProcessLayerTableModel(QAbstractTableModel):
         the_fields = provider.fields()
         return [f.name() for f in the_fields]
 
+    def _get_unique_fields(self, layer_name, use_selected):
+        '''
+        Return the names of the attributes that contain unique values only.
+        '''
+
+        result = []
+        layer = self._get_qgis_layer(layer_name)
+        fields = layer.dataProvider().fields()
+        all_ = self._get_all_values(layer, use_selected)
+        for f in fields:
+            the_values = [v['value'] for v in all_ if v['field'] == f.name()]
+            unique_values = set(the_values)
+            if len(the_values) == len(unique_values):
+                result.append(f.name())
+        return result
+
+    def _get_all_values(self, layer, use_selected):
+        result = []
+        fields = layer.dataProvider().fields()
+        if use_selected:
+            features = layer.selectedFeatures()
+        else:
+            features = layer.getFeatures()
+        for feat in features:
+            for field in fields:
+                result.append({
+                    'field' : field.name(),
+                    'value' : feat.attribute(field.name()),
+                })
+        return result
+
 
 class ProcessLayerDelegate(QItemDelegate):
+
+    def __init__(self, dialog, parent=None):
+        super(ProcessLayerDelegate, self).__init__(parent)
+        self.dialog = dialog
 
     def createEditor(self, parent, option, index):
         result = QItemDelegate.createEditor(self, parent, option, index)
@@ -216,8 +251,12 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
-            field_names = model.get_field_names(selected_layer_name)
-            editor.addItems(field_names)
+            use_selected = self.dialog.use_selected_features_chb.isChecked()
+            unique_field_names = model._get_unique_fields(selected_layer_name,
+                                                          use_selected)
+            editor.addItems(unique_field_names)
+            #field_names = model.get_field_names(selected_layer_name)
+            #editor.addItems(field_names)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
             editor.addItems(['<None>'] + field_names)
@@ -255,7 +294,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.model = ProcessLayerTableModel(self.layers, current_layer)
         self.setupUi(self)
         self.tableView.setModel(self.model)
-        delegate = ProcessLayerDelegate(self)
+        delegate = ProcessLayerDelegate(self, self)
         self.tableView.setItemDelegate(delegate)
         QObject.connect(self.add_row_btn, SIGNAL('released()'), self.add_row)
         QObject.connect(self.remove_row_btn, SIGNAL('released()'),
