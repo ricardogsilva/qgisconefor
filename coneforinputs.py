@@ -69,14 +69,11 @@ class FeatureIterator(object):
         '''
 
         selected_features = []
-        print('filter_: %s' % filter_)
         if selected_features_only:
             selected = layer.selectedFeatures()
             selected_features = selected
-            print('selected features before filtering: %s' % selected_features)
             if filter_ is not None:
                 selected_features = [f for f in selected if f.id() in filter_]
-            print('selected features after filtering: %s' % selected_features)
         if any(selected_features):
             self.obj = iter(selected_features)
         else:
@@ -596,9 +593,9 @@ class ConeforProcessor(QObject):
             c_id_attr = self._decode_attribute(current.attribute(id_attribute),
                                                encoding)
             current_geom = current.geometry()
-            original_current_centroid = current_geom.centroid().asPoint()
-            transformed_current_centroid = self._get_centroid(current_geom,
-                                                              transformer)
+            orig_curr_centroid = current_geom.centroid().asPoint()
+            trans_curr_centroid = self._transform_point(orig_curr_centroid,
+                                                         transformer)
             j = i + 1
             while j < len(feature_ids):
                 if use_selected:
@@ -612,20 +609,20 @@ class ConeforProcessor(QObject):
                                                    encoding)
 
                 next_geom = next_.geometry()
-                original_next_centroid = next_geom.centroid().asPoint()
-                transformed_next_centroid = self._get_centroid(next_geom,
-                                                               transformer)
-                distance = measurer.measureLine(transformed_current_centroid,
-                                                transformed_next_centroid)
+                orig_next_centroid = next_geom.centroid().asPoint()
+                trans_next_centroid = self._transform_point(orig_next_centroid,
+                                                            transformer)
+                distance = measurer.measureLine(trans_curr_centroid,
+                                                trans_next_centroid)
                 feat_result = {
                     'current' : {
                         'attribute' : c_id_attr,
-                        'centroid' : original_current_centroid,
+                        'centroid' : orig_curr_centroid,
                         'feature_geometry' : current_geom,
                     },
                     'next' : {
                         'attribute' : n_id_attr,
-                        'centroid' : original_next_centroid,
+                        'centroid' : orig_next_centroid,
                         'feature_geometry' : next_geom,
                     },
                     'distance' : distance,
@@ -684,6 +681,7 @@ class ConeforProcessor(QObject):
             c_id_at = self._decode_attribute(current.attribute(id_attribute),
                                              encoding)
             current_geom = current.geometry()
+            current_poly = self._get_polygon(current_geom, transformer)
             j = i + 1
             while j < len(feature_ids):
                 if use_selected:
@@ -696,7 +694,8 @@ class ConeforProcessor(QObject):
                 n_id_at = self._decode_attribute(next_.attribute(id_attribute),
                                                    encoding)
                 next_geom = next_.geometry()
-                segments = self.get_closest_segments(current_geom, next_geom)
+                next_poly = self._get_polygon(next_geom, transformer)
+                segments = self.get_closest_segments(current_poly, next_poly)
                 current_segment, next_segment = segments
                 candidates = []
                 for current_vertex in current_segment:
@@ -711,10 +710,15 @@ class ConeforProcessor(QObject):
                     candidates.append(candidate)
                 ordered_candidates = sorted(candidates, key=lambda c: c[2])
                 winner = ordered_candidates[0]
+                # transform the winner's coordinates back to layer crs
+                from_restored = self._transform_point(winner[0], transformer,
+                                                      reverse=True)
+                to_restored = self._transform_point(winner[1], transformer,
+                                                    reverse=True)
                 feat_result = {
                     'distance' : winner[2],
-                    'from' : winner[0],
-                    'to' : winner[1],
+                    'from' : from_restored,
+                    'to' : to_restored,
                     'from_attribute' : c_id_at,
                     'to_attribute' : n_id_at,
                 }
@@ -734,48 +738,59 @@ class ConeforProcessor(QObject):
             candidate = (point, close_vertex, distance)
         return candidate
 
-    def _get_centroid(self, geometry, transformer=None):
+    def _transform_point(self, point, transformer=None,
+                         reverse=False):
         '''
-        Return the centroid of the polygon geometry as a QgsPoint.
+        Transform a point from a CRS to another using a transformer.
 
         Inputs:
 
-            geometry - A QgsGeometry
+            point - A QgsPoint object with the point to transform
 
-            transformer - A QgsCoordinateTransform object to convert the
-                geometry's coordinates to a projected CRS. If None, no
-                transformation is performed.
+            transformer - A QgsCoordinateTransform object configured
+                with the source and destination CRSs. If None (the default),
+                no transformation is needed, and the returned result is
+                the same as the input point
+
+            reverse - A boolean indicating if the reverse transformation
+                is desired. Defaults to False, indicating that a forward
+                transform is to be processed
+
+        Returns a QgsPoint object with the transformed coordinates.
         '''
 
-        centroid = geometry.centroid().asPoint()
         if transformer is not None:
-            result = transformer.transform(centroid)
+            if reverse:
+                result = transformer.transform(
+                            point,
+                            QgsCoordinateTransform.ReverseTransform
+                         )
+            else:
+                result = transformer.transform(point)
         else:
-            result = centroid
+            result = point
         return result
 
-    def get_closest_segments(self, geom1, geom2):
+    def get_closest_segments(self, poly1, poly2):
         '''
-        return the closest line segments between geom1 and geom2.
+        return the closest line segments between poly1 and poly2.
 
         Inputs:
 
-            geom1 - A QgsGeometry object of type Polygon
+            poly1 - A QgsPolygon object
 
-            geom2 - A QgsGeometry object of type Polygon
+            poly2 - A QgsPolygon object
 
         Returns a two-element tuple with:
-            - the closest segment in geom1
-            - the closest segment in geom2
+            - the closest segment in poly1
+            - the closest segment in poly2
 
         A segment is a two-element list of QgsPoints with the vertices
         of the segment.
         '''
 
-        pol1 = geom1.asPolygon()
-        pol2 = geom2.asPolygon()
-        segments1 = self._get_segments(pol1[0])
-        segments2 = self._get_segments(pol2[0])
+        segments1 = self._get_segments(poly1[0])
+        segments2 = self._get_segments(poly2[0])
         closest_segments = []
         distance = None
         for seg1 in segments1:
@@ -787,6 +802,30 @@ class ConeforProcessor(QObject):
                     distance = dist
                     closest_segments = (seg1, seg2)
         return closest_segments
+
+    def _get_polygon(self, geometry, transformer=None):
+        '''
+        Convert a geometry to polygon and transform its coordinates.
+
+        Inputs:
+
+            geometry - A QgsGeometry object to be converted
+
+            transformer - A QgsCoordinateTransform object configured
+                with the source and destination CRSs. If None (the default),
+                no transformation is needed, and the returned result is
+                the same as the input
+
+        Returns a QgsPolygon object with the transformed coordinates of the
+        geometry.
+        '''
+
+        if transformer is None:
+            result = geometry.asPolygon()
+        else:
+            poly = geometry.asPolygon()
+            result = transformer.transformPolygon(poly)
+        return result
 
     def _get_segments(self, line_string):
         '''
