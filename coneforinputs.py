@@ -21,78 +21,6 @@ class NoFeaturesToProcessError(Exception):
     pass
 
 
-class FeatureIterator(object):
-    '''
-    This class provides a common iteration approach for working with
-    QgsFeatures.
-
-    QgsVectorLayer.getFeatures() returns a QgsFeatureIterator while
-    QgsVectorLayer.selectedFeatures() returns a list of QgsFeatures. As such,
-    iterating over the two requires different methodologies. Using this
-    class, a common iteration approach is available.
-    Usage example:
-
-    # iterating only over the currently selected features
-    # if there are no selected features, iterates over all features of the
-    # layer
-    fi = FeatureIterator(qgis_layer, True)
-    for feat in fi:
-        print(feat)
-
-    # iterating over all features of the layer
-    fi = FeatureIterator(qgis_layer, False)
-    for feat in fi:
-        print(feat)
-    '''
-
-    def __init__(self, layer, selected_features_only, filter_=None):
-        '''
-        Inputs:
-
-            layer - A QgsVectorLayer object
-
-            selected_features_only - A boolean indicating if only the
-                selected features are to be used or not.
-
-            filter_ - This argument's type depends on the value of the
-                'selected_features_only' argument:
-
-                    - if 'selected_features_only' is True, 'filter_' is
-                        a list of ids of the features we want to iterate on
-                    - if 'selected_features_only' is False, 'filter_' is
-                        a QgsFeatureRequest with the appropriate filter
-        '''
-
-        selected_features = []
-        if selected_features_only:
-            selected = layer.selectedFeatures()
-            selected_features = selected
-            if filter_ is not None:
-                selected_features = [f for f in selected if f.id() in filter_]
-        if any(selected_features):
-            self.obj = iter(selected_features)
-        else:
-            self._feature = QgsFeature()
-            if filter_ is not None:
-                self.obj = layer.getFeatures(filter_)
-            else:
-                self.obj = layer.getFeatures()
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        if isinstance(self.obj, QgsFeatureIterator):
-            found_feat = self.obj.nextFeature(self._feature)
-            if found_feat:
-                result = self._feature
-            else:
-                raise StopIteration
-        else:
-            result = self.obj.next()
-        return result
-
-
 class ConeforProcessor(QObject):
 
     def __init__(self, iface):
@@ -519,8 +447,8 @@ class ConeforProcessor(QObject):
     def _run_attribute_query(self, layer, id_attribute, attribute, encoding,
                              use_selected):
         result = []
-        feat_iterator = FeatureIterator(layer, use_selected)
-        for feat in feat_iterator:
+        features = self._get_features(layer, use_selected)
+        for feat in features:
             id_attr = self._decode_attribute(feat.attribute(id_attribute),
                                             encoding)
             attr = self._decode_attribute(feat.attribute(attribute),
@@ -541,8 +469,8 @@ class ConeforProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feat_iterator = FeatureIterator(layer, use_selected)
-        for feat in feat_iterator:
+        features = self._get_features(layer, use_selected)
+        for feat in features:
             polygon = feat.geometry().asPolygon()
             new_polygon = []
             for ring in polygon:
@@ -565,6 +493,42 @@ class ConeforProcessor(QObject):
             result.append('%s\t%s\n' % (id_attr, total_feat_area))
         return result
 
+    def _get_features(self, layer, use_selected, filter_id=None):
+        '''
+        Return the features to process.
+
+        Inputs:
+
+            layer - A QgsVectorLayer
+
+            use_selected - A boolean indicating if only the selected features
+                should be used
+
+            filter_id - The id of a feature to extract. If None (the default),
+                the result will contain all the features (or all the selected
+                features in case the use_selected argument isTrue)
+
+        The output can be either a QgsFeatureIterator or a python list
+        with the features. Both datatypes are suitable for using inside a
+        for loop.
+
+        If the use_selected argument is True but there are no features
+        currently selected, all the features in the layer will be returned.
+        '''
+
+        features = []
+        if use_selected:
+            features = layer.selectedFeatures()
+            if filter_id is not None:
+                features = [f for f in features if f.id() == filter_id]
+        if not any(features):
+            if filter_id is not None:
+                request = QgsFeatureRequest(filter_id)
+                features = layer.getFeatures(request)
+            else:
+                features = layer.getFeatures()
+        return features
+
     def _run_centroid_query(self, layer, id_attribute, encoding, use_selected):
         result = []
         if layer.crs().geographicFlag():
@@ -574,17 +538,12 @@ class ConeforProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feature_ids = self._get_feature_ids(layer, use_selected)
+        feature_ids = [f.id() for f in self._get_features(layer, use_selected)]
         i = 0
         j = 0
         while i < len(feature_ids):
-            if use_selected:
-                i_current = FeatureIterator(layer, use_selected,
-                                            [feature_ids[i]])
-            else:
-                i_current = FeatureIterator(layer, use_selected,
-                                            QgsFeatureRequest(feature_ids[i]))
-            current = i_current.next()
+            features = self._get_features(layer, use_selected, feature_ids[i])
+            current = iter(features).next()
             c_id_attr = self._decode_attribute(current.attribute(id_attribute),
                                                encoding)
             current_geom = current.geometry()
@@ -593,13 +552,9 @@ class ConeforProcessor(QObject):
                                                          transformer)
             j = i + 1
             while j < len(feature_ids):
-                if use_selected:
-                    i_next = FeatureIterator(layer, use_selected,
-                                             [feature_ids[j]])
-                else:
-                    i_next = FeatureIterator(layer, use_selected,
-                                             QgsFeatureRequest(feature_ids[j]))
-                next_ = i_next.next()
+                features = self._get_features(layer, use_selected,
+                                              feature_ids[j])
+                next_ = iter(features).next()
                 n_id_attr = self._decode_attribute(next_.attribute(id_attribute),
                                                    encoding)
 
@@ -639,13 +594,6 @@ class ConeforProcessor(QObject):
         transformer = QgsCoordinateTransform(source_crs, project_crs)
         return transformer
 
-    def _get_feature_ids(self, layer, use_selected):
-        feature_ids = []
-        feat_iterator = FeatureIterator(layer, use_selected)
-        for feat in feat_iterator:
-            feature_ids.append(feat.id())
-        return feature_ids
-
     def _run_edge_query(self, layer, id_attribute, encoding, use_selected):
 
         # for each current and next features
@@ -662,30 +610,21 @@ class ConeforProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feature_ids = self._get_feature_ids(layer, use_selected)
+        feature_ids = [f.id() for f in self._get_features(layer, use_selected)]
         i = 0
         j = 0
         while i < len(feature_ids):
-            if use_selected:
-                i_current = FeatureIterator(layer, use_selected,
-                                            [feature_ids[i]])
-            else:
-                i_current = FeatureIterator(layer, use_selected,
-                                            QgsFeatureRequest(feature_ids[i]))
-            current = i_current.next()
+            features = self._get_features(layer, use_selected, feature_ids[i])
+            current = iter(features).next()
             c_id_at = self._decode_attribute(current.attribute(id_attribute),
                                              encoding)
             current_geom = current.geometry()
             current_poly = self._get_polygon(current_geom, transformer)
             j = i + 1
             while j < len(feature_ids):
-                if use_selected:
-                    i_next = FeatureIterator(layer, use_selected,
-                                             [feature_ids[j]])
-                else:
-                    i_next = FeatureIterator(layer, use_selected,
-                                             QgsFeatureRequest(feature_ids[j]))
-                next_ = i_next.next()
+                features = self._get_features(layer, use_selected,
+                                              feature_ids[j])
+                next_ = iter(features).next()
                 n_id_at = self._decode_attribute(next_.attribute(id_attribute),
                                                    encoding)
                 next_geom = next_.geometry()
