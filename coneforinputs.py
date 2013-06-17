@@ -17,11 +17,6 @@ from qgis.core import *
 from conefordialog import ConeforDialog
 
 
-#TODO
-# Test the FeatureIterator class
-# Filter the id_attribute field choices to show only unique fields
-# Write the help dialog
-
 class NoFeaturesToProcessError(Exception):
     pass
 
@@ -820,12 +815,9 @@ class ConeforProcessor(QObject):
         geometry.
         '''
 
-        if transformer is None:
-            result = geometry.asPolygon()
-        else:
-            poly = geometry.asPolygon()
-            result = transformer.transformPolygon(poly)
-        return result
+        if transformer is not None:
+            geometry.transform(transformer)
+        return geometry.asPolygon()
 
     def _get_segments(self, line_string):
         '''
