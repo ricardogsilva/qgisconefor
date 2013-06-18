@@ -7,6 +7,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from qgis.core import *
+from qgis.utils import showPluginHelp
 
 from ui_conefor_dlg import Ui_ConeforDialog
 
@@ -339,6 +340,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                         self.update_info)
         QObject.connect(self.model, SIGNAL('is_runnable_check'),
                         self.toggle_run_button)
+        QObject.connect(self.help_btn, SIGNAL('released()'), self.show_help)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
         self.toggle_run_button()
@@ -356,6 +358,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             if layer.selectedFeatureCount() > 1:
                 exist_selected = True
         return exist_selected
+
+    def show_help(self):
+        showPluginHelp(filename='help')
 
     def add_row(self):
         row = self.model.rowCount()
