@@ -35,7 +35,8 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
-    def __init__(self, qgis_layers, current_layer, use_selected=False):
+    def __init__(self, qgis_layers, current_layer, processor, use_selected=False):
+        self.processor = processor
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
         self._header_labels[ID] = 'Unique\nattribute'
@@ -45,16 +46,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self._header_labels[ATTRIBUTE] = 'Process\nattribute'
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
-        self.data_ = []
-        for layer in qgis_layers.values():
-            unique_fields = self._get_unique_fields(layer, use_selected)
-            if any(unique_fields):
-                self.data_.append(layer)
-        self.layers = []
-        if current_layer in self.data_:
-            self.layers.append(ProcessLayer(current_layer))
-        else:
-            self.layers.append(ProcessLayer(self.data_[0]))
+        self.data_ = qgis_layers.values()
+        self.layers = [ProcessLayer(current_layer)]
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -204,47 +197,6 @@ class ProcessLayerTableModel(QAbstractTableModel):
         the_fields = provider.fields()
         return [f.name() for f in the_fields]
 
-    def _get_unique_fields(self, layer, use_selected):
-        '''
-        Return the names of the attributes that contain unique values only.
-
-        Inputs:
-
-            layer_name - A string with the name of the layer to check
-
-            use_selected - A boolean indicating if the currently selected
-                features are the only ones to consider when looking for unique
-                values.
-
-        Returns a list of strings with the names of the fields that have only
-        unique values.
-        '''
-
-        result = []
-        fields = layer.dataProvider().fields()
-        all_ = self._get_all_values(layer, use_selected)
-        for f in fields:
-            the_values = [v['value'] for v in all_ if v['field'] == f.name()]
-            unique_values = set(the_values)
-            if len(the_values) == len(unique_values):
-                result.append(f.name())
-        return result
-
-    def _get_all_values(self, layer, use_selected):
-        result = []
-        fields = layer.dataProvider().fields()
-        if use_selected:
-            features = layer.selectedFeatures()
-        else:
-            features = layer.getFeatures()
-        for feat in features:
-            for field in fields:
-                result.append({
-                    'field' : field.name(),
-                    'value' : feat.attribute(field.name()),
-                })
-        return result
-
 
 class ProcessLayerDelegate(QItemDelegate):
 
@@ -275,10 +227,7 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
-            use_selected = self.dialog.use_selected_features_chb.isChecked()
-            unique_field_names = model._get_unique_fields(layer, use_selected)
-            if not any(unique_field_names):
-                unique_field_names = ['<None>']
+            unique_field_names = model.processor._get_unique_fields(layer)
             editor.addItems(unique_field_names)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
@@ -292,10 +241,7 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model._get_qgis_layer(selected_layer_name)
-            use_selected = self.dialog.use_selected_features_chb.isChecked()
-            unique_field_names = model._get_unique_fields(layer, use_selected)
-            if not any(unique_field_names):
-                unique_field_names = ['<None>']
+            unique_field_names = model.processor._get_unique_fields(layer)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
@@ -326,7 +272,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         use_selected = self.use_selected_features_chb.isChecked()
         self.processor = processor
         self.model = ProcessLayerTableModel(self.layers, current_layer,
-                                            use_selected)
+                                            self.processor, use_selected)
         self.tableView.setModel(self.model)
         delegate = ProcessLayerDelegate(self, self)
         self.tableView.setItemDelegate(delegate)

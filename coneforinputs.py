@@ -23,6 +23,8 @@ class NoFeaturesToProcessError(Exception):
 
 class ConeforProcessor(QObject):
 
+    _plugin_name = 'Conefor inputs'
+
     def __init__(self, iface):
         super(ConeforProcessor, self).__init__()
         self.iface = iface
@@ -31,11 +33,7 @@ class ConeforProcessor(QObject):
 
     def initGui(self):
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
-                              'Conefor inputs plugin. Requires at least one ' \
-                              'loaded vector layer.', self.iface.mainWindow())
-        #self.action.setWhatsThis('')
-        self.action.setStatusTip('Conefor inputs plugin (requires at least ' \
-                                 'one loaded vector layer)')
+                              self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
         QObject.connect(self.registry,
                         SIGNAL('layersAdded(QList<QgsMapLayer*>)'),
@@ -45,6 +43,10 @@ class ConeforProcessor(QObject):
                         self.toggle_availability)
         self.iface.addPluginToVectorMenu('&Conefor inputs', self.action)
         self.iface.addVectorToolBarIcon(self.action)
+        usable_layers = self.get_usable_layers()
+        self.action.setEnabled(False)
+        if any(usable_layers):
+            self.action.setEnabled(True)
 
     def unload(self):
         self.iface.removePluginVectorMenu('&Conefor inputs', self.action)
@@ -82,7 +84,7 @@ class ConeforProcessor(QObject):
         # layers are removed so we need to check which layers are going to be
         # removed and act as if they were already gone
         if any(the_layers):
-            if type(the_layers[0]) == str:
+            if isinstance(the_layers[0], basestring):
                 for to_delete in the_layers:
                     if usable_layers.get(to_delete) is not None:
                         del usable_layers[to_delete]
@@ -98,8 +100,7 @@ class ConeforProcessor(QObject):
         '''
         return a dictionary with layerid as key and layer as value.
 
-        This plugin only works with vector layers of types Point, MultiPoint,
-        Polygon, MutiPolygon.
+        This plugin only works with vector layers of types Point and Polygon.
         '''
 
         usable_layers = dict()
@@ -107,8 +108,43 @@ class ConeforProcessor(QObject):
         for layer_id, the_layer in loaded_layers.iteritems():
             if the_layer.type() == QgsMapLayer.VectorLayer:
                 if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
-                    usable_layers[layer_id] = the_layer
+                    unique_fields = self._get_unique_fields(the_layer)
+                    if any(unique_fields):
+                        usable_layers[layer_id] = the_layer
         return usable_layers
+
+    def _get_unique_fields(self, layer):
+        '''
+        Return the names of the attributes that contain unique values only.
+
+        Inputs:
+
+            layer - A QgsVectorLayer
+
+        Returns a list of strings with the names of the fields that have only
+        unique values.
+        '''
+
+        result = []
+        fields = layer.dataProvider().fields()
+        all_ = self._get_all_values(layer)
+        for f in fields:
+            the_values = [v['value'] for v in all_ if v['field'] == f.name()]
+            unique_values = set(the_values)
+            if len(the_values) == len(unique_values):
+                result.append(f.name())
+        return result
+
+    def _get_all_values(self, layer):
+        result = []
+        fields = layer.dataProvider().fields()
+        for feat in layer.getFeatures():
+            for field in fields:
+                result.append({
+                    'field' : field.name(),
+                    'value' : feat.attribute(field.name()),
+                })
+        return result
 
     def run_queries(self, layers, output_dir, create_distance_files,
                     only_selected_features):
