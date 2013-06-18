@@ -346,6 +346,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)
+        self.create_distances_files_chb.setChecked(True)
         self.progressBar.setValue(self.processor.global_progress)
         self.update_info('')
 
