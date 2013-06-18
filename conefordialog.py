@@ -317,8 +317,15 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.layers = layers_dict
+        if self.exist_selected_features():
+            self.use_selected_features_chb.setEnabled(True)
+            self.use_selected_features_chb.setChecked(True)
+        else:
+            self.use_selected_features_chb.setEnabled(False)
+        use_selected = self.use_selected_features_chb.isChecked()
         self.processor = processor
-        self.model = ProcessLayerTableModel(self.layers, current_layer)
+        self.model = ProcessLayerTableModel(self.layers, current_layer,
+                                            use_selected)
         self.tableView.setModel(self.model)
         delegate = ProcessLayerDelegate(self, self)
         self.tableView.setItemDelegate(delegate)
@@ -339,11 +346,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)
-        if self.exist_selected_features():
-            self.use_selected_features_chb.setEnabled(True)
-        else:
-            self.use_selected_features_chb.setEnabled(False)
-        print('global_progress: %s' % self.processor.global_progress)
         self.progressBar.setValue(self.processor.global_progress)
         self.update_info('')
 
@@ -441,7 +443,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         of selected layers to process.
         '''
 
-        print('inside toggle_run_button method')
         all_layers_runnable = []
         for la in self.model.layers:
             runnable = False
@@ -453,7 +454,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 if any((has_attr, has_area, has_cent, has_edge)):
                     runnable = True
             all_layers_runnable.append(runnable)
-        print('all_layers_runnable: %s' % all_layers_runnable)
         if any(all_layers_runnable) and all(all_layers_runnable):
             self.run_btn.setEnabled(True)
         else:
