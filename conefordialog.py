@@ -12,6 +12,9 @@ from ui_conefor_dlg import Ui_ConeforDialog
 
 LAYER, ID, ATTRIBUTE, CENTROID, EDGE, AREA = range(6)
 
+class NoUniqueFieldError(Exception):
+    pass
+
 class ProcessLayer(object):
 
     def __init__(self, qgis_layer):
@@ -31,7 +34,7 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
-    def __init__(self, qgis_layers, current_layer):
+    def __init__(self, qgis_layers, current_layer, use_selected=False):
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
         self._header_labels[ID] = 'Unique\nattribute'
@@ -41,8 +44,16 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self._header_labels[ATTRIBUTE] = 'Process\nattribute'
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
-        self.layers = [ProcessLayer(current_layer)]
-        self.data_ = [la for la in qgis_layers.values()]
+        self.data_ = []
+        for layer in qgis_layers.values():
+            unique_fields = self._get_unique_fields(layer, use_selected)
+            if any(unique_fields):
+                self.data_.append(layer)
+        self.layers = []
+        if current_layer in self.data_:
+            self.layers.append(ProcessLayer(current_layer))
+        else:
+            self.layers.append(ProcessLayer(self.data_[0]))
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -155,6 +166,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
             self.emit(SIGNAL('dataChanged(QModelIndex,QModelIndex)'),
                       index, index)
             result = True
+        self.emit(SIGNAL('is_runnable_check'))
         return result
 
     def _get_qgis_layer(self, layer_name):
@@ -191,13 +203,23 @@ class ProcessLayerTableModel(QAbstractTableModel):
         the_fields = provider.fields()
         return [f.name() for f in the_fields]
 
-    def _get_unique_fields(self, layer_name, use_selected):
+    def _get_unique_fields(self, layer, use_selected):
         '''
         Return the names of the attributes that contain unique values only.
+
+        Inputs:
+
+            layer_name - A string with the name of the layer to check
+
+            use_selected - A boolean indicating if the currently selected
+                features are the only ones to consider when looking for unique
+                values.
+
+        Returns a list of strings with the names of the fields that have only
+        unique values.
         '''
 
         result = []
-        layer = self._get_qgis_layer(layer_name)
         fields = layer.dataProvider().fields()
         all_ = self._get_all_values(layer, use_selected)
         for f in fields:
@@ -245,6 +267,7 @@ class ProcessLayerDelegate(QItemDelegate):
         model = index.model()
         process_layers = [ProcessLayer(a) for a in model.data_]
         selected_layer_name = model.layers[row].qgis_layer_name
+        layer = model._get_qgis_layer(selected_layer_name)
         if column == LAYER:
             layer_names = [pl.qgis_layer_name for pl in process_layers]
             editor.addItems(layer_names)
@@ -252,11 +275,10 @@ class ProcessLayerDelegate(QItemDelegate):
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
             use_selected = self.dialog.use_selected_features_chb.isChecked()
-            unique_field_names = model._get_unique_fields(selected_layer_name,
-                                                          use_selected)
+            unique_field_names = model._get_unique_fields(layer, use_selected)
+            if not any(unique_field_names):
+                unique_field_names = ['<None>']
             editor.addItems(unique_field_names)
-            #field_names = model.get_field_names(selected_layer_name)
-            #editor.addItems(field_names)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
             editor.addItems(['<None>'] + field_names)
@@ -268,10 +290,14 @@ class ProcessLayerDelegate(QItemDelegate):
         if column == LAYER:
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
-            field_names = model.get_field_names(selected_layer_name)
+            layer = model._get_qgis_layer(selected_layer_name)
+            use_selected = self.dialog.use_selected_features_chb.isChecked()
+            unique_field_names = model._get_unique_fields(layer, use_selected)
+            if not any(unique_field_names):
+                unique_field_names = ['<None>']
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
-            model.setData(id_index, field_names[0])
+            model.setData(id_index, unique_field_names[0])
             model.setData(attr_index, '<None>')
         else:
             QItemDelegate.setModelData(self, editor, model, index)
@@ -289,10 +315,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def __init__(self, layers_dict, current_layer, processor, parent=None):
         super(ConeforDialog, self).__init__(parent)
+        self.setupUi(self)
         self.layers = layers_dict
         self.processor = processor
         self.model = ProcessLayerTableModel(self.layers, current_layer)
-        self.setupUi(self)
         self.tableView.setModel(self.model)
         delegate = ProcessLayerDelegate(self, self)
         self.tableView.setItemDelegate(delegate)
@@ -304,8 +330,11 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                         self.update_progress)
         QObject.connect(self.processor, SIGNAL('update_info'),
                         self.update_info)
+        QObject.connect(self.model, SIGNAL('is_runnable_check'),
+                        self.toggle_run_button)
         self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
         self.remove_row_btn.setEnabled(False)
+        self.toggle_run_button()
         output_dir = self.load_settings('output_dir')
         if str(output_dir) == '':
             output_dir = os.path.expanduser('~')
@@ -366,6 +395,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.update_progress()
         layers = []
         for la in self.model.layers:
+            if la.id_field_name == '<None>':
+                raise NoUniqueFieldError
             if str(la.attribute_field_name) == '<None>':
                 attribute_field_name = None
             else:
@@ -403,3 +434,27 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             except IndexError:
                 sections.append(info)
             self.progress_la.setText(' - '.join(sections))
+
+    def toggle_run_button(self):
+        '''
+        Toggle the active state of the run button based on the availability
+        of selected layers to process.
+        '''
+
+        print('inside toggle_run_button method')
+        all_layers_runnable = []
+        for la in self.model.layers:
+            runnable = False
+            if la.id_field_name != '<None>':
+                has_attr = la.attribute_field_name != '<None>'
+                has_area = la.process_area
+                has_cent = la.process_centroid_distance
+                has_edge = la.process_edge_distance
+                if any((has_attr, has_area, has_cent, has_edge)):
+                    runnable = True
+            all_layers_runnable.append(runnable)
+        print('all_layers_runnable: %s' % all_layers_runnable)
+        if any(all_layers_runnable) and all(all_layers_runnable):
+            self.run_btn.setEnabled(True)
+        else:
+            self.run_btn.setEnabled(False)
