@@ -371,7 +371,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                                               only_selected_features)
 
     def update_progress(self):
-        self.progressBar.setValue(self.processor.global_progress)
+        self.progressBar.setValue(self.plugin_obj.processor.global_progress)
 
     def update_info(self, info, section=0):
         '''

@@ -5,41 +5,34 @@
 A QGIS plugin for writing input files to the Conefor software.
 '''
 
-import os
-import sys
-import codecs
-from math import ceil
-
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
 
-from sextante.core.Sextante import Sextante
-
-deom coneforinputsprocessor import InputsProcessor
-
-from sextanteconeforprovider import SextanteConeforProvider
+from coneforinputsprocessor import InputsProcessor
 from conefordialog import ConeforDialog
+
+#from sextante.core.Sextante import Sextante
+#from sextanteconeforprovider import SextanteConeforProvider
 
 
 class NoFeaturesToProcessError(Exception):
     pass
 
 
-class ConeforProcessor(QObject):
+class ConeforProcessor(object):
 
     _plugin_name = 'Conefor inputs'
 
     def __init__(self, iface):
-        super(ConeforProcessor, self).__init__()
         self.iface = iface
         self.registry = QgsMapLayerRegistry.instance()
         project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
         self.processor = InputsProcessor(project_crs)
-        self.sextante_provider = SextanteConeforProvider()
+        #self.sextante_provider = SextanteConeforProvider()
 
     def initGui(self):
-        Sextante.addProvider(self.sextante_provider)
+        #Sextante.addProvider(self.sextante_provider)
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
                               self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
@@ -59,14 +52,14 @@ class ConeforProcessor(QObject):
     def unload(self):
         self.iface.removePluginVectorMenu('&Conefor inputs', self.action)
         self.iface.removeVectorToolBarIcon(self.action)
-        Sextante.removeProvider(self.sextante_provider)
+        #Sextante.removeProvider(self.sextante_provider)
 
     def run(self):
         usable_layers = self.get_usable_layers()
         cl = self.iface.mapCanvas().currentLayer()
         if cl not in usable_layers.values():
             cl = usable_layers.values()[0]
-        dialog = ConeforDialog(usable_layers, cl, self.processor)
+        dialog = ConeforDialog(usable_layers, cl, self)
         result = dialog.exec_()
 
     def toggle_availability(self, the_layers):

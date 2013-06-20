@@ -1,3 +1,8 @@
+import os
+import sys
+import codecs
+from math import ceil
+
 from PyQt4.QtCore import *
 from qgis.core import *
 
@@ -8,7 +13,7 @@ class NoFeaturesToProcessError(Exception):
 class InputsProcessor(QObject):
 
     def __init__(self, project_crs):
-        super(ConeforProcessor, self).__init__()
+        super(InputsProcessor, self).__init__()
         self.project_crs = project_crs
         self.global_progress = 0
 
