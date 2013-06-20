@@ -35,8 +35,8 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
-    def __init__(self, qgis_layers, current_layer, processor, use_selected=False):
-        self.processor = processor
+    def __init__(self, qgis_layers, current_layer, plugin_obj):
+        self.plugin_obj = plugin_obj
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
         self._header_labels[ID] = 'Unique\nattribute'
@@ -227,7 +227,7 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
-            unique_field_names = model.processor._get_unique_fields(layer)
+            unique_field_names = model.plugin_obj._get_unique_fields(layer)
             editor.addItems(unique_field_names)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
@@ -241,7 +241,7 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model._get_qgis_layer(selected_layer_name)
-            unique_field_names = model.processor._get_unique_fields(layer)
+            unique_field_names = model.plugin_obj._get_unique_fields(layer)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
@@ -260,7 +260,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     _settings_key = 'PythonPlugins/coneforinputs'
 
-    def __init__(self, layers_dict, current_layer, processor, parent=None):
+    def __init__(self, layers_dict, current_layer, plugin_obj, parent=None):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.layers = layers_dict
@@ -269,10 +269,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             self.use_selected_features_chb.setChecked(True)
         else:
             self.use_selected_features_chb.setEnabled(False)
-        use_selected = self.use_selected_features_chb.isChecked()
-        self.processor = processor
+        self.plugin_obj = plugin_obj
         self.model = ProcessLayerTableModel(self.layers, current_layer,
-                                            self.processor, use_selected)
+                                            self.plugin_obj)
         self.tableView.setModel(self.model)
         delegate = ProcessLayerDelegate(self, self)
         self.tableView.setItemDelegate(delegate)
@@ -280,9 +279,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         QObject.connect(self.remove_row_btn, SIGNAL('released()'),
                         self.remove_row)
         QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
-        QObject.connect(self.processor, SIGNAL('progress_changed'),
+        QObject.connect(self.plugin_obj.processor, SIGNAL('progress_changed'),
                         self.update_progress)
-        QObject.connect(self.processor, SIGNAL('update_info'),
+        QObject.connect(self.plugin_obj.processor, SIGNAL('update_info'),
                         self.update_info)
         QObject.connect(self.model, SIGNAL('is_runnable_check'),
                         self.toggle_run_button)
@@ -295,7 +294,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             output_dir = os.path.expanduser('~')
         self.output_dir_le.setText(output_dir)
         self.create_distances_files_chb.setChecked(True)
-        self.progressBar.setValue(self.processor.global_progress)
+        self.progressBar.setValue(self.plugin_obj.processor.global_progress)
         self.update_info('')
 
     def exist_selected_features(self):
@@ -367,8 +366,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         output_dir = str(self.output_dir_le.text())
         create_distance_files = self.create_distances_files_chb.isChecked()
         only_selected_features = self.use_selected_features_chb.isChecked()
-        self.processor.run_queries(layers, output_dir, create_distance_files,
-                                   only_selected_features)
+        self.plugin_obj.processor.run_queries(layers, output_dir,
+                                              create_distance_files,
+                                              only_selected_features)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
