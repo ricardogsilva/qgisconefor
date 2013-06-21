@@ -12,8 +12,8 @@ from qgis.core import *
 from coneforinputsprocessor import InputsProcessor
 from conefordialog import ConeforDialog
 
-#from sextante.core.Sextante import Sextante
-#from sextanteconeforprovider import SextanteConeforProvider
+from sextante.core.Sextante import Sextante
+from sextanteconeforprovider import SextanteConeforProvider
 
 
 class NoFeaturesToProcessError(Exception):
@@ -29,10 +29,10 @@ class ConeforProcessor(object):
         self.registry = QgsMapLayerRegistry.instance()
         project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
         self.processor = InputsProcessor(project_crs)
-        #self.sextante_provider = SextanteConeforProvider()
+        self.sextante_provider = SextanteConeforProvider()
 
     def initGui(self):
-        #Sextante.addProvider(self.sextante_provider)
+        Sextante.addProvider(self.sextante_provider)
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
                               self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
@@ -52,7 +52,7 @@ class ConeforProcessor(object):
     def unload(self):
         self.iface.removePluginVectorMenu('&Conefor inputs', self.action)
         self.iface.removeVectorToolBarIcon(self.action)
-        #Sextante.removeProvider(self.sextante_provider)
+        Sextante.removeProvider(self.sextante_provider)
 
     def run(self):
         usable_layers = self.get_usable_layers()
