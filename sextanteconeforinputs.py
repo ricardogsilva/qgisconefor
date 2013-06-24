@@ -1,4 +1,6 @@
 from sextante.core.GeoAlgorithm import GeoAlgorithm
+from sextante.core.GeoAlgorithmExecutionException import \
+        GeoAlgorithmExecutionException
 from sextante.core.Sextante import Sextante
 from sextante.parameters.ParameterVector import ParameterVector
 from sextante.parameters.ParameterBoolean import ParameterBoolean
@@ -8,7 +10,7 @@ from coneforinputsprocessor import InputsProcessor
 
 class ConeforInputsProcessor(GeoAlgorithm):
 
-    OUTPUT_AREA_PATH = 'OUTPUT_AREA_PATH'
+    OUTPUT_DIR = 'OUTPUT_DIR'
     INPUT_LAYER = 'INPUT_LAYER'
     PROCESS_AREA = 'PROCESS_AREA'
     PROCESS_ATTRIBUTE = 'PROCESS_ATTRIBUTE'
@@ -35,10 +37,12 @@ class ConeforInputsProcessor(GeoAlgorithm):
         self.addParameter(process_attribute)
         self.addParameter(process_centroid)
         self.addParameter(process_edge)
-        output_area = OutputFile(self.OUTPUT_AREA_PATH, 'output file where ' \
-                                 'the area calculation will be stored',
-                                 hidden=True)
-        self.addOutput(output_area)
+        output_dir = OutputFile(self.OUTPUT_DIR, 'output directory where ' \
+                                'the calculated files will be saved')
+        self.addOutput(output_dir)
+
+    def helpFile(self):
+        return None
 
     def getCustomParametersDialog(self):
         # maybe we can use directly the already made GUI...
@@ -49,6 +53,13 @@ class ConeforInputsProcessor(GeoAlgorithm):
         return None
 
     def processAlgorithm(self, progress):
+        # check for the usable layers
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
-        output = self.getOutputValue(self.OUTPUT_AREA_PATH)
+        output_dir = self.getOutputValue(self.OUTPUT_DIR)
         vector_layer = Sextante.getObject(input_file_path)
+        try:
+            the_algorithm = InputsProcessor(self.crs)
+            layers = [vector_layer]
+            the_algorithm.run_queries(layers, output_dir, False, False)
+        except Exception as e:
+            raise GeoAlgorithmExecutionException
