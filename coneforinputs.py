@@ -699,7 +699,7 @@ class ConeforProcessor(QObject):
 
     def find_candidate_points(self, point, line_segment, measurer):
         projected, distance = self.project_point(line_segment, point, measurer)
-        if self._is_on_the_line(projected, line_segment):
+        if self._is_on_the_segment(projected, line_segment):
             candidate = (point, projected, distance)
         else:
             close_vertex = self.get_closest_vertex(projected, line_segment,
@@ -848,21 +848,15 @@ class ConeforProcessor(QObject):
         distance = measurer.measureLine(point, projected)
         return projected, distance
 
-    def _is_on_the_line(self, pt, line):
+    def _is_on_the_segment(self, pt, line):
         result = False
-        line_x1 = line[0].x()
-        line_y1 = line[0].y()
-        line_x2 = line[1].x()
-        line_y2 = line[1].y()
-        x = pt.x()
-        y = pt.y()
-        line_delta_x = abs(line_x2 - line_x1)
-        norm_x = abs(x - line_x1)
-        line_delta_y = abs(line_y2 - line_y1)
-        norm_y = y - abs(line_y1)
-        if norm_x < line_delta_x and norm_y < line_delta_y:
+        p1, p2 = line
+        min_x, max_x = sorted((p1.x(), p2.x()))
+        min_y, max_y = sorted((p1.y(), p2.y()))
+        if (min_x < pt.x() < max_x) and (min_y < pt.y() < max_y):
             result = True
         return result
+
 
     def get_closest_vertex(self, pt, line, measurer):
         '''
