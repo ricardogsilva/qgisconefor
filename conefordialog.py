@@ -18,15 +18,19 @@ class NoUniqueFieldError(Exception):
 
 class ProcessLayer(object):
 
-    def __init__(self, qgis_layer):
+    def __init__(self, qgis_layer, processor):
         self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
-        self.field_names = [f.name() for f in provider.fields()]
-        if any(self.field_names):
-            self.id_field_name = self.field_names[0]
-        else:
-            self.id_field_name = None
+
+        unique_field_names = processor._get_unique_fields(qgis_layer)
+        self.id_field_name = unique_field_names[0]
+
+        #field_names = [f.name() for f in provider.fields()]
+        #if any(field_names):
+        #    self.id_field_name = field_names[0]
+        #else:
+        #    self.id_field_name = None
         self.attribute_field_name = '<None>'
         self.process_area = False
         self.process_centroid_distance = True
@@ -47,7 +51,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers.values()
-        self.layers = [ProcessLayer(current_layer)]
+        self.layers = [ProcessLayer(current_layer, self.processor)]
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -173,7 +177,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
     def insertRows(self, position, rows=1, index=QModelIndex()):
         self.beginInsertRows(QModelIndex(), position, position + rows - 1)
         for row in range(rows):
-            self.layers.insert(position + row, ProcessLayer(self.data_[0]))
+            self.layers.insert(position + row, ProcessLayer(self.data_[0],
+                               self.processor))
         self.endInsertRows()
         self.dirty = True
         return True
@@ -218,7 +223,7 @@ class ProcessLayerDelegate(QItemDelegate):
         row = index.row()
         column = index.column()
         model = index.model()
-        process_layers = [ProcessLayer(a) for a in model.data_]
+        process_layers = [ProcessLayer(a, model.processor) for a in model.data_]
         selected_layer_name = model.layers[row].qgis_layer_name
         layer = model._get_qgis_layer(selected_layer_name)
         if column == LAYER:
