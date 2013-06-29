@@ -10,11 +10,9 @@ class SextanteConeforProvider(AlgorithmProvider):
     A_TESTING_SETTING = 'My_testing_setting'
 
     def __init__(self):
-        #super(SextanteConeforProvider, self).__init__()
         AlgorithmProvider.__init__(self)
         self.algList = [
             ConeforInputsProcessor(),
-            #ConeforProcessor,
         ]
         for alg in self.algList:
             alg.provider = self
@@ -23,7 +21,6 @@ class SextanteConeforProvider(AlgorithmProvider):
         '''
         '''
 
-        #super(SextanteConeforProvider, self).initializeSettings()
         AlgorithmProvider.initializeSettings(self)
         SextanteConfig.addSetting(
             Setting(self._name,
@@ -33,15 +30,13 @@ class SextanteConeforProvider(AlgorithmProvider):
         )
 
     def unload(self):
-        #super(SextanteConeforProvider, self).unload()
-        AlgorithmProvider.unload()
+        AlgorithmProvider.unload(self)
         SextanteConfig.removeSetting(self.A_TESTING_SETTING)
 
     def getName(self):
         return self._name
 
     def getIcon(self):
-        #super(SextanteConeforProvider, self).getIcon()
         return AlgorithmProvider.getIcon(self)
 
     def loadAlgorithms(self):

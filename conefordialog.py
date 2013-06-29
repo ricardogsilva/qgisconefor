@@ -18,15 +18,12 @@ class NoUniqueFieldError(Exception):
 
 class ProcessLayer(object):
 
-    def __init__(self, qgis_layer):
+    def __init__(self, qgis_layer, processor):
         self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
-        self.field_names = [f.name() for f in provider.fields()]
-        if any(self.field_names):
-            self.id_field_name = self.field_names[0]
-        else:
-            self.id_field_name = None
+        unique_field_names = processor._get_unique_fields(qgis_layer)
+        self.id_field_name = unique_field_names[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
         self.process_centroid_distance = True
@@ -47,7 +44,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers.values()
-        self.layers = [ProcessLayer(current_layer)]
+        self.layers = [ProcessLayer(current_layer, self.plugin_obj)]
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -173,7 +170,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
     def insertRows(self, position, rows=1, index=QModelIndex()):
         self.beginInsertRows(QModelIndex(), position, position + rows - 1)
         for row in range(rows):
-            self.layers.insert(position + row, ProcessLayer(self.data_[0]))
+            self.layers.insert(position + row, ProcessLayer(self.data_[0],
+                               self.plugin_obj))
         self.endInsertRows()
         self.dirty = True
         return True
@@ -218,8 +216,10 @@ class ProcessLayerDelegate(QItemDelegate):
         row = index.row()
         column = index.column()
         model = index.model()
-        process_layers = [ProcessLayer(a) for a in model.data_]
+        process_layers = [ProcessLayer(a, model.plugin_obj) for a in model.data_]
         selected_layer_name = model.layers[row].qgis_layer_name
+        selected_id_field_name = model.layers[row].id_field_name
+        selected_attribute_field_name = model.layers[row].attribute_field_name
         layer = model._get_qgis_layer(selected_layer_name)
         if column == LAYER:
             layer_names = [pl.qgis_layer_name for pl in process_layers]
@@ -229,9 +229,13 @@ class ProcessLayerDelegate(QItemDelegate):
         elif column == ID:
             unique_field_names = model.plugin_obj._get_unique_fields(layer)
             editor.addItems(unique_field_names)
+            cmb_index = editor.findText(selected_id_field_name)
+            editor.setCurrentIndex(cmb_index)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
             editor.addItems(['<None>'] + field_names)
+            cmb_index = editor.findText(selected_attribute_field_name)
+            editor.setCurrentIndex(cmb_index)
         else:
             QItemDelegate.setEditorData(self, editor, index)
 
@@ -246,6 +250,8 @@ class ProcessLayerDelegate(QItemDelegate):
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
             model.setData(attr_index, '<None>')
+        elif column in (ID, ATTRIBUTE):
+            model.setData(index, editor.currentText())
         else:
             QItemDelegate.setModelData(self, editor, model, index)
 
