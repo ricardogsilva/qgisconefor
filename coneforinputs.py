@@ -8,7 +8,6 @@ A QGIS plugin for writing input files to the Conefor software.
 import os
 import sys
 import codecs
-from math import ceil
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -460,7 +459,7 @@ class ConeforProcessor(QObject):
                                           encoding, layer.crs())
                 self.global_progress += each_save_file_step
                 self.emit(SIGNAL('progress_changed'))
-            self.global_progress = ceil(self.global_progress)
+            self.global_progress = 100
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''
