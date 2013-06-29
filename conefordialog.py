@@ -25,12 +25,6 @@ class ProcessLayer(object):
 
         unique_field_names = processor._get_unique_fields(qgis_layer)
         self.id_field_name = unique_field_names[0]
-
-        #field_names = [f.name() for f in provider.fields()]
-        #if any(field_names):
-        #    self.id_field_name = field_names[0]
-        #else:
-        #    self.id_field_name = None
         self.attribute_field_name = '<None>'
         self.process_area = False
         self.process_centroid_distance = True
@@ -225,6 +219,8 @@ class ProcessLayerDelegate(QItemDelegate):
         model = index.model()
         process_layers = [ProcessLayer(a, model.processor) for a in model.data_]
         selected_layer_name = model.layers[row].qgis_layer_name
+        selected_id_field_name = model.layers[row].id_field_name
+        selected_attribute_field_name = model.layers[row].attribute_field_name
         layer = model._get_qgis_layer(selected_layer_name)
         if column == LAYER:
             layer_names = [pl.qgis_layer_name for pl in process_layers]
@@ -234,9 +230,13 @@ class ProcessLayerDelegate(QItemDelegate):
         elif column == ID:
             unique_field_names = model.processor._get_unique_fields(layer)
             editor.addItems(unique_field_names)
+            cmb_index = editor.findText(selected_id_field_name)
+            editor.setCurrentIndex(cmb_index)
         elif column == ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
             editor.addItems(['<None>'] + field_names)
+            cmb_index = editor.findText(selected_attribute_field_name)
+            editor.setCurrentIndex(cmb_index)
         else:
             QItemDelegate.setEditorData(self, editor, index)
 
