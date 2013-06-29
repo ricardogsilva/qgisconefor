@@ -246,6 +246,8 @@ class ProcessLayerDelegate(QItemDelegate):
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
             model.setData(attr_index, '<None>')
+        elif column in (ID, ATTRIBUTE):
+            model.setData(index, editor.currentText())
         else:
             QItemDelegate.setModelData(self, editor, model, index)
 
