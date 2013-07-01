@@ -113,37 +113,24 @@ class ConeforProcessor(QObject):
         return usable_layers
 
     def _get_unique_fields(self, layer):
-        '''
-        Return the names of the attributes that contain unique values only.
-
-        Inputs:
-
-            layer - A QgsVectorLayer
-
-        Returns a list of strings with the names of the fields that have only
-        unique values.
-        '''
-
-        result = []
-        fields = layer.dataProvider().fields()
-        all_ = self._get_all_values(layer)
-        for f in fields:
-            the_values = [v['value'] for v in all_ if v['field'] == f.name()]
-            unique_values = set(the_values)
-            if len(the_values) == len(unique_values):
-                result.append(f.name())
-        return result
-
-    def _get_all_values(self, layer):
-        result = []
-        fields = layer.dataProvider().fields()
-        for feat in layer.getFeatures():
-            for field in fields:
-                result.append({
-                    'field' : field.name(),
-                    'value' : feat.attribute(field.name()),
-                })
-        return result
+        unique_fields = layer.dataProvider().fields()
+        seen = dict()
+        for f in unique_fields:
+            seen[f.name()] = []
+        request = QgsFeatureRequest()
+        request.setFlags(QgsFeatureRequest.NoGeometry)
+        for feat in layer.getFeatures(request):
+            to_remove = []
+            for f in unique_fields:
+                name = f.name()
+                value = feat.attribute(name)
+                if value not in seen[name]:
+                    seen[name].append(value)
+                else:
+                    to_remove.append(name)
+            if len(to_remove) > 0:
+                unique_fields = [f for f in unique_fields if f.name() not in to_remove]
+        return [f.name() for f in unique_fields]
 
     def run_queries(self, layers, output_dir, create_distance_files,
                     only_selected_features):
@@ -855,7 +842,6 @@ class ConeforProcessor(QObject):
         if (min_x < pt.x() < max_x) and (min_y < pt.y() < max_y):
             result = True
         return result
-
 
     def get_closest_vertex(self, pt, line, measurer):
         '''
