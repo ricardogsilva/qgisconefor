@@ -29,6 +29,7 @@ class ConeforProcessor(QObject):
         self.iface = iface
         self.registry = QgsMapLayerRegistry.instance()
         self.global_progress = 0
+        self._layers = dict()
 
     def initGui(self):
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
@@ -113,24 +114,29 @@ class ConeforProcessor(QObject):
         return usable_layers
 
     def _get_unique_fields(self, layer):
-        unique_fields = layer.dataProvider().fields()
-        seen = dict()
-        for f in unique_fields:
-            seen[f.name()] = []
-        request = QgsFeatureRequest()
-        request.setFlags(QgsFeatureRequest.NoGeometry)
-        for feat in layer.getFeatures(request):
-            to_remove = []
+        if self._layers.get(layer.name()) is not None:
+            result = self._layers[layer.name()]
+        else:
+            unique_fields = layer.dataProvider().fields()
+            seen = dict()
             for f in unique_fields:
-                name = f.name()
-                value = feat.attribute(name)
-                if value not in seen[name]:
-                    seen[name].append(value)
-                else:
-                    to_remove.append(name)
-            if len(to_remove) > 0:
-                unique_fields = [f for f in unique_fields if f.name() not in to_remove]
-        return [f.name() for f in unique_fields]
+                seen[f.name()] = []
+            request = QgsFeatureRequest()
+            request.setFlags(QgsFeatureRequest.NoGeometry)
+            for feat in layer.getFeatures(request):
+                to_remove = []
+                for f in unique_fields:
+                    name = f.name()
+                    value = feat.attribute(name)
+                    if value not in seen[name]:
+                        seen[name].append(value)
+                    else:
+                        to_remove.append(name)
+                if len(to_remove) > 0:
+                    unique_fields = [f for f in unique_fields if f.name() not in to_remove]
+            result = [f.name() for f in unique_fields]
+            self._layers[layer.name()] = result
+        return result
 
     def run_queries(self, layers, output_dir, create_distance_files,
                     only_selected_features):
