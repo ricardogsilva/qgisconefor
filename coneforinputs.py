@@ -12,6 +12,7 @@ import codecs
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
+from qgis.gui import QgsMessageBar
 
 from conefordialog import ConeforDialog
 
@@ -117,6 +118,11 @@ class ConeforProcessor(QObject):
         if self._layers.get(layer.name()) is not None:
             result = self._layers[layer.name()]
         else:
+            self.iface.messageBar().pushMessage('%s plugin is analyzing ' \
+                                                '%s...' % (self._plugin_name,
+                                                layer.name()),
+                                                QgsMessageBar.INFO,
+                                                5)
             unique_fields = layer.dataProvider().fields()
             seen = dict()
             for f in unique_fields:
