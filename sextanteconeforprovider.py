@@ -1,5 +1,6 @@
 from sextante.core.AlgorithmProvider import AlgorithmProvider
 from sextante.core.SextanteConfig import Setting, SextanteConfig
+from sextante.core.SextanteLog import SextanteLog
 
 from sextanteconeforinputs import ConeforInputsProcessor
 #from sextanteconefor import ConeforProcessor

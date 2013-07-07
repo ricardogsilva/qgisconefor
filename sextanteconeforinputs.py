@@ -1,10 +1,14 @@
+from sextante.core.SextanteLog import SextanteLog
+from sextante.core.QGisLayers import QGisLayers
 from sextante.core.GeoAlgorithm import GeoAlgorithm
 from sextante.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
 from sextante.core.Sextante import Sextante
 from sextante.parameters.ParameterVector import ParameterVector
 from sextante.parameters.ParameterBoolean import ParameterBoolean
-from sextante.outputs.OutputFile import OutputFile
+from sextante.parameters.ParameterTableField import ParameterTableField
+from sextante.outputs.OutputDirectory import OutputDirectory
+log = SextanteLog.addToLog
 
 from coneforinputsprocessor import InputsProcessor
 
@@ -12,34 +16,35 @@ class ConeforInputsProcessor(GeoAlgorithm):
 
     OUTPUT_DIR = 'OUTPUT_DIR'
     INPUT_LAYER = 'INPUT_LAYER'
-    PROCESS_AREA = 'PROCESS_AREA'
+    UNIQUE_ATTRIBUTE = 'UNIQUE_ATTRIBUTE'
     PROCESS_ATTRIBUTE = 'PROCESS_ATTRIBUTE'
+    PROCESS_AREA = 'PROCESS_AREA'
     PROCESS_CENTROID = 'PROCESS_CENTROID'
     PROCESS_EDGE = 'PROCESS_EDGE'
+    DISTANCE_FILES = 'DISTANCE_FILES'
 
     def defineCharacteristics(self):
 
         self.name = 'Prepare inputs for Conefor'
         self.group = 'Conefor'
-        polygon = ParameterVector(self.INPUT_LAYER, 'Input polygon layer',
-                                  shapetype=2)
-        process_area = ParameterBoolean(self.PROCESS_AREA, 'Process the ' \
-                                        'area query?')
-        process_attribute = ParameterBoolean(self.PROCESS_ATTRIBUTE,
-                                             'Process the attribute query?')
-        process_centroid = ParameterBoolean(self.PROCESS_CENTROID,
-                                            'Process the centroid distance ' \
-                                            'query?')
-        process_edge = ParameterBoolean(self.PROCESS_EDGE, 'Process the ' \
-                                        'edge distance query?')
-        self.addParameter(polygon)
-        self.addParameter(process_area)
-        self.addParameter(process_attribute)
-        self.addParameter(process_centroid)
-        self.addParameter(process_edge)
-        output_dir = OutputFile(self.OUTPUT_DIR, 'output directory where ' \
-                                'the calculated files will be saved')
-        self.addOutput(output_dir)
+        self.addParameter(ParameterVector(self.INPUT_LAYER,
+                          'Input polygon layer', shapetype=2))
+        self.addParameter(ParameterTableField(self.UNIQUE_ATTRIBUTE,
+                          'ID field:', self.INPUT_LAYER,
+                          optional=False))
+        self.addParameter(ParameterTableField(self.PROCESS_ATTRIBUTE,
+                          'Attribute query field:', self.INPUT_LAYER,
+                          optional=True))
+        self.addParameter(ParameterBoolean(self.PROCESS_AREA,
+                          'Process the area query?'))
+        self.addParameter(ParameterBoolean(self.PROCESS_CENTROID,
+                          'Process the centroid distance query?'))
+        self.addParameter(ParameterBoolean(self.PROCESS_EDGE,
+                          'Process the edge distance query?'))
+        self.addParameter(ParameterBoolean(self.DISTANCE_FILES,
+                          'Create distance shapefiles?'))
+        self.addOutput(OutputDirectory(self.OUTPUT_DIR, 'output directory ' \
+                       'where the calculated files will be saved'))
 
     def helpFile(self):
         return None
@@ -53,13 +58,26 @@ class ConeforInputsProcessor(GeoAlgorithm):
         return None
 
     def processAlgorithm(self, progress):
+
         # check for the usable layers
+        only_selected = True # use Sextante
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
-        output_dir = self.getOutputValue(self.OUTPUT_DIR)
-        vector_layer = Sextante.getObject(input_file_path)
+        layer_uri = Sextante.getObject(input_file_path)
+        iface = Sextante.getInterface()
+        project_crs = iface.mapCanvas().mapRenderer().destinationCrs()
         try:
-            the_algorithm = InputsProcessor(self.crs)
-            layers = [vector_layer]
-            the_algorithm.run_queries(layers, output_dir, False, False)
+            the_algorithm = InputsProcessor(project_crs)
+            the_algorithm.process_layer(
+                Sextante.getObject(input_file_path),
+                self.getParameterValue(self.UNIQUE_ATTRIBUTE),
+                self.getParameterValue(self.PROCESS_AREA),
+                self.getParameterValue(self.PROCESS_ATTRIBUTE),
+                self.getParameterValue(self.PROCESS_CENTROID),
+                self.getParameterValue(self.PROCESS_EDGE),
+                self.getOutputValue(self.OUTPUT_DIR),
+                100,
+                self.getParameterValue(self.DISTANCE_FILES),
+                only_selected
+            )
         except Exception as e:
             raise GeoAlgorithmExecutionException
