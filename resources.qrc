@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/plugins/conefor_dev">
+    <file>help_assets/conefor_logo.png</file>
     <file>help.html</file>
     <file>icon.png</file>
   </qresource>

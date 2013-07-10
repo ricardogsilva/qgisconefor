@@ -268,9 +268,8 @@ class HelpDialog(QDialog, Ui_Dialog):
     def __init__(self, parent=None):
         super(HelpDialog, self).__init__(parent)
         self.setupUi(self)
-        self.webView.setHtml(
+        self.webView.load(
             QUrl("qrc:/plugins/conefor_dev/help.html"),
-            QUrl("qrc:/plugins/conefor_dev/help_assets"),
         )
 
 
