@@ -2,7 +2,7 @@ from sextante.core.AlgorithmProvider import AlgorithmProvider
 from sextante.core.SextanteConfig import Setting, SextanteConfig
 from sextante.core.SextanteLog import SextanteLog
 
-from sextanteconeforinputs import ConeforInputsProcessor
+from sextanteconeforinputs import ConeforInputsPolygons, ConeforInputsPoints
 #from sextanteconefor import ConeforProcessor
 
 class SextanteConeforProvider(AlgorithmProvider):
@@ -13,7 +13,8 @@ class SextanteConeforProvider(AlgorithmProvider):
     def __init__(self):
         AlgorithmProvider.__init__(self)
         self.algList = [
-            ConeforInputsProcessor(),
+            ConeforInputsPolygons(),
+            ConeforInputsPoints(),
         ]
         for alg in self.algList:
             alg.provider = self

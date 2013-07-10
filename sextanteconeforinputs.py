@@ -1,4 +1,5 @@
 from sextante.core.SextanteLog import SextanteLog
+from sextante.core.SextanteConfig import SextanteConfig
 from sextante.core.QGisLayers import QGisLayers
 from sextante.core.GeoAlgorithm import GeoAlgorithm
 from sextante.core.GeoAlgorithmExecutionException import \
@@ -23,12 +24,7 @@ class ConeforInputsProcessor(GeoAlgorithm):
     PROCESS_EDGE = 'PROCESS_EDGE'
     DISTANCE_FILES = 'DISTANCE_FILES'
 
-    def defineCharacteristics(self):
-
-        self.name = 'Prepare inputs for Conefor'
-        self.group = 'Conefor'
-        self.addParameter(ParameterVector(self.INPUT_LAYER,
-                          'Input polygon layer', shapetype=2))
+    def _other_characteristics(self):
         self.addParameter(ParameterTableField(self.UNIQUE_ATTRIBUTE,
                           'ID field:', self.INPUT_LAYER,
                           optional=False))
@@ -46,8 +42,11 @@ class ConeforInputsProcessor(GeoAlgorithm):
         self.addOutput(OutputDirectory(self.OUTPUT_DIR, 'output directory ' \
                        'where the calculated files will be saved'))
 
+    def defineCharacteristics(self):
+        raise NotImplementedError
+
     def helpFile(self):
-        return None
+        return 'qrc:/plugins/conefor_dev/help.html'
 
     def getCustomParametersDialog(self):
         # maybe we can use directly the already made GUI...
@@ -60,7 +59,7 @@ class ConeforInputsProcessor(GeoAlgorithm):
     def processAlgorithm(self, progress):
 
         # check for the usable layers
-        only_selected = True # use Sextante
+        only_selected = SextanteConfig.getSetting('USE_SELECTED')
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
         layer_uri = Sextante.getObject(input_file_path)
         iface = Sextante.getInterface()
@@ -81,3 +80,24 @@ class ConeforInputsProcessor(GeoAlgorithm):
             )
         except Exception as e:
             raise GeoAlgorithmExecutionException
+
+class ConeforInputsPoints(ConeforInputsProcessor):
+
+    def defineCharacteristics(self):
+
+        self.name = 'Prepare point inputs for Conefor'
+        self.group = 'Conefor'
+        self.addParameter(ParameterVector(self.INPUT_LAYER,
+                          'Input point layer', shapetype=0))
+        self._other_characteristics()
+
+
+class ConeforInputsPolygons(ConeforInputsProcessor):
+
+    def defineCharacteristics(self):
+
+        self.name = 'Prepare polygon inputs for Conefor'
+        self.group = 'Conefor'
+        self.addParameter(ParameterVector(self.INPUT_LAYER,
+                          'Input point layer', shapetype=2))
+        self._other_characteristics()
