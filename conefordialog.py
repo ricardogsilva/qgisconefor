@@ -10,6 +10,7 @@ from qgis.core import *
 from qgis.utils import showPluginHelp
 
 from ui_conefor_dlg import Ui_ConeforDialog
+from ui_help_dlg import Ui_Dialog
 
 LAYER, ID, ATTRIBUTE, CENTROID, EDGE, AREA = range(6)
 
@@ -262,6 +263,16 @@ class ProcessLayerDelegate(QItemDelegate):
             self.closeEditor.emit(editor, QAbstractItemDelegate.EditNextItem)
 
 
+class HelpDialog(QDialog, Ui_Dialog):
+
+    def __init__(self, parent=None):
+        super(HelpDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.webView.load(
+            QUrl("qrc:/plugins/conefor_dev/help.html"),
+        )
+
+
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     _settings_key = 'PythonPlugins/coneforinputs'
@@ -311,7 +322,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         return exist_selected
 
     def show_help(self):
-        showPluginHelp(filename='help')
+        dlg = HelpDialog(self)
+        dlg.exec_()
 
     def add_row(self):
         row = self.model.rowCount()
