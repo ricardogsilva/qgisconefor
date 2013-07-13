@@ -1,3 +1,7 @@
+from functools import partial
+
+from PyQt4.QtCore import QObject, SIGNAL
+
 from sextante.core.SextanteLog import SextanteLog
 from sextante.core.SextanteConfig import SextanteConfig
 from sextante.core.QGisLayers import QGisLayers
@@ -9,7 +13,6 @@ from sextante.parameters.ParameterVector import ParameterVector
 from sextante.parameters.ParameterBoolean import ParameterBoolean
 from sextante.parameters.ParameterTableField import ParameterTableField
 from sextante.outputs.OutputDirectory import OutputDirectory
-log = SextanteLog.addToLog
 
 from coneforinputsprocessor import InputsProcessor
 
@@ -66,6 +69,10 @@ class ConeforInputsProcessor(GeoAlgorithm):
         project_crs = iface.mapCanvas().mapRenderer().destinationCrs()
         try:
             the_algorithm = InputsProcessor(project_crs)
+            QObject.connect(the_algorithm, SIGNAL('progress_changed'), 
+                            self.update_progress)
+            QObject.connect(the_algorithm, SIGNAL('update_info'), 
+                            partial(self.update_info, progress))
             the_algorithm.process_layer(
                 Sextante.getObject(input_file_path),
                 self.getParameterValue(self.UNIQUE_ATTRIBUTE),
@@ -80,6 +87,13 @@ class ConeforInputsProcessor(GeoAlgorithm):
             )
         except Exception as e:
             raise GeoAlgorithmExecutionException
+
+    def update_progress(self, progress_obj, value):
+        progress_obj.setProgress(value)
+
+    def update_info(self, progress_obj, info, section=0):
+        progress_obj.setInfo(info)
+
 
 class ConeforInputsPoints(ConeforInputsProcessor):
 
