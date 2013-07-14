@@ -9,6 +9,7 @@ from sextante.core.GeoAlgorithm import GeoAlgorithm
 from sextante.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
 from sextante.core.Sextante import Sextante
+from sextante.core.SextanteResults import SextanteResults
 from sextante.parameters.ParameterVector import ParameterVector
 from sextante.parameters.ParameterBoolean import ParameterBoolean
 from sextante.parameters.ParameterTableField import ParameterTableField
@@ -26,6 +27,7 @@ class ConeforInputsProcessor(GeoAlgorithm):
     PROCESS_CENTROID = 'PROCESS_CENTROID'
     PROCESS_EDGE = 'PROCESS_EDGE'
     DISTANCE_FILES = 'DISTANCE_FILES'
+    LOAD_DISTANCE_FILES = 'LOAD_DISTANCE_FILES'
 
     def _other_characteristics(self):
         self.addParameter(ParameterTableField(self.UNIQUE_ATTRIBUTE,
@@ -42,6 +44,9 @@ class ConeforInputsProcessor(GeoAlgorithm):
                           'Process the edge distance query?'))
         self.addParameter(ParameterBoolean(self.DISTANCE_FILES,
                           'Create distance shapefiles?'))
+        self.addParameter(ParameterBoolean(self.LOAD_DISTANCE_FILES,
+                          'Load distance shapefiles in map canvas?',
+                          default=False))
         self.addOutput(OutputDirectory(self.OUTPUT_DIR, 'output directory ' \
                        'where the calculated files will be saved'))
 
@@ -83,8 +88,11 @@ class ConeforInputsProcessor(GeoAlgorithm):
                 self.getOutputValue(self.OUTPUT_DIR),
                 100,
                 self.getParameterValue(self.DISTANCE_FILES),
-                only_selected
+                only_selected,
+                self.getParameterValue(self.LOAD_DISTANCE_FILES)
             )
+            SextanteResults.addResult('teste',
+                                      '/home/ricardo/Desktop/lixo.txt')
         except Exception as e:
             raise GeoAlgorithmExecutionException
 
