@@ -16,8 +16,10 @@ class InputsProcessor(QObject):
         self.project_crs = project_crs
         self.global_progress = 0
 
-    def run_queries(self, layers, output_dir, create_distance_files,
-                    only_selected_features):
+    def run_queries(self, layers, output_dir,
+                    centroid_distance_file_name,
+                    load_distance_files_to_canvas=True,
+                    save_text_files=True):
         '''
         Create the Conefor inputs files.
 
@@ -40,15 +42,22 @@ class InputsProcessor(QObject):
                     - attribute : the name of the attribute to use for the
                       attribute query. Can be None, resulting in no
                       attribute query being performed
+                    - centroid_distance_name : the name for the shapefile
+                      with centroid distances
+                    - edge_distance_name : the name for the shapefile with
+                      edge distances
 
             output_dir - The full path to the desired output directory;
-
-            create_distance_files - A boolean indicating if the vector files
-                with the lines representing the distances should be created;
 
             only_selected_features - A boolean indicating if the processing
                 should be restricted to the currently selected features on
                 each layer.
+
+            load_distance_files_to_canvas - A boolean indicating if the
+                distance files are to be loaded into QGIS' mapCanvas.
+
+            save_text_files - A boolean indicating if the text files are to be
+                saved to disk.
         '''
 
         self.emit(SIGNAL('update_info'), 'Processing started...')
@@ -63,9 +72,13 @@ class InputsProcessor(QObject):
                                    layer_parameters['attribute'],
                                    layer_parameters['centroid_distance'],
                                    layer_parameters['edge_distance'],
-                                   output_dir, layer_progress_step,
-                                   create_distance_files,
-                                   only_selected_features)
+                                   output_dir, 
+                                   layer_progress_step,
+                                   layer_parameters['centroid_distance_name'],
+                                   layer_parameters['edge_distance_name'],
+                                   only_selected_features,
+                                   load_distance_files_to_canvas,
+                                   save_text_files)
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
@@ -141,7 +154,8 @@ class InputsProcessor(QObject):
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         if file_type == 'ESRI Shapefile':
-            output_path = '%s.shp' % output_path
+            if not output_path.endswith('.shp'):
+                output_path = '%s.shp' % output_path
         fields = QgsFields()
         fields.append(QgsField('from_to', QVariant.String, 'from_to', 255))
         fields.append(QgsField('distance', QVariant.Double,
@@ -193,8 +207,11 @@ class InputsProcessor(QObject):
 
     def process_layer(self, layer, id_attribute, area, attribute,
                       centroid, edge, output_dir, progress_step,
-                      create_distance_files, only_selected_features,
-                      load_distance_files_to_canvas=True):
+                      centroid_distance_file_name,
+                      edge_distance_file_name,
+                      only_selected_features,
+                      load_distance_files_to_canvas=True,
+                      save_text_files=True):
         '''
         Process an individual layer.
 
@@ -220,8 +237,13 @@ class InputsProcessor(QObject):
             progress_step - The ammount of progress available for using in
                 this method
 
-            create_distance_files - A boolean specifying if the output distance
-                files are to be created
+            centroid_distance_file_name - A string with the name of the vector
+                file for creating centroid distances. A value of None disables
+                saving the vector file.
+
+            edge_distance_file_name - A string with the name of the vector
+                file for creating edge distances. A value of None disables
+                saving the vector file.
 
             only_selected_features - A boolean indicating if the processing
                 should be restricted to the currently selected features on
@@ -229,6 +251,9 @@ class InputsProcessor(QObject):
 
             load_distance_files_to_canvas - A boolean indicating if the
                 distance files are to be loaded into QGIS' mapCanvas.
+
+            save_text_files - A boolean indicating if the text files are to be
+                saved to disk.
         '''
 
         encoding = layer.dataProvider().encoding()
@@ -237,8 +262,10 @@ class InputsProcessor(QObject):
         num_queries = self._determine_num_queries(area, attribute, centroid,
                                                   edge)
         num_files_to_save = num_queries
-        if create_distance_files:
-            num_files_to_save += centroid + edge
+        if centroid_distance_file_name is not None:
+            num_files_to_save += 1
+        if edge_distance_file_name is not None:
+            num_files_to_save += 1
         running_queries_step = progress_step / 2.0
         each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
@@ -273,19 +300,19 @@ class InputsProcessor(QObject):
                                              only_selected_features)
             self.global_progress += each_query_step
             self.emit(SIGNAL('progress_changed'))
-        if any(attribute_data):
+        if any(attribute_data) and save_text_files:
             self.emit(SIGNAL('update_info'), 'Writing attribute file...', 1)
             output_name = 'nodes_%s_%s' % (attribute, layer.name())
             self._write_file(attribute_data, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
-        if any(area_data):
+        if any(area_data) and save_text_files:
             self.emit(SIGNAL('update_info'), 'Writing area file...', 1)
             output_name = 'nodes_calculated_area_%s' % layer.name()
             self._write_file(area_data, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
-        if any(centroid_data):
+        if any(centroid_data) and save_text_files:
             self.emit(SIGNAL('update_info'), 'Writing centroids file...', 1)
             output_name = 'distances_centroids_%s' % layer.name()
             data_to_write = []
@@ -298,7 +325,7 @@ class InputsProcessor(QObject):
             self._write_file(data_to_write, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
-        if any(edge_data):
+        if any(edge_data) and save_text_files:
             self.emit(SIGNAL('update_info'), 'Writing edges file...', 1)
             output_name = 'distances_edges_%s' % layer.name()
             data_to_write = []
@@ -311,48 +338,45 @@ class InputsProcessor(QObject):
             self._write_file(data_to_write, output_dir, output_name, encoding)
             self.global_progress += each_save_file_step
             self.emit(SIGNAL('progress_changed'))
-        if create_distance_files:
-            self.emit(SIGNAL('update_info'), 'Creating distance files', 1)
-            output_dir = os.path.join(output_dir, 'distance_files')
+        if centroid_distance_file_name is not None and any(centroid_data):
+            self.emit(SIGNAL('update_info'), 'Creating centroid distance file', 1)
             if not os.path.isdir(output_dir):
                 os.mkdir(output_dir)
-            if any(centroid_data):
-                self.emit(SIGNAL('update_info'), 'centroids...', 2)
-                data_to_write = []
-                for c_dict in centroid_data:
-                    the_data = {
-                        'from' : c_dict['current']['centroid'],
-                        'to' : c_dict['next']['centroid'],
-                        'distance' : c_dict['distance'],
-                        'from_attribute' : c_dict['current']['attribute'],
-                        'to_attribute' : c_dict['next']['attribute'],
-                    }
-                    data_to_write.append(the_data)
-                output_name = 'centroid_distances_%s' % layer.name()
-                self._write_distance_file(
-                    data_to_write, 
-                    output_dir, 
-                    output_name, 
-                    encoding, 
-                    layer.crs(),
-                    load_to_canvas=load_distance_files_to_canvas
-                )
-                self.global_progress += each_save_file_step
-                self.emit(SIGNAL('progress_changed'))
-            if any(edge_data):
-                self.emit(SIGNAL('update_info'), 'edges...', 2)
-                output_name = 'edge_distances_%s' % layer.name()
-                self._write_distance_file(
-                    edge_data, 
-                    output_dir, 
-                    output_name,
-                    encoding, 
-                    layer.crs(),
-                    load_to_canvas=load_distance_files_to_canvas
-                )
-                self.global_progress += each_save_file_step
-                self.emit(SIGNAL('progress_changed'))
-            self.global_progress = 100
+            self.emit(SIGNAL('update_info'), 'centroids...', 2)
+            data_to_write = []
+            for c_dict in centroid_data:
+                the_data = {
+                    'from' : c_dict['current']['centroid'],
+                    'to' : c_dict['next']['centroid'],
+                    'distance' : c_dict['distance'],
+                    'from_attribute' : c_dict['current']['attribute'],
+                    'to_attribute' : c_dict['next']['attribute'],
+                }
+                data_to_write.append(the_data)
+            self._write_distance_file(
+                data_to_write, 
+                output_dir, 
+                centroid_distance_file_name, 
+                encoding, 
+                layer.crs(),
+                load_to_canvas=load_distance_files_to_canvas
+            )
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
+        if edge_distance_file_name is not None and any(edge_data):
+            self.emit(SIGNAL('update_info'), 'Creating edge distance file', 1)
+            self.emit(SIGNAL('update_info'), 'edges...', 2)
+            self._write_distance_file(
+                edge_data, 
+                output_dir, 
+                edge_distance_file_name,
+                encoding, 
+                layer.crs(),
+                load_to_canvas=load_distance_files_to_canvas
+            )
+            self.global_progress += each_save_file_step
+            self.emit(SIGNAL('progress_changed'))
+        self.global_progress = 100
 
     def _determine_num_queries(self, area, attribute, centroid, edge):
         '''

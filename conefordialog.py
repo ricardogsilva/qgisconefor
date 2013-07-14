@@ -372,20 +372,26 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 attribute_field_name = None
             else:
                 attribute_field_name = la.attribute_field_name
-            the_data = {
+            data = {
                 'layer' : la.qgis_layer,
                 'id_attribute' : la.id_field_name,
                 'attribute' : attribute_field_name,
                 'area' : la.process_area,
                 'centroid_distance' : la.process_centroid_distance,
                 'edge_distance' : la.process_edge_distance,
+                'centroid_distance_name' : None,
+                'edge_distance_name' : None,
             }
-            layers.append(the_data)
+            if self.create_distances_files_chb.isChecked():
+                data['centroid_distance_name'] = 'centroid_distances_%s' % \
+                                                 la.qgis_layer.name()
+                data['edge_distance_name'] = 'edge_distances_%s' % \
+                                             la.qgis_layer.name()
+            layers.append(data)
         output_dir = str(self.output_dir_le.text())
-        create_distance_files = self.create_distances_files_chb.isChecked()
+
         only_selected_features = self.use_selected_features_chb.isChecked()
         self.plugin_obj.processor.run_queries(layers, output_dir,
-                                              create_distance_files,
                                               only_selected_features)
 
     def update_progress(self):
