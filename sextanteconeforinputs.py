@@ -2,6 +2,7 @@ import os
 from functools import partial
 
 from PyQt4.QtCore import QObject, SIGNAL
+from PyQt4.QtGui import QIcon
 
 from sextante.core.SextanteLog import SextanteLog
 from sextante.core.SextanteConfig import SextanteConfig
@@ -144,6 +145,9 @@ class ConeforInputsBase(GeoAlgorithm):
     OUTPUT_CENTROID_SHAPE = 'OUTPUT_CENTROID_SHAPE'
     OUTPUT_EDGE_SHAPE = 'OUTPUT_EDGE_SHAPE'
     OUTPUT_DIR = 'OUTPUT_DIR'
+
+    def getIcon(self):
+        return QIcon(':/plugins/conefor_dev/icon.png')
 
     def helpFile(self):
         return 'qrc:/plugins/conefor_dev/help.html'
