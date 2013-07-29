@@ -370,15 +370,33 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 raise NoUniqueFieldError
             if str(la.attribute_field_name) == '<None>':
                 attribute_field_name = None
+                attribute_file_name =  None
             else:
                 attribute_field_name = la.attribute_field_name
+                attribute_file_name = 'nodes_%s_%s' % (attribute_field_name,
+                                                       la.qgis_layer.name()) 
+            if la.process_area:
+                area_file_name = 'nodes_calculated_area_%s' % \
+                                 la.qgis_layer.name()
+            else:
+                area_file_name = None
+            if la.process_centroid_distance:
+                centroid_file_name = 'distances_centroids_%s' % \
+                                     la.qgis_layer.name()
+            else:
+                centroid_file_name = None
+            if la.process_edge_distance:
+                edge_file_name = 'distances_edges_%s' % la.qgis_layer.name()
+            else:
+                edge_file_name = None
             data = {
                 'layer' : la.qgis_layer,
                 'id_attribute' : la.id_field_name,
                 'attribute' : attribute_field_name,
-                'area' : la.process_area,
-                'centroid_distance' : la.process_centroid_distance,
-                'edge_distance' : la.process_edge_distance,
+                'attribute_file_name' : attribute_file_name,
+                'area_file_name' : area_file_name,
+                'centroid_file_name' : centroid_file_name,
+                'edge_file_name' : edge_file_name,
                 'centroid_distance_name' : None,
                 'edge_distance_name' : None,
             }
