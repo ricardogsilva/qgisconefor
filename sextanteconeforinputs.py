@@ -2,6 +2,7 @@ import os
 from functools import partial
 
 from PyQt4.QtCore import QObject, SIGNAL
+from PyQt4.QtGui import QIcon
 
 from sextante.core.SextanteLog import SextanteLog
 from sextante.core.SextanteConfig import SextanteConfig
@@ -14,15 +15,19 @@ from sextante.core.SextanteResults import SextanteResults
 from sextante.parameters.ParameterVector import ParameterVector
 from sextante.parameters.ParameterBoolean import ParameterBoolean
 from sextante.parameters.ParameterTableField import ParameterTableField
-from sextante.outputs.OutputDirectory import OutputDirectory
 from sextante.outputs.OutputVector import OutputVector
 from sextante.outputs.OutputFile import OutputFile
+#from sextante.outputs.OutputDirectory import OutputDirectory
 
 from coneforinputsprocessor import InputsProcessor
 
 class ConeforInputsBase(GeoAlgorithm):
-    NAME = ''
-    GROUP = ''
+
+    # to be reimplemented in child classes
+    NAME = None
+    SHAPE_TYPE = None
+    GROUP = None
+
     INPUT_LAYER = 'INPUT_LAYER'
     UNIQUE_ATTRIBUTE = 'UNIQUE_ATTRIBUTE'
     PROCESS_ATTRIBUTE = 'PROCESS_ATTRIBUTE'
@@ -59,6 +64,9 @@ class ConeforInputsBase(GeoAlgorithm):
         except Exception as e:
             raise GeoAlgorithmExecutionException
 
+    def getIcon(self):
+        return QIcon(':/plugins/conefor_dev/icon.png')
+
     def helpFile(self):
         return 'qrc:/plugins/conefor_dev/help.html'
 
@@ -70,25 +78,15 @@ class ConeforInputsBase(GeoAlgorithm):
 
     def _run_the_algorithm(self, algorithm_processor, use_selected, layer,
                            unique_attribute):
-        # to be reimplemented in children classes
+        # to be reimplemented in child classes
         raise NotImplementedError
 
 
-class ConeforInputsPoint(ConeforInputsBase):
-    SHAPE_TYPE = 0
-    GROUP = 'Points'
-
-
-class ConeforInputsPolygon(ConeforInputsBase):
-    SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-
-
-class ConeforInputsPolygonAttribute(ConeforInputsPolygon):
+class ConeforInputsAttribute(ConeforInputsBase):
     NAME = 'Prepare inputs - Attribute query'
 
     def defineCharacteristics(self):
-        ConeforInputsPolygon.defineCharacteristics(self)
+        ConeforInputsBase.defineCharacteristics(self)
         self.addParameter(ParameterTableField(self.PROCESS_ATTRIBUTE,
                           'Attribute query field:', self.INPUT_LAYER,
                           optional=False))
@@ -97,28 +95,27 @@ class ConeforInputsPolygonAttribute(ConeforInputsPolygon):
 
     def _run_the_algorithm(self, processor, use_selected, layer,
                            unique_attribute):
-
         out_path = self.getOutputValue(self.OUTPUT_FILE)
-        output_dir, attribute_file_name = os.path.split(out_path)
         process_attribute = self.getParameterValue(self.PROCESS_ATTRIBUTE)
+        output_dir, attribute_file_name = os.path.split(out_path)
         the_algorithm.process_layer(layer, unique_attribute, output_dir,
                                     progress_step=100,
                                     attribute=process_attribute,
+                                    attribute_file_name=attribute_file_name,
                                     only_selected_features=only_selected,
                                     load_distance_files_to_canvas=False)
 
 
-class ConeforInputsPolygonArea(ConeforInputsPolygon):
+class ConeforInputsArea(ConeforInputsBase):
     NAME = 'Prepare inputs - Area query'
 
     def defineCharacteristics(self):
-        ConeforInputsPolygon.defineCharacteristics(self)
+        ConeforInputsBase.defineCharacteristics(self)
         self.addOutput(OutputFile(self.OUTPUT_FILE, 'output ' \
                        'area query file'))
 
     def _run_the_algorithm(self, processor, use_selected, layer,
                            unique_attribute):
-
         out_path = self.getOutputValue(self.OUTPUT_FILE)
         output_dir, area_file_name = os.path.split(out_path)
         the_algorithm.process_layer(layer, unique_attribute, output_dir,
@@ -127,17 +124,17 @@ class ConeforInputsPolygonArea(ConeforInputsPolygon):
                                     only_selected_features=only_selected,
                                     load_distance_files_to_canvas=False)
 
-class ConeforInputsPolygonCentroid(ConeforInputsPolygon):
+
+class ConeforInputsCentroid(ConeforInputsBase):
     NAME = 'Prepare inputs - Centroid query'
 
     def defineCharacteristics(self):
-        ConeforInputsPolygon.defineCharacteristics(self)
+        ConeforInputsBase.defineCharacteristics(self)
         self.addOutput(OutputFile(self.OUTPUT_FILE, 'output ' \
                        'centroid query file'))
 
     def _run_the_algorithm(self, processor, use_selected, layer,
                            unique_attribute):
-
         out_path = self.getOutputValue(self.OUTPUT_FILE)
         output_dir, centroid_file_name = os.path.split(out_path)
         the_algorithm.process_layer(layer, unique_attribute, output_dir,
@@ -147,11 +144,11 @@ class ConeforInputsPolygonCentroid(ConeforInputsPolygon):
                                     load_distance_files_to_canvas=False)
 
 
-class ConeforInputsPolygonEdge(ConeforInputsPolygon):
+class ConeforInputsEdge(ConeforInputsBase):
     NAME = 'Prepare inputs - Edge query'
 
     def defineCharacteristics(self):
-        ConeforInputsPolygon.defineCharacteristics(self)
+        ConeforInputsBase.defineCharacteristics(self)
         self.addOutput(OutputFile(self.OUTPUT_FILE, 'output edge ' \
                        'distances file'))
 
@@ -167,10 +164,11 @@ class ConeforInputsPolygonEdge(ConeforInputsPolygon):
                                     load_distance_files_to_canvas=False)
 
 
-class ConeforInputsPolygonCentroidDistance(ConeforInputsPolygon):
+class ConeforInputsCentroidDistance(ConeforInputsBase):
     NAME = 'Misc - Centroid distance vector'
 
     def defineCharacteristics(self):
+        ConeforInputsBase.defineCharacteristics(self)
         self.addOutput(OutputVector(self.OUTPUT_FILE, 'output ' \
                        'shapefile where the calculated distances will be ' \
                        'saved'))
@@ -187,10 +185,11 @@ class ConeforInputsPolygonCentroidDistance(ConeforInputsPolygon):
                                     load_distance_files_to_canvas=False)
 
 
-class ConeforInputsPolygonEdgeDistance(ConeforInputsPolygon):
+class ConeforInputsEdgeDistance(ConeforInputsBase):
     NAME = 'Misc - Edge distance vector'
 
     def defineCharacteristics(self):
+        ConeforInputsBase.defineCharacteristics(self)
         self.addOutput(OutputVector(self.OUTPUT_FILE, 'output ' \
                        'shapefile where the calculated distances will be ' \
                        'saved'))
@@ -205,3 +204,52 @@ class ConeforInputsPolygonEdgeDistance(ConeforInputsPolygon):
                                     edge_distance_file_name=shape_name,
                                     only_selected_features=only_selected,
                                     load_distance_files_to_canvas=False)
+
+
+class ConeforInputsPointAttribute(ConeforInputsAttribute):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonAttribute(ConeforInputsAttribute):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'
+
+class ConeforInputsPointArea(ConeforInputsArea):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonArea(ConeforInputsArea):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'
+
+class ConeforInputsPointCentroid(ConeforInputsCentroid):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonCentroid(ConeforInputsCentroid):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'
+
+class ConeforInputsPointEdge(ConeforInputsEdge):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonEdge(ConeforInputsEdge):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'
+
+class ConeforInputsPointCentroidDistance(ConeforInputsCentroidDistance):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonCentroidDistance(ConeforInputsCentroidDistance):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'
+
+class ConeforInputsPointEdgeDistance(ConeforInputsEdgeDistance):
+    SHAPE_TYPE = 0
+    GROUP = 'Points'
+
+class ConeforInputsPolygonEdgeDistance(ConeforInputsEdgeDistance):
+    SHAPE_TYPE = 2
+    GROUP = 'Polygons'

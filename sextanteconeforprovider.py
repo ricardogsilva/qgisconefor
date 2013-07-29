@@ -5,12 +5,19 @@ from sextante.core.AlgorithmProvider import AlgorithmProvider
 from sextante.core.SextanteConfig import Setting, SextanteConfig
 from sextante.core.SextanteLog import SextanteLog
 
-from sextanteconeforinputs import ConeforInputsPolygons, ConeforInputsPoints, \
+#from sextanteconeforinputs import ConeforInputsPolygons, ConeforInputsPoints, \
+from sextanteconeforinputs import \
+    ConeforInputsPointAttribute, \
     ConeforInputsPolygonAttribute, \
+    ConeforInputsPointArea, \
     ConeforInputsPolygonArea, \
+    ConeforInputsPointCentroid, \
     ConeforInputsPolygonCentroid, \
+    ConeforInputsPointEdge, \
     ConeforInputsPolygonEdge, \
+    ConeforInputsPointCentroidDistance, \
     ConeforInputsPolygonCentroidDistance, \
+    ConeforInputsPointEdgeDistance, \
     ConeforInputsPolygonEdgeDistance
 #from sextanteconefor import ConeforProcessor
 
@@ -49,17 +56,22 @@ class SextanteConeforProvider(AlgorithmProvider):
 
     def getIcon(self):
         return QIcon(':/plugins/conefor_dev/icon.png')
-        #return AlgorithmProvider.getIcon(self)
 
     def createAlgsList(self):
         self.preloaded_algs = [
-            ConeforInputsPolygons(),
-            ConeforInputsPoints(),
+            #ConeforInputsPolygons(),
+            #ConeforInputsPoints(),
+            ConeforInputsPointAttribute(),
             ConeforInputsPolygonAttribute(),
+            ConeforInputsPointArea(),
             ConeforInputsPolygonArea(),
+            ConeforInputsPointCentroid(),
             ConeforInputsPolygonCentroid(),
+            ConeforInputsPointEdge(),
             ConeforInputsPolygonEdge(),
+            ConeforInputsPointCentroidDistance(),
             ConeforInputsPolygonCentroidDistance(),
+            ConeforInputsPointEdgeDistance(),
             ConeforInputsPolygonEdgeDistance(),
         ]
         for alg in self.preloaded_algs:
