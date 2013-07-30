@@ -5,7 +5,6 @@ from sextante.core.AlgorithmProvider import AlgorithmProvider
 from sextante.core.SextanteConfig import Setting, SextanteConfig
 from sextante.core.SextanteLog import SextanteLog
 
-#from sextanteconeforinputs import ConeforInputsPolygons, ConeforInputsPoints, \
 from sextanteconeforinputs import \
     ConeforInputsPointAttribute, \
     ConeforInputsPolygonAttribute, \
@@ -59,8 +58,6 @@ class SextanteConeforProvider(AlgorithmProvider):
 
     def createAlgsList(self):
         self.preloaded_algs = [
-            #ConeforInputsPolygons(),
-            #ConeforInputsPoints(),
             ConeforInputsPointAttribute(),
             ConeforInputsPolygonAttribute(),
             ConeforInputsPointArea(),
