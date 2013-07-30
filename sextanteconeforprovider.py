@@ -1,3 +1,5 @@
+import os
+
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
@@ -18,21 +20,23 @@ from sextanteconeforinputs import \
     ConeforInputsPolygonCentroidDistance, \
     ConeforInputsPointEdgeDistance, \
     ConeforInputsPolygonEdgeDistance
-#from sextanteconefor import ConeforProcessor
+from sextanteconeforprocessor import ConeforProcessor
 
 import resources_rc
 
 class SextanteConeforProvider(AlgorithmProvider):
 
-    _name = 'Conefor'
-    A_TESTING_SETTING = 'My_testing_setting'
+    DESCRIPTION = 'Conefor (Habitat patches and landscape connectivity analysis)'
+    NAME = 'Conefor'
+    CONEFOR_EXECUTABLE_PATH = 'CONEFOR_EXECUTABLE_PATH'
+    RUN_THROUGH_WINE = 'RUN_THROUGH_WINE'
 
     def __init__(self):
         AlgorithmProvider.__init__(self)
         self.createAlgsList()
 
     def getDescription(self):
-        return 'Conefor (Habitat patches and landscape connectivity analysis)'
+        return self.DESCRIPTION
 
     def initializeSettings(self):
         '''
@@ -40,10 +44,16 @@ class SextanteConeforProvider(AlgorithmProvider):
 
         AlgorithmProvider.initializeSettings(self)
         SextanteConfig.addSetting(
-            Setting(self._name,
-                    self.A_TESTING_SETTING,
-                    'Some text',
-                    'And more text')
+            Setting(self.getDescription(),
+                    self.CONEFOR_EXECUTABLE_PATH,
+                    'Path to conefor.exe',
+                    self._get_conefor_path())
+        )
+        SextanteConfig.addSetting(
+            Setting(self.getDescription(),
+                    self.RUN_THROUGH_WINE,
+                    'Run conefor with wine',
+                    True)
         )
 
     def unload(self):
@@ -51,7 +61,7 @@ class SextanteConeforProvider(AlgorithmProvider):
         SextanteConfig.removeSetting(self.A_TESTING_SETTING)
 
     def getName(self):
-        return self._name
+        return self.NAME
 
     def getIcon(self):
         return QIcon(':/plugins/conefor_dev/icon.png')
@@ -70,9 +80,20 @@ class SextanteConeforProvider(AlgorithmProvider):
             ConeforInputsPolygonCentroidDistance(),
             ConeforInputsPointEdgeDistance(),
             ConeforInputsPolygonEdgeDistance(),
+            ConeforProcessor(),
         ]
         for alg in self.preloaded_algs:
             alg.provider = self
 
     def loadAlgorithms(self):
         self.algs = self.preloaded_algs
+
+    def _get_conefor_path(self):
+        conefor_path = SextanteConfig.getSetting(self.CONEFOR_EXECUTABLE_PATH)
+        if conefor_path is None:
+            conefor_path = ''
+        return os.path.abspath(unicode(conefor_path))
+
+    def _run_conefor_through_wine(self):
+        use_wine = SextanteConfig.getSetting(self.RUN_THROUGH_WINE)
+        return use_wine

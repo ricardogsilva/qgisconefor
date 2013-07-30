@@ -63,8 +63,6 @@ class ConeforInputsBase(GeoAlgorithm):
                             partial(self.update_info, progress))
             self._run_the_algorithm(the_algorithm, only_selected, layer,
                                     unique_attribute)
-            #SextanteResults.addResult('teste',
-            #                          '/home/ricardo/Desktop/lixo.txt')
         except Exception as e:
             raise GeoAlgorithmExecutionException(e.message)
 
