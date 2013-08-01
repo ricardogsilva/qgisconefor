@@ -20,7 +20,8 @@ from sextanteconeforinputs import \
     ConeforInputsPolygonCentroidDistance, \
     ConeforInputsPointEdgeDistance, \
     ConeforInputsPolygonEdgeDistance
-from sextanteconeforprocessor import ConeforProcessor
+from sextanteconeforprocessor import \
+    ConeforBinaryIndicesProcessor
 
 import resources_rc
 
@@ -49,12 +50,6 @@ class SextanteConeforProvider(AlgorithmProvider):
                     'Path to conefor.exe',
                     self._get_conefor_path())
         )
-        SextanteConfig.addSetting(
-            Setting(self.getDescription(),
-                    self.RUN_THROUGH_WINE,
-                    'Run conefor with wine',
-                    True)
-        )
 
     def unload(self):
         AlgorithmProvider.unload(self)
@@ -80,7 +75,7 @@ class SextanteConeforProvider(AlgorithmProvider):
             ConeforInputsPolygonCentroidDistance(),
             ConeforInputsPointEdgeDistance(),
             ConeforInputsPolygonEdgeDistance(),
-            ConeforProcessor(),
+            ConeforBinaryIndicesProcessor(),
         ]
         for alg in self.preloaded_algs:
             alg.provider = self
@@ -93,7 +88,3 @@ class SextanteConeforProvider(AlgorithmProvider):
         if conefor_path is None:
             conefor_path = ''
         return os.path.abspath(unicode(conefor_path))
-
-    def _run_conefor_through_wine(self):
-        use_wine = SextanteConfig.getSetting(self.RUN_THROUGH_WINE)
-        return use_wine
