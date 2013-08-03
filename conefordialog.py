@@ -193,7 +193,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
             if str(layer.name()) == str(layer_name):
                 the_layer = layer
         provider = the_layer.dataProvider()
-        the_fields = provider.fields()
+        # 2, 6 are QGIS types for integer and real
+        the_fields = [f for f in provider.fields() if f.type() in (2, 6)]
         return [f.name() for f in the_fields]
 
 

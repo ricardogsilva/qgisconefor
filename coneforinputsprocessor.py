@@ -187,6 +187,9 @@ class InputsProcessor(QObject):
         with codecs.open(output_path, 'w', encoding) as file_handler:
             for line in sorted_data:
                 file_handler.write(line)
+            # Conefor manual states that files should terminate with a blank
+            # line
+            file_handler.write('\n')
         self.global_progress += progress_step
         self.emit(SIGNAL('progress_changed'))
 
@@ -359,8 +362,8 @@ class InputsProcessor(QObject):
         data = []
         features = self._get_features(layer, use_selected)
         for feat in features:
-            id_attr = self._decode_attribute(feat.attribute(id_attribute),
-                                            encoding)
+            id_attr = self._decode_attribute(int(feat.attribute(id_attribute)),
+                                             encoding)
             attr = self._decode_attribute(feat.attribute(attribute),
                                             encoding)
             data.append('%s\t%s\n' % (id_attr, attr))
@@ -431,7 +434,7 @@ class InputsProcessor(QObject):
                 for hole in holes:
                     hole_areas += measurer.measurePolygon(hole)
             total_feat_area = outer_area - hole_areas
-            id_attr = self._decode_attribute(feat.attribute(id_attribute),
+            id_attr = self._decode_attribute(int(feat.attribute(id_attribute)),
                                              encoding)
             data.append('%s\t%s\n' % (id_attr, total_feat_area))
         self.global_progress += analysis_step
@@ -496,8 +499,8 @@ class InputsProcessor(QObject):
         while i < len(feature_ids):
             features = self._get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            c_id_attr = self._decode_attribute(current.attribute(id_attribute),
-                                               encoding)
+            int_c_id_attr = int(current.attribute(id_attribute))
+            c_id_attr = self._decode_attribute(int_c_id_attr, encoding)
             current_geom = current.geometry()
             orig_curr_centroid = current_geom.centroid().asPoint()
             trans_curr_centroid = self._transform_point(orig_curr_centroid,
@@ -507,7 +510,8 @@ class InputsProcessor(QObject):
                 features = self._get_features(layer, use_selected,
                                               feature_ids[j])
                 next_ = iter(features).next()
-                n_id_attr = self._decode_attribute(next_.attribute(id_attribute),
+                int_n_id_attr = int(next_.attribute(id_attribute))
+                n_id_attr = self._decode_attribute(int_n_id_attr,
                                                    encoding)
 
                 next_geom = next_.geometry()
@@ -608,8 +612,8 @@ class InputsProcessor(QObject):
         while i < len(feature_ids):
             features = self._get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            c_id_at = self._decode_attribute(current.attribute(id_attribute),
-                                             encoding)
+            int_c_id_attr = int(current.attribute(id_attribute))
+            c_id_attr = self._decode_attribute(int_c_id_attr, encoding)
             current_geom = current.geometry()
             current_poly = self._get_polygon(current_geom, transformer)
             j = i + 1
@@ -617,7 +621,8 @@ class InputsProcessor(QObject):
                 features = self._get_features(layer, use_selected,
                                               feature_ids[j])
                 next_ = iter(features).next()
-                n_id_at = self._decode_attribute(next_.attribute(id_attribute),
+                int_n_id_attr = int(next_.attribute(id_attribute))
+                n_id_attr = self._decode_attribute(int_n_id_attr,
                                                    encoding)
                 next_geom = next_.geometry()
                 next_poly = self._get_polygon(next_geom, transformer)

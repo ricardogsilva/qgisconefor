@@ -124,22 +124,23 @@ class ConeforProcessor(object):
             layer - A QgsVectorLayer
 
         Returns a list of strings with the names of the fields that have only
-        unique values.
+        unique values. Only numerical fields with integer values are usable by
+        Conefor.
         '''
 
         result = []
-        fields = layer.dataProvider().fields()
-        all_ = self._get_all_values(layer)
-        for f in fields:
+        integer_fields = [f for f in layer.dataProvider().fields() if \
+                          f.type()==2]
+        all_ = self._get_all_values(layer, integer_fields)
+        for f in integer_fields:
             the_values = [v['value'] for v in all_ if v['field'] == f.name()]
             unique_values = set(the_values)
             if len(the_values) == len(unique_values):
                 result.append(f.name())
         return result
 
-    def _get_all_values(self, layer):
+    def _get_all_values(self, layer, fields):
         result = []
-        fields = layer.dataProvider().fields()
         for feat in layer.getFeatures():
             for field in fields:
                 result.append({
