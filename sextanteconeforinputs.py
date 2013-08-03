@@ -43,7 +43,7 @@ class ConeforInputsBase(GeoAlgorithm):
                           'Input point layer', shapetype=self.SHAPE_TYPE))
         self.addParameter(ParameterTableField(self.UNIQUE_ATTRIBUTE,
                           'ID field:', self.INPUT_LAYER,
-                          optional=False))
+                          datatype=0, optional=False))
 
     def processAlgorithm(self, progress):
         only_selected = SextanteConfig.getSetting('USE_SELECTED')
@@ -90,7 +90,7 @@ class ConeforInputsAttribute(ConeforInputsBase):
         ConeforInputsBase.defineCharacteristics(self)
         self.addParameter(ParameterTableField(self.PROCESS_ATTRIBUTE,
                           'Attribute query field:', self.INPUT_LAYER,
-                          optional=False))
+                          datatype=0, optional=False))
         self.addOutput(OutputFile(self.OUTPUT_FILE, 'output ' \
                        'attribute query file'))
 
@@ -204,60 +204,55 @@ class ConeforInputsEdgeDistance(ConeforInputsBase):
 
 class ConeforInputsPointAttribute(ConeforInputsAttribute):
     SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Prepare inputs - Attribute query [%s]' % GROUP
+    GROUP = 'Prepare point inputs'
+    NAME = 'Attribute query [%s]' % GROUP
 
 class ConeforInputsPolygonAttribute(ConeforInputsAttribute):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Prepare inputs - Attribute query [%s]' % GROUP
+    GROUP = 'Prepare polygon inputs'
+    NAME = 'Attribute query [%s]' % GROUP
 
 class ConeforInputsPointArea(ConeforInputsArea):
     SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Prepare inputs - Area query [%s]' % GROUP
+    GROUP = 'Prepare point inputs'
+    NAME = 'Area query [%s]' % GROUP
 
 class ConeforInputsPolygonArea(ConeforInputsArea):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Prepare inputs - Area query [%s]' % GROUP
+    GROUP = 'Prepare polygon inputs'
+    NAME = 'Area query [%s]' % GROUP
 
 class ConeforInputsPointCentroid(ConeforInputsCentroid):
     SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Prepare inputs - Centroid query [%s]' % GROUP
+    GROUP = 'Prepare point inputs'
+    NAME = 'Centroid query [%s]' % GROUP
 
 class ConeforInputsPolygonCentroid(ConeforInputsCentroid):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Prepare inputs - Centroid query [%s]' % GROUP
+    GROUP = 'Prepare polygon inputs'
+    NAME = 'Centroid query [%s]' % GROUP
 
 class ConeforInputsPointEdge(ConeforInputsEdge):
     SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Prepare inputs - Edge query [%s]' % GROUP
+    GROUP = 'Prepare point inputs'
+    NAME = 'Edge query [%s]' % GROUP
 
 class ConeforInputsPolygonEdge(ConeforInputsEdge):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Prepare inputs - Edge query [%s]' % GROUP
+    GROUP = 'Prepare polygon inputs'
+    NAME = 'Edge query [%s]' % GROUP
 
 class ConeforInputsPointCentroidDistance(ConeforInputsCentroidDistance):
     SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Misc - Centroid distance vector [%s]' % GROUP
+    GROUP = 'Miscelaneous'
+    NAME = 'Point distance vector [%s]' % GROUP
 
 class ConeforInputsPolygonCentroidDistance(ConeforInputsCentroidDistance):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Misc - Centroid distance vector [%s]' % GROUP
-
-class ConeforInputsPointEdgeDistance(ConeforInputsEdgeDistance):
-    SHAPE_TYPE = 0
-    GROUP = 'Points'
-    NAME = 'Misc - Edge distance vector [%s]' % GROUP
+    GROUP = 'Miscelaneous'
+    NAME = 'Centroid distance vector [%s]' % GROUP
 
 class ConeforInputsPolygonEdgeDistance(ConeforInputsEdgeDistance):
     SHAPE_TYPE = 2
-    GROUP = 'Polygons'
-    NAME = 'Misc - Edge distance vector [%s]' % GROUP
+    GROUP = 'Miscelaneous'
+    NAME = 'Edge distance vector [%s]' % GROUP
