@@ -14,14 +14,23 @@ from sextanteconeforinputs import \
     ConeforInputsPolygonArea, \
     ConeforInputsPointCentroid, \
     ConeforInputsPolygonCentroid, \
-    ConeforInputsPointEdge, \
     ConeforInputsPolygonEdge, \
     ConeforInputsPointCentroidDistance, \
     ConeforInputsPolygonCentroidDistance, \
-    ConeforInputsPointEdgeDistance, \
     ConeforInputsPolygonEdgeDistance
 from sextanteconeforprocessor import \
-    ConeforBinaryIndicesProcessor
+    ConeforNCProcessor, \
+    ConeforNLProcessor, \
+    ConeforHProcessor, \
+    ConeforCCPProcessor, \
+    ConeforLCPProcessor, \
+    ConeforIICProcessor, \
+    ConeforBCProcessor, \
+    ConeforBCIICProcessor, \
+    ConeforFProcessor, \
+    ConeforAWFProcessor, \
+    ConeforPCProcessor, \
+    ConeforBCPCProcessor
 
 import resources_rc
 
@@ -69,13 +78,22 @@ class SextanteConeforProvider(AlgorithmProvider):
             ConeforInputsPolygonArea(),
             ConeforInputsPointCentroid(),
             ConeforInputsPolygonCentroid(),
-            ConeforInputsPointEdge(),
             ConeforInputsPolygonEdge(),
             ConeforInputsPointCentroidDistance(),
             ConeforInputsPolygonCentroidDistance(),
-            ConeforInputsPointEdgeDistance(),
             ConeforInputsPolygonEdgeDistance(),
-            ConeforBinaryIndicesProcessor(),
+            ConeforNCProcessor(),
+            ConeforNLProcessor(),
+            ConeforHProcessor(),
+            ConeforCCPProcessor(),
+            ConeforLCPProcessor(),
+            ConeforIICProcessor(),
+            ConeforBCProcessor(),
+            ConeforBCIICProcessor(),
+            ConeforFProcessor(),
+            ConeforAWFProcessor(),
+            ConeforPCProcessor(),
+            ConeforBCPCProcessor(),
         ]
         for alg in self.preloaded_algs:
             alg.provider = self
