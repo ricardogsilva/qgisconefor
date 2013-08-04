@@ -1,6 +1,6 @@
 import os
 import shutil
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 
 from PyQt4.QtGui import QIcon
 
@@ -72,7 +72,6 @@ class ConeforProcessorBase(GeoAlgorithm):
     def defineCharacteristics(self):
         self.name = self.NAME
         self.group = self.GROUP
-        #self._add_parameters(parameters)
 
     def _create_parameters(self):
         parameters = [
@@ -90,27 +89,42 @@ class ConeforProcessorBase(GeoAlgorithm):
     def processAlgorithm(self, progress):
         problems = self._problems_to_run()
         if problems is None:
-            try:
-                conefor_path = SextanteConfig.getSetting(
-                    self.provider.CONEFOR_EXECUTABLE_PATH)
-                conefor_dir = os.path.dirname(conefor_path)
-                before = os.listdir(conefor_dir)
-                nodes = self.getParameterValue(self.INPUT_NODES_FILE)
-                connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
-                prefix = os.path.splitext(os.path.basename(nodes))[0]
-                rc, stdout, stderr = self._run_the_algorithm(conefor_path,
-                        nodes, connections, prefix)
-                after = os.listdir(conefor_dir)
-                new_files = [os.path.join(conefor_dir, f) for f in after if \
-                             f not in before]
-                print('new_files: %s' % new_files)
-                # for now, the new files get moved to the inputs directory
-                # in the future it would be nice to have a proper output directory
-                output_dir = os.path.dirname(nodes)
-                self._merge_results(output_dir, new_files)
-                progress.setPercentage(100)
-            except Exception as e:
-                raise GeoAlgorithmExecutionException(e.message)
+            #try:
+            #    conefor_path = SextanteConfig.getSetting(
+            #        self.provider.CONEFOR_EXECUTABLE_PATH)
+            #    conefor_dir = os.path.dirname(conefor_path)
+            #    before = os.listdir(conefor_dir)
+            #    nodes = self.getParameterValue(self.INPUT_NODES_FILE)
+            #    connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
+            #    prefix = os.path.splitext(os.path.basename(nodes))[0]
+            #    rc, stdout, stderr = self._run_the_algorithm(conefor_path,
+            #            nodes, connections, prefix, progress)
+            #    after = os.listdir(conefor_dir)
+            #    new_files = [os.path.join(conefor_dir, f) for f in after if \
+            #                 f not in before]
+            #    print('new_files: %s' % new_files)
+            #    output_dir = self.getParameterValue(self.OUTPUT_DIR)
+            #    self._merge_results(output_dir, new_files)
+            #    progress.setPercentage(100)
+            #except Exception as e:
+            #    raise GeoAlgorithmExecutionException(e.message)
+
+            conefor_path = SextanteConfig.getSetting(
+                self.provider.CONEFOR_EXECUTABLE_PATH)
+            conefor_dir = os.path.dirname(conefor_path)
+            before = os.listdir(conefor_dir)
+            nodes = self.getParameterValue(self.INPUT_NODES_FILE)
+            connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
+            prefix = os.path.splitext(os.path.basename(nodes))[0]
+            rc, stdout, stderr = self._run_the_algorithm(conefor_path,
+                    nodes, connections, prefix, progress)
+            after = os.listdir(conefor_dir)
+            new_files = [os.path.join(conefor_dir, f) for f in after if \
+                            f not in before]
+            print('new_files: %s' % new_files)
+            output_dir = self.getParameterValue(self.OUTPUT_DIR)
+            self._merge_results(output_dir, new_files)
+            progress.setPercentage(100)
         else:
             raise GeoAlgorithmExecutionException(problems)
 
@@ -211,7 +225,7 @@ class ConeforProcessorBase(GeoAlgorithm):
             os.remove(os.path.join(intended_output_dir, f_name))
         shutil.move(file_path, intended_output_dir)
 
-    def _run_conefor(self, conefor_path, nodes_file_path,
+    def _run_conefor(self, progress, conefor_path, nodes_file_path,
                      connections_file_path, connection_type,
                      threshold_direct_links=0,
                      binary_indexes=[], decay_distance=0, decay_probability=0,
@@ -279,11 +293,17 @@ class ConeforProcessorBase(GeoAlgorithm):
             command_list += ['-prefix', prefix]
         print('command_list: %s' % command_list)
         process = Popen(command_list, cwd=conefor_dir, stdout=PIPE,
-                        stderr=PIPE)
-        stdout, stderr = process.communicate()
-        return process.returncode, stdout, stderr
+                        stderr=STDOUT)
+        while True:
+            line = process.stdout.readline()
+            if line != '':
+                progress.setText(line)
+            else:
+                break
+        return process.returncode, None, None #change this
 
-    def _run_the_algorithm(self, nodes_file_path, connections_file_path, prefix):
+    def _run_the_algorithm(self, nodes_file_path, connections_file_path,
+                           prefix, progress):
         raise NotImplementedError
 
     def _check_for_wine(self):
@@ -359,7 +379,7 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -368,6 +388,7 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -394,7 +415,7 @@ class ConeforNLProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -403,6 +424,7 @@ class ConeforNLProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -428,7 +450,7 @@ class ConeforHProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -437,6 +459,7 @@ class ConeforHProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -462,7 +485,7 @@ class ConeforCCPProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -471,6 +494,7 @@ class ConeforCCPProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -496,7 +520,7 @@ class ConeforLCPProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -505,6 +529,7 @@ class ConeforLCPProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -530,7 +555,7 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -539,6 +564,7 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -578,12 +604,13 @@ class ConeforBCProcessor(ConeforProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
         prefix +='_%s_%s' % (self.INDEX_CODE, thresh_d_links)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -604,12 +631,13 @@ class ConeforBCIICProcessor(ConeforBCProcessor):
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
         prefix +='_%s_%s' % (self.INDEX_CODE, thresh_d_links)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -666,7 +694,7 @@ class ConeforFProcessor(ConeforProbabilityDistanceProcessorBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
@@ -675,6 +703,7 @@ class ConeforFProcessor(ConeforProbabilityDistanceProcessorBase):
             only_overall = False
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -701,7 +730,7 @@ class ConeforAWFProcessor(ConeforProbabilityDistanceProcessorBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
@@ -710,6 +739,7 @@ class ConeforAWFProcessor(ConeforProbabilityDistanceProcessorBase):
             only_overall = False
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -745,7 +775,7 @@ class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
@@ -755,6 +785,7 @@ class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
             only_overall = False
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
@@ -806,7 +837,7 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix):
+                           connections_file_path, prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
@@ -817,6 +848,7 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
             only_overall = False
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
+            progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
