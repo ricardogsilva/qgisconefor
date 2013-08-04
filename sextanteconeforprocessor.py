@@ -15,32 +15,74 @@ from sextante.core.GeoAlgorithmExecutionException import \
     GeoAlgorithmExecutionException
 
 class ConeforProcessorBase(GeoAlgorithm):
-    NAME = 'Conefor test'
-    GROUP = 'Conefor'
+    '''
+    Base class for Conefor processing.
+
+    this class should not be instatiated directly.
+    '''
+
+    _connection_types = ['dist', 'prob'] # links is not supported atm
+    _number_of_connections = 'all'
+    _precision = 'double'
+
+    NAME = ''
+    GROUP = ''
+
     INPUT_NODES_FILE = 'INPUT_NODES_FILE'
     INPUT_CONNECTIONS_FILE = 'INPUT_CONNECTIONS_FILE'
     INPUT_CONNECTION_TYPE = 'INPUT_CONNECTION_TYPE'
+    THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
+    DISTANCE_PROB = 'DISTANCE_PROB'
+    PROBABILITY_PROB = 'PROBABILITY_PROB'
+    CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
+    WRITE_COMPONENT_FILE = 'WRITE_COMPONENT_FILE'
+    WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
+    WRITE_PROB_DIR = 'WRITE_PROB_DIR'
+    WRITE_PROB_MAX = 'WRITE_PROB_MAX'
     OUTPUT_DIR = 'OUTPUT_DIR'
-    _connection_types = ['dist', 'probability'] # links is not supported atm
-    _number_of_connections = 'all'
-    _precision = 'double'
-    _conefor_probability_indexes = [
-        ('F', 'Flux'),
-        ('AWF', 'Area-weighted Flux'),
-        ('PC', 'Probability of Connectivity'), # this is the recommended probability index
-        'BCPC',
+
+    _parameter_order = [
+        INPUT_NODES_FILE,
+        INPUT_CONNECTIONS_FILE,
+        INPUT_CONNECTION_TYPE,
+        # _number_of_connections is not exposed in the GUI, yet
+        # -* option is not used by this plugin
+        THRESHOLD_DIRECT_LINKS,
+        # binary_indices are not selectable in the GUI
+        DISTANCE_PROB,
+        PROBABILITY_PROB,
+        # probability indices are not selectable in the GUI
+        CREATE_NODE_IMPORTANCES,
+        # pcHeur is not implemented, yet
+        # -add is not implemented, yet
+        # -removal is not implemented, yet
+        # -improvement is not implemented, yet
+        # -change is not implemented, yet
+        # self._precision is not exposed in the GUI
+        # -noout is not used by this plugin
+        WRITE_COMPONENT_FILE,
+        WRITE_LINKS_FILE,
+        WRITE_PROB_DIR,
+        WRITE_PROB_MAX,
+        # -landArea is not implemented, yet
+        # prefix is not exposed in the GUI
+        OUTPUT_DIR,
     ]
 
     def defineCharacteristics(self):
         self.name = self.NAME
         self.group = self.GROUP
-        self.addParameter(ParameterFile(self.OUTPUT_DIR, 'output ' \
-                          'directory for placing the results',
-                          isFolder=True))
-        self.addParameter(ParameterFile(self.INPUT_NODES_FILE,
-                          'Nodes file', optional=False))
-        self.addParameter(ParameterFile(self.INPUT_CONNECTIONS_FILE,
-                          'Connections file', optional=False))
+        #self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = [
+            ParameterFile(self.OUTPUT_DIR, 'output directory for placing ' \
+                          'the results', isFolder=True),
+            ParameterFile(self.INPUT_NODES_FILE, 'Nodes file', optional=False),
+            ParameterFile(self.INPUT_CONNECTIONS_FILE, 'Connections file',
+                          optional=False),
+        ]
+        return parameters
 
     def checkBeforeOpeningParametersDialog(self):
         return self._problems_to_run()
@@ -76,7 +118,19 @@ class ConeforProcessorBase(GeoAlgorithm):
         return QIcon(':/plugins/conefor_dev/icon.png')
 
     def helpFile(self):
-        return 'qrc:/plugins/conefor_dev/help.html'
+        return 'qrc:/plugins/conefor_dev/help_conefor.html'
+
+    def _add_parameters(self, parameters):
+        index_params = []
+        for p in parameters:
+            try:
+                index = self._parameter_order.index(p.name)
+                index_params.append((index, p))
+            except ValueError:
+                pass
+        ordered_params = sorted(index_params, key=lambda tup: tup[0])
+        for order, param in ordered_params:
+            self.addParameter(param)
 
     def _extract_results(self, file_path):
         '''
@@ -178,8 +232,6 @@ class ConeforProcessorBase(GeoAlgorithm):
               as the executable.
         '''
 
-        #conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
-        #connection_type = conn_type_param.options[conn_type_param.value]
         conefor_dir, conefor_file_name = os.path.split(conefor_path)
         command_list = []
         if not SextanteUtils.isWindows():
@@ -267,23 +319,24 @@ class ConeforProcessorBase(GeoAlgorithm):
 
 
 class ConeforBinaryIndexBase(ConeforProcessorBase):
-    THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
-    CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
-    WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
 
     def defineCharacteristics(self):
         ConeforProcessorBase.defineCharacteristics(self)
-        self.addParameter(ParameterSelection(self.INPUT_CONNECTION_TYPE,
-                          'Connection type', self._connection_types))
-        self.addParameter(ParameterNumber(self.THRESHOLD_DIRECT_LINKS,
-                          'Threshold (distance/probability) for connecting ' \
-                          'nodes (confAdj)'))
-        self.addParameter(ParameterBoolean(self.CREATE_NODE_IMPORTANCES,
-                          'Process individual node importances', 
-                          default=False))
-        self.addParameter(ParameterBoolean(self.WRITE_LINKS_FILE,
-                          'Write links file',
-                          default=False))
+
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterSelection(self.INPUT_CONNECTION_TYPE, 'Connection type',
+                               self._connection_types),
+            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, 'Threshold ' \
+                            '(distance/probability) for connecting nodes ' \
+                            '(confAdj)'),
+            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
+                             'individual node importances', default=False),
+            ParameterBoolean(self.WRITE_LINKS_FILE, 'Write links file',
+                             default=False),
+        ]
+        return parameters
 
 
 class ConeforNCProcessor(ConeforBinaryIndexBase):
@@ -291,13 +344,19 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
     INDEX_NAME = 'Number of Components'
     INDEX_CODE = 'NC'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-    WRITE_COMPONENT_FILE = 'WRITE_COMPONENT_FILE'
 
     def defineCharacteristics(self):
         ConeforBinaryIndexBase.defineCharacteristics(self)
-        self.addParameter(ParameterBoolean(self.WRITE_COMPONENT_FILE,
-                          'Write components file',
-                          default=False))
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforBinaryIndexBase._create_parameters(self)
+        parameters += [
+            ParameterBoolean(self.WRITE_COMPONENT_FILE, 'Write components ' \
+                             'file', default=False),
+        ]
+        return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -329,6 +388,11 @@ class ConeforNLProcessor(ConeforBinaryIndexBase):
     INDEX_CODE = 'NL'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
+    def defineCharacteristics(self):
+        ConeforBinaryIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
@@ -357,6 +421,11 @@ class ConeforHProcessor(ConeforBinaryIndexBase):
     INDEX_NAME = 'Harary'
     INDEX_CODE = 'H'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+
+    def defineCharacteristics(self):
+        ConeforBinaryIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -387,6 +456,11 @@ class ConeforCCPProcessor(ConeforBinaryIndexBase):
     INDEX_CODE = 'CCP'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
+    def defineCharacteristics(self):
+        ConeforBinaryIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
@@ -415,6 +489,11 @@ class ConeforLCPProcessor(ConeforBinaryIndexBase):
     INDEX_NAME = 'Landscape Coincidence Probability'
     INDEX_CODE = 'LCP'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+
+    def defineCharacteristics(self):
+        ConeforBinaryIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -445,6 +524,11 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
     INDEX_CODE = 'IIC'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
+    def defineCharacteristics(self):
+        ConeforBinaryIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
@@ -470,8 +554,6 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
 
 
 class ConeforBCProcessor(ConeforProcessorBase):
-    THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
-    WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
     GROUP = 'Binary indices'
     INDEX_NAME = 'Betweeness Centrality (Classic)'
     INDEX_CODE = 'BC'
@@ -479,14 +561,21 @@ class ConeforBCProcessor(ConeforProcessorBase):
 
     def defineCharacteristics(self):
         ConeforProcessorBase.defineCharacteristics(self)
-        self.addParameter(ParameterSelection(self.INPUT_CONNECTION_TYPE,
-                          'Connection type', self._connection_types))
-        self.addParameter(ParameterNumber(self.THRESHOLD_DIRECT_LINKS,
-                          'Threshold (distance/probability) for connecting ' \
-                          'nodes (confAdj)'))
-        self.addParameter(ParameterBoolean(self.WRITE_LINKS_FILE,
-                          'Write links file',
-                          default=False))
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterSelection(self.INPUT_CONNECTION_TYPE, 'Connection type',
+                               self._connection_types),
+            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, 'Threshold ' \
+                            '(distance/probability) for connecting nodes ' \
+                            '(confAdj)'),
+            ParameterBoolean(self.WRITE_LINKS_FILE, 'Write links file',
+                             default=False),
+        ]
+        return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -535,40 +624,47 @@ class ConeforBCIICProcessor(ConeforBCProcessor):
 
 
 class ConeforProbabilityIndexBase(ConeforProcessorBase):
-    CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
-    WRITE_PROB_DIR = 'WRITE_PROB_DIR'
 
     def defineCharacteristics(self):
         ConeforProcessorBase.defineCharacteristics(self)
-        self.addParameter(ParameterBoolean(self.CREATE_NODE_IMPORTANCES,
-                          'Process individual node importances', 
-                          default=False))
-        self.addParameter(ParameterBoolean(self.WRITE_PROB_DIR,
-                          'Write file with direct dispersal probabilities ' \
-                          'for each pair of nodes', default=False))
+
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
+                             'individual node importances', default=False),
+            ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
+                             'dispersal probabilities for each pair of nodes',
+                             default=False),
+        ]
+        return parameters
 
 
-class ConeforProbabilityDistanceProcessor(ConeforProbabilityIndexBase):
-    DISTANCE_PROB = 'DISTANCE_PROB'
-    PROBABILITY_PROB = 'PROBABILITY_PROB'
+class ConeforProbabilityDistanceProcessorBase(ConeforProbabilityIndexBase):
     _connection_type = 'dist'
  
-    def defineCharacteristics(self):
-        ConeforProbabilityIndexBase.defineCharacteristics(self)
-        self.addParameter(ParameterNumber(self.DISTANCE_PROB,
-                          'Distance to match with probability' \
-                          '(confProb distance)'))
-        self.addParameter(ParameterNumber(self.PROBABILITY_PROB,
-                          'Probability to match with distance' \
-                          '(confProb probability)'))
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
+                            'probability (confProb distance)'),
+            ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
+                            'with distance (confProb probability)'),
+        ]
+        return parameters
 
 
-class ConeforFProcessor(ConeforProbabilityDistanceProcessor):
+class ConeforFProcessor(ConeforProbabilityDistanceProcessorBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Flux'
     INDEX_CODE = 'F'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
+    def defineCharacteristics(self):
+        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
@@ -593,12 +689,17 @@ class ConeforFProcessor(ConeforProbabilityDistanceProcessor):
         return returncode, stdout, stderr
 
 
-class ConeforAWFProcessor(ConeforProbabilityDistanceProcessor):
+class ConeforAWFProcessor(ConeforProbabilityDistanceProcessorBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Area-weighted Flux'
     INDEX_CODE = 'AWF'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
+    def defineCharacteristics(self):
+        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
@@ -623,18 +724,25 @@ class ConeforAWFProcessor(ConeforProbabilityDistanceProcessor):
         return returncode, stdout, stderr
 
 
-class ConeforPCProcessor(ConeforProbabilityDistanceProcessor):
+class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Probability of Connectivity'
     INDEX_CODE = 'PC'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-    WRITE_PROB_MAX = 'WRITE_PROB_MAX'
 
     def defineCharacteristics(self):
-        ConeforProbabilityDistanceProcessor.defineCharacteristics(self)
-        self.addParameter(ParameterBoolean(self.WRITE_PROB_MAX,
-                          'Write file with maximum product probabilities ' \
-                          'for each pair of nodes', default=False))
+        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforProbabilityDistanceProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
+                             'product probabilities for each pair of nodes',
+                             default=False),
+        ]
+        return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -667,38 +775,35 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
     INDEX_NAME = 'Betweeness Centrality Generalized(PC)'
     INDEX_CODE = 'BCPC'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-    THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
-    CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
-    WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
-    DISTANCE_PROB = 'DISTANCE_PROB'
-    PROBABILITY_PROB = 'PROBABILITY_PROB'
-    WRITE_PROB_DIR = 'WRITE_PROB_DIR'
-    WRITE_PROB_MAX = 'WRITE_PROB_MAX'
     _connection_type = 'dist'
 
     def defineCharacteristics(self):
         ConeforProcessorBase.defineCharacteristics(self)
-        self.addParameter(ParameterNumber(self.THRESHOLD_DIRECT_LINKS,
-                          '(BC) Threshold (distance/probability) for ' \
-                          'connecting nodes (confAdj)'))
-        self.addParameter(ParameterBoolean(self.WRITE_LINKS_FILE,
-                          '(BC) Write links file',
-                          default=False))
-        self.addParameter(ParameterBoolean(self.CREATE_NODE_IMPORTANCES,
-                          'Process individual node importances', 
-                          default=False))
-        self.addParameter(ParameterNumber(self.DISTANCE_PROB,
-                          'Distance to match with probability' \
-                          '(confProb distance)'))
-        self.addParameter(ParameterNumber(self.PROBABILITY_PROB,
-                          'Probability to match with distance' \
-                          '(confProb probability)'))
-        self.addParameter(ParameterBoolean(self.WRITE_PROB_DIR,
-                          'Write file with direct dispersal probabilities ' \
-                          'for each pair of nodes', default=False))
-        self.addParameter(ParameterBoolean(self.WRITE_PROB_MAX,
-                          'Write file with maximum product probabilities ' \
-                          'for each pair of nodes', default=False))
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, '(BC) Threshold ' \
+                            '(distance/probability) for connecting nodes ' \
+                            '(confAdj)'),
+            ParameterBoolean(self.WRITE_LINKS_FILE, '(BC) Write links file',
+                             default=False),
+            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
+                             'individual node importances', default=False),
+            ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
+                            'probability (confProb distance)'),
+            ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
+                            'with distance (confProb probability)'),
+            ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
+                             'dispersal probabilities for each pair of nodes',
+                             default=False),
+            ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
+                             'product probabilities for each pair of nodes',
+                             default=False),
+        ]
+        return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
                            connections_file_path, prefix):
@@ -730,6 +835,6 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
 
 
 class ConeforProbabilityProbabilityProcessor(ConeforProbabilityIndexBase):
-    connection_type = 'prob'
+    _connection_type = 'prob'
 
     pass
