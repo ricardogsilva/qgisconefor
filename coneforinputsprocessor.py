@@ -650,8 +650,8 @@ class InputsProcessor(QObject):
                     'distance' : winner[2],
                     'from' : from_restored,
                     'to' : to_restored,
-                    'from_attribute' : c_id_at,
-                    'to_attribute' : n_id_at,
+                    'from_attribute' : c_id_attr,
+                    'to_attribute' : n_id_attr,
                 }
                 data.append(feat_result)
                 j += 1
