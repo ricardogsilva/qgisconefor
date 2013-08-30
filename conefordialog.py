@@ -23,7 +23,7 @@ class ProcessLayer(object):
         self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
-        unique_field_names = processor._get_unique_fields(qgis_layer)
+        unique_field_names = processor.get_unique_fields(qgis_layer)
         self.id_field_name = unique_field_names[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
@@ -33,8 +33,8 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
-    def __init__(self, qgis_layers, current_layer, plugin_obj):
-        self.plugin_obj = plugin_obj
+    def __init__(self, qgis_layers, current_layer, processor):
+        self.processor = processor
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
         self._header_labels[ID] = 'Unique\nattribute'
@@ -45,7 +45,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers.values()
-        self.layers = [ProcessLayer(current_layer, self.plugin_obj)]
+        self.layers = [ProcessLayer(current_layer, self.processor)]
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -172,7 +172,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), position, position + rows - 1)
         for row in range(rows):
             self.layers.insert(position + row, ProcessLayer(self.data_[0],
-                               self.plugin_obj))
+                               self.processor))
         self.endInsertRows()
         self.dirty = True
         return True
@@ -218,7 +218,7 @@ class ProcessLayerDelegate(QItemDelegate):
         row = index.row()
         column = index.column()
         model = index.model()
-        process_layers = [ProcessLayer(a, model.plugin_obj) for a in model.data_]
+        process_layers = [ProcessLayer(a, model.processor) for a in model.data_]
         selected_layer_name = model.layers[row].qgis_layer_name
         selected_id_field_name = model.layers[row].id_field_name
         selected_attribute_field_name = model.layers[row].attribute_field_name
@@ -229,7 +229,7 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
-            unique_field_names = model.plugin_obj._get_unique_fields(layer)
+            unique_field_names = model.processor.get_unique_fields(layer)
             editor.addItems(unique_field_names)
             cmb_index = editor.findText(selected_id_field_name)
             editor.setCurrentIndex(cmb_index)
@@ -247,7 +247,7 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model._get_qgis_layer(selected_layer_name)
-            unique_field_names = model.plugin_obj._get_unique_fields(layer)
+            unique_field_names = model.processor.get_unique_fields(layer)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
@@ -278,42 +278,77 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     _settings_key = 'PythonPlugins/coneforinputs'
 
-    def __init__(self, layers_dict, current_layer, plugin_obj, parent=None):
+    def __init__(self, plugin_obj, parent=None):
+    #def __init__(self, layers_dict, current_layer, processor, parent=None):
+        #usable_layers = self.get_usable_layers()
+        #cl = self.iface.mapCanvas().currentLayer()
+        #if cl not in usable_layers.values():
+        #    cl = usable_layers.values()[0]
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
-        self.layers = layers_dict
-        if self.exist_selected_features():
-            self.use_selected_features_chb.setEnabled(True)
-            self.use_selected_features_chb.setChecked(True)
+        self.processor = plugin_obj.processor
+        layers_dict = self.get_usable_layers(plugin_obj.registry)
+        if any(layers_dict):
+            current_layer = plugin_obj.iface.mapCanvas().currentLayer()
+            if current_layer not in layers_dict.values():
+                current_layer = layers_dict.values()[0]
+            self.change_ui_availability(True)
+            self.layers = layers_dict
+            if self.exist_selected_features():
+                self.use_selected_features_chb.setEnabled(True)
+                self.use_selected_features_chb.setChecked(True)
+            else:
+                self.use_selected_features_chb.setEnabled(False)
+            self.model = ProcessLayerTableModel(self.layers, current_layer,
+                                                self.processor)
+            self.tableView.setModel(self.model)
+            delegate = ProcessLayerDelegate(self, self)
+            self.tableView.setItemDelegate(delegate)
+            QObject.connect(self.add_row_btn, SIGNAL('released()'), self.add_row)
+            QObject.connect(self.remove_row_btn, SIGNAL('released()'),
+                            self.remove_row)
+            QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
+            QObject.connect(self.processor, SIGNAL('progress_changed'),
+                            self.update_progress)
+            QObject.connect(self.processor, SIGNAL('update_info'),
+                            self.update_info)
+            QObject.connect(self.model, SIGNAL('is_runnable_check'),
+                            self.toggle_run_button)
+            QObject.connect(self.help_btn, SIGNAL('released()'), self.show_help)
+            self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
+            self.remove_row_btn.setEnabled(False)
+            self.toggle_run_button()
+            output_dir = self.load_settings('output_dir')
+            if str(output_dir) == '':
+                output_dir = os.path.expanduser('~')
+            self.output_dir_le.setText(output_dir)
+            self.create_distances_files_chb.setChecked(True)
+            self.progressBar.setValue(self.processor.global_progress)
+            self.update_info('')
         else:
-            self.use_selected_features_chb.setEnabled(False)
-        self.plugin_obj = plugin_obj
-        self.model = ProcessLayerTableModel(self.layers, current_layer,
-                                            self.plugin_obj)
-        self.tableView.setModel(self.model)
-        delegate = ProcessLayerDelegate(self, self)
-        self.tableView.setItemDelegate(delegate)
-        QObject.connect(self.add_row_btn, SIGNAL('released()'), self.add_row)
-        QObject.connect(self.remove_row_btn, SIGNAL('released()'),
-                        self.remove_row)
-        QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
-        QObject.connect(self.plugin_obj.processor, SIGNAL('progress_changed'),
-                        self.update_progress)
-        QObject.connect(self.plugin_obj.processor, SIGNAL('update_info'),
-                        self.update_info)
-        QObject.connect(self.model, SIGNAL('is_runnable_check'),
-                        self.toggle_run_button)
-        QObject.connect(self.help_btn, SIGNAL('released()'), self.show_help)
-        self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
-        self.remove_row_btn.setEnabled(False)
-        self.toggle_run_button()
-        output_dir = self.load_settings('output_dir')
-        if str(output_dir) == '':
-            output_dir = os.path.expanduser('~')
-        self.output_dir_le.setText(output_dir)
-        self.create_distances_files_chb.setChecked(True)
-        self.progressBar.setValue(self.plugin_obj.processor.global_progress)
-        self.update_info('')
+            self.change_ui_availability(False)
+            self.progress_la.setText('No suitable layers found. Please '
+                                     'consult the plugin\'s Help page.')
+            palette = QPalette()
+            palette.setColor(QPalette.Foreground, Qt.red)
+            self.progress_la.setPalette(palette)
+
+    def get_usable_layers(self, map_layer_registry):
+        '''
+        return a dictionary with layerid as key and layer as value.
+
+        This plugin only works with vector layers of types Point and Polygon.
+        '''
+
+        usable_layers = dict()
+        loaded_layers = map_layer_registry.mapLayers()
+        for layer_id, the_layer in loaded_layers.iteritems():
+            if the_layer.type() == QgsMapLayer.VectorLayer:
+                if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
+                    unique_fields = self.processor.get_unique_fields(the_layer)
+                    if any(unique_fields):
+                        usable_layers[layer_id] = the_layer
+        return usable_layers
 
     def exist_selected_features(self):
         exist_selected = False
@@ -410,11 +445,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         output_dir = str(self.output_dir_le.text())
 
         only_selected_features = self.use_selected_features_chb.isChecked()
-        self.plugin_obj.processor.run_queries(layers, output_dir,
-                                              only_selected_features)
+        self.processor.run_queries(layers, output_dir, only_selected_features)
 
     def update_progress(self):
-        self.progressBar.setValue(self.plugin_obj.processor.global_progress)
+        self.progressBar.setValue(self.processor.global_progress)
 
     def update_info(self, info, section=0):
         '''
@@ -453,3 +487,20 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             self.run_btn.setEnabled(True)
         else:
             self.run_btn.setEnabled(False)
+
+    def change_ui_availability(self, boolean):
+        widgets = [
+            self.layers_la,
+            self.tableView,
+            self.remove_row_btn,
+            self.add_row_btn,
+            self.use_selected_features_chb,
+            self.create_distances_files_chb,
+            self.output_la,
+            self.output_dir_le,
+            self.output_dir_btn,
+            self.progressBar,
+            self.run_btn,
+        ]
+        for widget in widgets:
+            widget.setEnabled(boolean)
