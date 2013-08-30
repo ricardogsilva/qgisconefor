@@ -612,8 +612,8 @@ class InputsProcessor(QObject):
         while i < len(feature_ids):
             features = self._get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            int_c_id_attr = int(current.attribute(id_attribute))
-            c_id_attr = self._decode_attribute(int_c_id_attr, encoding)
+            int_c_id_at = int(current.attribute(id_attribute))
+            c_id_at = self._decode_attribute(int_c_id_at, encoding)
             current_geom = current.geometry()
             current_poly = self._get_polygon(current_geom, transformer)
             j = i + 1
@@ -621,8 +621,8 @@ class InputsProcessor(QObject):
                 features = self._get_features(layer, use_selected,
                                               feature_ids[j])
                 next_ = iter(features).next()
-                int_n_id_attr = int(next_.attribute(id_attribute))
-                n_id_attr = self._decode_attribute(int_n_id_attr,
+                int_n_id_at = int(next_.attribute(id_attribute))
+                n_id_at = self._decode_attribute(int_n_id_at,
                                                    encoding)
                 next_geom = next_.geometry()
                 next_poly = self._get_polygon(next_geom, transformer)
