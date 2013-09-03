@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time # to be deleted
+
 import os
 
 from PyQt4.QtCore import *
@@ -273,27 +275,95 @@ class HelpDialog(QDialog, Ui_Dialog):
             QUrl("qrc:/plugins/conefor_dev/help.html"),
         )
 
+class LayerAnalyzerThread(QThread):
+
+    def __init__(self, lock, parent=None):
+        super(LayerAnalyzerThread, self).__init__(parent)
+        self.lock = lock
+        self.mutex = QMutex()
+        self.stopped = False
+        self.completed = False
+
+    def initialize(self, loaded_layers):
+        self.loaded_layers = loaded_layers
+
+    def run(self):
+        print('antes de analisar as layers')
+        usable_layers = self.analyze_layers()
+        print('depois de analisar as layers')
+        self.stop()
+        print('antes de emitir o sinal finished')
+        self.emit(SIGNAL('finished'), usable_layers)
+        print('depois de emitir o sinal finished')
+
+    def stop(self):
+        with QMutexLocker(self.mutex):
+            self.stopped = True
+
+    def is_stopped():
+        result = False
+        with QMutexLocker(self.mutex):
+            if self.stopped:
+                result = True
+        return result
+
+    def analyze_layers(self):
+        usable_layers = dict()
+        print('self.loaded_layers: %s' % self.loaded_layers)
+        for layer_id, the_layer in self.loaded_layers.iteritems():
+            if the_layer.type() == QgsMapLayer.VectorLayer:
+                if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
+                    numeric_fields = []
+                    for f in layer.dataProvider().fields():
+                        if f.type in (2, 3): # confirm what type=3 is
+                            numeric_fields.append(f)
+                    unique_fields = numeric_fields.copy()
+                    all_ = set()
+                    numeric_field_to_remove = None
+                    for feat in layer.getFeatures():
+                        if self.is_stopped():
+                            return
+                        if numeric_field_to_remove is not None:
+                            numeric_fields.remove(numeric_field_to_remove)
+                        for field in numeric_fields:
+                            previous_size = len(all_)
+                            tup = (field.name(), feat.attribute(field.name()))
+                            all_.add(tup)
+                            if previous_size == len(all_): # latest add did not work
+                                unique_fields.remove(field)
+                                numeric_field_to_remove = field
+                    if any(unique_fields):
+                        usable_layers[layer_id] = the_layer
+        return usable_layers
+
 
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     _settings_key = 'PythonPlugins/coneforinputs'
 
     def __init__(self, plugin_obj, parent=None):
-    #def __init__(self, layers_dict, current_layer, processor, parent=None):
-        #usable_layers = self.get_usable_layers()
-        #cl = self.iface.mapCanvas().currentLayer()
-        #if cl not in usable_layers.values():
-        #    cl = usable_layers.values()[0]
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.processor = plugin_obj.processor
-        layers_dict = self.get_usable_layers(plugin_obj.registry)
-        if any(layers_dict):
+        self.lock = QReadWriteLock()
+        self.analyzer_thread = LayerAnalyzerThread(self.lock, self)
+        self.connect(self.analyzer_thread, SIGNAL('finished'),
+                     self.finished_analyzing_layers)
+        self.analyzer_thread.initialize(plugin_obj.registry.mapLayers())
+        self.change_ui_availability(False)
+        self.progress_la.setText('Analyzing layers...')
+        self.progressBar.setMinimum(0)
+        self.progressBar.setMaximum(0)
+        self.analyzer_thread.start()
+
+    def finished_analyzing_layers(self, usable_layers):
+        self.analyzer_thread.wait()
+        if any(usable_layers):
+            self.layers = usable_layers
             current_layer = plugin_obj.iface.mapCanvas().currentLayer()
-            if current_layer not in layers_dict.values():
-                current_layer = layers_dict.values()[0]
+            if current_layer not in self.layers.values():
+                current_layer = self.layers.values()[0]
             self.change_ui_availability(True)
-            self.layers = layers_dict
             if self.exist_selected_features():
                 self.use_selected_features_chb.setEnabled(True)
                 self.use_selected_features_chb.setChecked(True)
@@ -323,9 +393,11 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 output_dir = os.path.expanduser('~')
             self.output_dir_le.setText(output_dir)
             self.create_distances_files_chb.setChecked(True)
+            self.reset_progress_bar()
             self.progressBar.setValue(self.processor.global_progress)
             self.update_info('')
         else:
+            self.reset_progress_bar()
             self.change_ui_availability(False)
             self.progress_la.setText('No suitable layers found. Please '
                                      'consult the plugin\'s Help page.')
@@ -333,7 +405,13 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             palette.setColor(QPalette.Foreground, Qt.red)
             self.progress_la.setPalette(palette)
 
+    def reset_progress_bar(self):
+        self.progressBar.setMinimum(0)
+        self.progressBar.setMaximum(100)
+        self.progressBar.setValue(0)
+
     def get_usable_layers(self, map_layer_registry):
+        self.progressBar.setMaximum(0)
         '''
         return a dictionary with layerid as key and layer as value.
 
