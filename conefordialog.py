@@ -288,11 +288,8 @@ class LayerAnalyzerThread(QThread):
         self.loaded_layers = loaded_layers
 
     def run(self):
-        print('antes de analisar as layers')
         usable_layers = self.analyze_layers()
-        print('depois de analisar as layers')
         self.stop()
-        print('antes de emitir o sinal finished')
         self.emit(SIGNAL('finished'), usable_layers)
         print('depois de emitir o sinal finished')
 
@@ -300,7 +297,7 @@ class LayerAnalyzerThread(QThread):
         with QMutexLocker(self.mutex):
             self.stopped = True
 
-    def is_stopped():
+    def is_stopped(self):
         result = False
         with QMutexLocker(self.mutex):
             if self.stopped:
@@ -309,22 +306,22 @@ class LayerAnalyzerThread(QThread):
 
     def analyze_layers(self):
         usable_layers = dict()
-        print('self.loaded_layers: %s' % self.loaded_layers)
         for layer_id, the_layer in self.loaded_layers.iteritems():
             if the_layer.type() == QgsMapLayer.VectorLayer:
                 if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
                     numeric_fields = []
-                    for f in layer.dataProvider().fields():
-                        if f.type in (2, 3): # confirm what type=3 is
+                    for f in the_layer.dataProvider().fields():
+                        if f.type() in (QVariant.Int, QVariant.Double):
                             numeric_fields.append(f)
-                    unique_fields = numeric_fields.copy()
+                    unique_fields = numeric_fields[:]
                     all_ = set()
                     numeric_field_to_remove = None
-                    for feat in layer.getFeatures():
+                    for feat in the_layer.getFeatures():
                         if self.is_stopped():
                             return
                         if numeric_field_to_remove is not None:
                             numeric_fields.remove(numeric_field_to_remove)
+                            numeric_field_to_remove = None
                         for field in numeric_fields:
                             previous_size = len(all_)
                             tup = (field.name(), feat.attribute(field.name()))
@@ -345,6 +342,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.processor = plugin_obj.processor
+        self.iface = plugin_obj.iface
         self.lock = QReadWriteLock()
         self.analyzer_thread = LayerAnalyzerThread(self.lock, self)
         self.connect(self.analyzer_thread, SIGNAL('finished'),
@@ -360,7 +358,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.analyzer_thread.wait()
         if any(usable_layers):
             self.layers = usable_layers
-            current_layer = plugin_obj.iface.mapCanvas().currentLayer()
+            current_layer = self.iface.mapCanvas().currentLayer()
             if current_layer not in self.layers.values():
                 current_layer = self.layers.values()[0]
             self.change_ui_availability(True)
