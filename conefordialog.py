@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import time # to be deleted
-
 import os
 
 from PyQt4.QtCore import *
@@ -21,12 +19,11 @@ class NoUniqueFieldError(Exception):
 
 class ProcessLayer(object):
 
-    def __init__(self, qgis_layer, processor):
+    def __init__(self, qgis_layer, processor, unique_fields):
         self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
-        unique_field_names = processor.get_unique_fields(qgis_layer)
-        self.id_field_name = unique_field_names[0]
+        self.id_field_name = unique_fields[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
         self.process_centroid_distance = True
@@ -46,8 +43,10 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self._header_labels[ATTRIBUTE] = 'Process\nattribute'
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
-        self.data_ = qgis_layers.values()
-        self.layers = [ProcessLayer(current_layer, self.processor)]
+        self.data_ = qgis_layers
+        current_fields = qgis_layers[current_layer]
+        self.layers = [ProcessLayer(current_layer, self.processor,
+                                    current_fields)]
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)
@@ -165,16 +164,18 @@ class ProcessLayerTableModel(QAbstractTableModel):
 
     def _get_qgis_layer(self, layer_name):
         qgis_layer = None
-        for la in self.data_:
+        for la, unique_fields in self.data_.iteritems():
             if str(la.name()) == str(layer_name):
                 qgis_layer = la
         return qgis_layer
 
     def insertRows(self, position, rows=1, index=QModelIndex()):
         self.beginInsertRows(QModelIndex(), position, position + rows - 1)
+        a_layer = self.data_.keys()[0]
+        unique_fields = self.data_[a_layer]
         for row in range(rows):
-            self.layers.insert(position + row, ProcessLayer(self.data_[0],
-                               self.processor))
+            self.layers.insert(position + row, ProcessLayer(a_layer,
+                               self.processor, unique_fields))
         self.endInsertRows()
         self.dirty = True
         return True
@@ -191,12 +192,12 @@ class ProcessLayerTableModel(QAbstractTableModel):
 
     def get_field_names(self, layer_name):
         the_layer = None
-        for layer in self.data_:
+        for layer in self.data_.keys():
             if str(layer.name()) == str(layer_name):
                 the_layer = layer
         provider = the_layer.dataProvider()
-        # 2, 6 are QGIS types for integer and real
-        the_fields = [f for f in provider.fields() if f.type() in (2, 6)]
+        the_fields = [f for f in provider.fields() \
+            if f.type() in (QVariant.Int, QVariant.Double)]
         return [f.name() for f in the_fields]
 
 
@@ -220,7 +221,10 @@ class ProcessLayerDelegate(QItemDelegate):
         row = index.row()
         column = index.column()
         model = index.model()
-        process_layers = [ProcessLayer(a, model.processor) for a in model.data_]
+        process_layers = []
+        for qgis_layer, unique_fields in model.data_.iteritems():
+            process_layers.append(ProcessLayer(qgis_layer, model.processor,
+                                               unique_fields))
         selected_layer_name = model.layers[row].qgis_layer_name
         selected_id_field_name = model.layers[row].id_field_name
         selected_attribute_field_name = model.layers[row].attribute_field_name
@@ -249,7 +253,8 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model._get_qgis_layer(selected_layer_name)
-            unique_field_names = model.processor.get_unique_fields(layer)
+            #unique_field_names = model.processor.get_unique_fields(layer)
+            unique_field_names = model.data_.get(layer)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
             model.setData(id_index, unique_field_names[0])
@@ -305,33 +310,63 @@ class LayerAnalyzerThread(QThread):
         return result
 
     def analyze_layers(self):
+        '''
+        Returns a dictionary with the usable layers and unique fields.
+        '''
+
         usable_layers = dict()
         for layer_id, the_layer in self.loaded_layers.iteritems():
             if the_layer.type() == QgsMapLayer.VectorLayer:
                 if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
-                    numeric_fields = []
-                    for f in the_layer.dataProvider().fields():
-                        if f.type() in (QVariant.Int, QVariant.Double):
-                            numeric_fields.append(f)
-                    unique_fields = numeric_fields[:]
-                    all_ = set()
-                    numeric_field_to_remove = None
-                    for feat in the_layer.getFeatures():
-                        if self.is_stopped():
-                            return
-                        if numeric_field_to_remove is not None:
-                            numeric_fields.remove(numeric_field_to_remove)
-                            numeric_field_to_remove = None
-                        for field in numeric_fields:
-                            previous_size = len(all_)
-                            tup = (field.name(), feat.attribute(field.name()))
-                            all_.add(tup)
-                            if previous_size == len(all_): # latest add did not work
-                                unique_fields.remove(field)
-                                numeric_field_to_remove = field
+                    #numeric_fields = []
+                    #for f in the_layer.dataProvider().fields():
+                    #    if f.type() in (QVariant.Int, QVariant.Double):
+                    #        numeric_fields.append(f)
+                    #unique_fields = numeric_fields[:]
+                    #all_ = set()
+                    #numeric_field_to_remove = None
+                    #for feat in the_layer.getFeatures():
+                    #    if self.is_stopped():
+                    #        return
+                    #    if numeric_field_to_remove is not None:
+                    #        numeric_fields.remove(numeric_field_to_remove)
+                    #        numeric_field_to_remove = None
+                    #    for field in numeric_fields:
+                    #        previous_size = len(all_)
+                    #        tup = (field.name(), feat.attribute(field.name()))
+                    #        all_.add(tup)
+                    #        if previous_size == len(all_): # latest add did not work
+                    #            unique_fields.remove(field)
+                    #            numeric_field_to_remove = field
+                    unique_fields = self._get_unique_fields(the_layer)
                     if any(unique_fields):
-                        usable_layers[layer_id] = the_layer
+                        usable_layers[the_layer] = unique_fields
+        #import time
+        #time.sleep(5)
         return usable_layers
+
+    def _get_unique_fields(self, layer):
+        unique_fields = [f for f in layer.dataProvider().fields() \
+                if f.type() in (QVariant.Int, QVariant.Double)]
+        seen = dict()
+        for f in unique_fields:
+            seen[f.name()] = []
+        request = QgsFeatureRequest()
+        request.setFlags(QgsFeatureRequest.NoGeometry)
+        for feat in layer.getFeatures(request):
+            to_remove = []
+            for f in unique_fields:
+                name = f.name()
+                value = feat.attribute(name)
+                if value not in seen[name]:
+                    seen[name].append(value)
+                else:
+                    to_remove.append(name)
+            if len(to_remove) > 0:
+                unique_fields = [f for f in unique_fields if f.name() not in to_remove]
+        result = [f.name() for f in unique_fields]
+        return result 
+
 
 
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
@@ -359,8 +394,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         if any(usable_layers):
             self.layers = usable_layers
             current_layer = self.iface.mapCanvas().currentLayer()
-            if current_layer not in self.layers.values():
-                current_layer = self.layers.values()[0]
+            if current_layer not in self.layers.keys():
+                current_layer = self.layers.keys()[0]
             self.change_ui_availability(True)
             if self.exist_selected_features():
                 self.use_selected_features_chb.setEnabled(True)
@@ -428,7 +463,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def exist_selected_features(self):
         exist_selected = False
-        for layer in self.layers.values():
+        for layer in self.layers.keys():
             if layer.selectedFeatureCount() > 1:
                 exist_selected = True
         return exist_selected
