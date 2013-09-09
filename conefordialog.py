@@ -45,9 +45,12 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                      self.finished_analyzing_layers)
         self.connect(self.analyzer_thread, SIGNAL('analyzing_layer'),
                      self.analyzing_layer)
-        self.analyzer_thread.initialize(plugin_obj.registry.mapLayers())
+        self.analyzer_thread.initialize(plugin_obj.registry.mapLayers(),
+                                        self.unique_features_chb.isChecked())
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
+        find_unique_features = self.load_settings('analyze_unique_features')
+        self.unique_features_chb.setChecked(find_unique_features)
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
         self.analyzer_thread.start()
@@ -206,6 +209,11 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
+
+    def closeEvent(self, event=None):
+        print('closeEvent called')
+        self.save_settings('%s/analyze_unique_features' % self._settings_key,
+                           self.unique_features_chb.isChecked())
 
     def update_info(self, info, section=0):
         '''

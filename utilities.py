@@ -38,7 +38,7 @@ def get_features(layer, use_selected, filter_id=None):
             features = layer.getFeatures()
     return features
 
-def get_unique_fields(layer, use_selected_only=True):
+def get_unique_fields(layer):
     unique_fields = [f for f in layer.dataProvider().fields() \
             if f.type() in (QVariant.Int, QVariant.Double)]
     seen = dict()
