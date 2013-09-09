@@ -223,7 +223,7 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ID:
-            unique_field_names = model.processor.get_unique_fields(layer)
+            unique_field_names = model.data_.get(layer)
             editor.addItems(unique_field_names)
             cmb_index = editor.findText(selected_id_field_name)
             editor.setCurrentIndex(cmb_index)
@@ -241,7 +241,6 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model._get_qgis_layer(selected_layer_name)
-            #unique_field_names = model.processor.get_unique_fields(layer)
             unique_field_names = model.data_.get(layer)
             id_index = model.index(index.row(), ID)
             attr_index = model.index(index.row(), ATTRIBUTE)
