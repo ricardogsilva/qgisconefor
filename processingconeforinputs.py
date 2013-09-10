@@ -4,20 +4,19 @@ from functools import partial
 from PyQt4.QtCore import QObject, SIGNAL
 from PyQt4.QtGui import QIcon
 
-from sextante.core.SextanteLog import SextanteLog
-from sextante.core.SextanteConfig import SextanteConfig
-from sextante.core.QGisLayers import QGisLayers
-from sextante.core.GeoAlgorithm import GeoAlgorithm
-from sextante.core.GeoAlgorithmExecutionException import \
+from processing.core.Processing import Processing
+from processing.core.ProcessingConfig import ProcessingConfig
+from processing.core.QGisLayers import QGisLayers
+from processing.core.GeoAlgorithm import GeoAlgorithm
+from processing.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
-from sextante.core.Sextante import Sextante
-from sextante.core.SextanteResults import SextanteResults
-from sextante.parameters.ParameterVector import ParameterVector
-from sextante.parameters.ParameterBoolean import ParameterBoolean
-from sextante.parameters.ParameterTableField import ParameterTableField
-from sextante.outputs.OutputVector import OutputVector
-from sextante.outputs.OutputFile import OutputFile
-#from sextante.outputs.OutputDirectory import OutputDirectory
+#from processing.core.ProcessingLog import ProcessingLog
+#from processing.core.ProcessingResults import ProcessingResults
+from processing.parameters.ParameterVector import ParameterVector
+from processing.parameters.ParameterBoolean import ParameterBoolean
+from processing.parameters.ParameterTableField import ParameterTableField
+from processing.outputs.OutputVector import OutputVector
+from processing.outputs.OutputFile import OutputFile
 
 from coneforinputsprocessor import InputsProcessor
 
@@ -46,11 +45,11 @@ class ConeforInputsBase(GeoAlgorithm):
                           datatype=0, optional=False))
 
     def processAlgorithm(self, progress):
-        only_selected = SextanteConfig.getSetting('USE_SELECTED')
+        only_selected = ProcessingConfig.getSetting('USE_SELECTED')
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
-        layer = Sextante.getObject(input_file_path)
+        layer = Processing.getObject(input_file_path)
         unique_attribute = self.getParameterValue(self.UNIQUE_ATTRIBUTE)
-        iface = Sextante.getInterface()
+        iface = Processing.getInterface()
         project_crs = iface.mapCanvas().mapRenderer().destinationCrs()
         try:
             the_algorithm = InputsProcessor(project_crs)
