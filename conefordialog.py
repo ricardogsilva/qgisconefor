@@ -49,7 +49,12 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                                         self.unique_features_chb.isChecked())
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
-        find_unique_features = self.load_settings('analyze_unique_features')
+        find_unique_features = self.load_settings('analyze_unique_features',
+                                                  type_hint=bool)
+        if find_unique_features is None:
+            find_unique_features = False
+        if not isinstance(find_unique_features, bool):
+            find_unique_features = False
         self.unique_features_chb.setChecked(find_unique_features)
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
@@ -149,9 +154,11 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         settings.setValue(key, value)
         settings.sync()
 
-    def load_settings(self, key):
+    def load_settings(self, key, type_hint=str):
         settings = QSettings()
-        return settings.value('%s/%s' % (self._settings_key ,key))
+        full_key = '%s/%s' % (self._settings_key, key)
+        value = settings.value(full_key, type=type_hint)
+        return value
 
     def run_queries(self):
         self.update_progress()
@@ -211,7 +218,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.progressBar.setValue(self.processor.global_progress)
 
     def closeEvent(self, event=None):
-        print('closeEvent called')
         self.save_settings('%s/analyze_unique_features' % self._settings_key,
                            self.unique_features_chb.isChecked())
 
