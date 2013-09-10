@@ -3,11 +3,11 @@ import os
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
-from sextante.core.AlgorithmProvider import AlgorithmProvider
-from sextante.core.SextanteConfig import Setting, SextanteConfig
-from sextante.core.SextanteLog import SextanteLog
+from processing.core.AlgorithmProvider import AlgorithmProvider
+from processing.core.ProcessingConfig import Setting, ProcessingConfig
+#from processing.core.ProcessingLog import ProcessingLog
 
-from sextanteconeforinputs import \
+from processingconeforinputs import \
     ConeforInputsPointAttribute, \
     ConeforInputsPolygonAttribute, \
     ConeforInputsPointArea, \
@@ -18,7 +18,7 @@ from sextanteconeforinputs import \
     ConeforInputsPointCentroidDistance, \
     ConeforInputsPolygonCentroidDistance, \
     ConeforInputsPolygonEdgeDistance
-from sextanteconeforprocessor import \
+from processingconeforprocessor import \
     ConeforNCProcessor, \
     ConeforNLProcessor, \
     ConeforHProcessor, \
@@ -34,7 +34,7 @@ from sextanteconeforprocessor import \
 
 import resources_rc
 
-class SextanteConeforProvider(AlgorithmProvider):
+class ProcessingConeforProvider(AlgorithmProvider):
 
     DESCRIPTION = 'Conefor (Habitat patches and landscape connectivity analysis)'
     NAME = 'Conefor'
@@ -53,7 +53,7 @@ class SextanteConeforProvider(AlgorithmProvider):
         '''
 
         AlgorithmProvider.initializeSettings(self)
-        SextanteConfig.addSetting(
+        ProcessingConfig.addSetting(
             Setting(self.getDescription(),
                     self.CONEFOR_EXECUTABLE_PATH,
                     'Path to conefor.exe',
@@ -62,7 +62,7 @@ class SextanteConeforProvider(AlgorithmProvider):
 
     def unload(self):
         AlgorithmProvider.unload(self)
-        SextanteConfig.removeSetting(self.A_TESTING_SETTING)
+        ProcessingConfig.removeSetting(self.A_TESTING_SETTING)
 
     def getName(self):
         return self.NAME
@@ -102,7 +102,7 @@ class SextanteConeforProvider(AlgorithmProvider):
         self.algs = self.preloaded_algs
 
     def _get_conefor_path(self):
-        conefor_path = SextanteConfig.getSetting(self.CONEFOR_EXECUTABLE_PATH)
+        conefor_path = ProcessingConfig.getSetting(self.CONEFOR_EXECUTABLE_PATH)
         if conefor_path is None:
             conefor_path = ''
         return os.path.abspath(unicode(conefor_path))

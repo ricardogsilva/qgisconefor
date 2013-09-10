@@ -4,14 +4,14 @@ from subprocess import Popen, PIPE, STDOUT
 
 from PyQt4.QtGui import QIcon
 
-from sextante.core.GeoAlgorithm import GeoAlgorithm
-from sextante.core.SextanteConfig import SextanteConfig
-from sextante.core.SextanteUtils import SextanteUtils
-from sextante.parameters.ParameterFile import ParameterFile
-from sextante.parameters.ParameterBoolean import ParameterBoolean
-from sextante.parameters.ParameterNumber import ParameterNumber
-from sextante.parameters.ParameterSelection import ParameterSelection
-from sextante.core.GeoAlgorithmExecutionException import \
+from processing.core.GeoAlgorithm import GeoAlgorithm
+from processing.core.ProcessingConfig import ProcessingConfig
+from processing.core.ProcessingUtils import ProcessingUtils
+from processing.parameters.ParameterFile import ParameterFile
+from processing.parameters.ParameterBoolean import ParameterBoolean
+from processing.parameters.ParameterNumber import ParameterNumber
+from processing.parameters.ParameterSelection import ParameterSelection
+from processing.core.GeoAlgorithmExecutionException import \
     GeoAlgorithmExecutionException
 
 class ConeforProcessorBase(GeoAlgorithm):
@@ -90,7 +90,7 @@ class ConeforProcessorBase(GeoAlgorithm):
         problems = self._problems_to_run()
         if problems is None:
             #try:
-            #    conefor_path = SextanteConfig.getSetting(
+            #    conefor_path = ProcessingConfig.getSetting(
             #        self.provider.CONEFOR_EXECUTABLE_PATH)
             #    conefor_dir = os.path.dirname(conefor_path)
             #    before = os.listdir(conefor_dir)
@@ -109,7 +109,7 @@ class ConeforProcessorBase(GeoAlgorithm):
             #except Exception as e:
             #    raise GeoAlgorithmExecutionException(e.message)
 
-            conefor_path = SextanteConfig.getSetting(
+            conefor_path = ProcessingConfig.getSetting(
                 self.provider.CONEFOR_EXECUTABLE_PATH)
             conefor_dir = os.path.dirname(conefor_path)
             before = os.listdir(conefor_dir)
@@ -248,7 +248,7 @@ class ConeforProcessorBase(GeoAlgorithm):
 
         conefor_dir, conefor_file_name = os.path.split(conefor_path)
         command_list = []
-        if not SextanteUtils.isWindows():
+        if not ProcessingUtils.isWindows():
             command_list.append('wine')
         command_list += [
             conefor_file_name,
@@ -323,14 +323,14 @@ class ConeforProcessorBase(GeoAlgorithm):
 
     def _problems_to_run(self):
         result = None
-        conefor_path = SextanteConfig.getSetting(
+        conefor_path = ProcessingConfig.getSetting(
                         self.provider.CONEFOR_EXECUTABLE_PATH)
         if not os.path.isfile(conefor_path):
             result = ("Couldn't find the Conefor executable. Set its correct "
-                      "path in Sextante options and configuration.")
+                      "path in Processing options and configuration.")
         else:
             if not self._check_for_wine():
-                result = ("In order to use the Sextante Conefor plugin on "
+                result = ("In order to use the Processing Conefor plugin on "
                           "a non Windows Operating System you must install "
                           "the WINE compatibility layer. For more information "
                           "visit the WINE website at\n\n\t"

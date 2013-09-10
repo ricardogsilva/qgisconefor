@@ -5,6 +5,8 @@ import codecs
 from PyQt4.QtCore import *
 from qgis.core import *
 
+import utilities
+
 class NoFeaturesToProcessError(Exception):
     pass
 
@@ -122,6 +124,7 @@ class InputsProcessor(QObject):
                 should be loaded into QGIS' map canvas.
         '''
 
+        print('load_to_canvas: %s' % load_to_canvas)
         output_path = os.path.join(output_dir, output_name)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
@@ -286,7 +289,8 @@ class InputsProcessor(QObject):
             self._run_centroid_query(layer, id_attribute, encoding, 
                                      only_selected_features, each_query_step,
                                      output_path, each_save_file_step,
-                                     shape_output_path)
+                                     shape_output_path,
+                                     load_distance_files_to_canvas)
         if edge_file_name is not None or edge_distance_file_name is not None:
             try:
                 output_path = os.path.join(output_dir, edge_file_name)
@@ -301,7 +305,8 @@ class InputsProcessor(QObject):
                                              only_selected_features,
                                              each_query_step, output_path,
                                              each_save_file_step,
-                                             shape_output_path)
+                                             shape_output_path,
+                                             load_distance_files_to_canvas)
         self.global_progress = 100
 
     def _determine_num_queries(self, attribute_file_name, area_file_name,
@@ -360,7 +365,7 @@ class InputsProcessor(QObject):
 
         self.emit(SIGNAL('update_info'), 'Running attribute query...', 1)
         data = []
-        features = self._get_features(layer, use_selected)
+        features = utilities.get_features(layer, use_selected)
         for feat in features:
             id_attr = self._decode_attribute(int(feat.attribute(id_attribute)),
                                              encoding)
@@ -415,7 +420,7 @@ class InputsProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        features = self._get_features(layer, use_selected)
+        features = utilities.get_features(layer, use_selected)
         for feat in features:
             polygon = feat.geometry().asPolygon()
             new_polygon = []
@@ -445,46 +450,10 @@ class InputsProcessor(QObject):
                                  output_dir, output_name, encoding,
                                  file_save_progress_step)
 
-    def _get_features(self, layer, use_selected, filter_id=None):
-        '''
-        Return the features to process.
-
-        Inputs:
-
-            layer - A QgsVectorLayer
-
-            use_selected - A boolean indicating if only the selected features
-                should be used
-
-            filter_id - The id of a feature to extract. If None (the default),
-                the result will contain all the features (or all the selected
-                features in case the use_selected argument isTrue)
-
-        The output can be either a QgsFeatureIterator or a python list
-        with the features. Both datatypes are suitable for using inside a
-        for loop.
-
-        If the use_selected argument is True but there are no features
-        currently selected, all the features in the layer will be returned.
-        '''
-
-        features = []
-        if use_selected:
-            features = layer.selectedFeatures()
-            if filter_id is not None:
-                features = [f for f in features if f.id() == filter_id]
-        if not any(features):
-            if filter_id is not None:
-                request = QgsFeatureRequest(filter_id)
-                features = layer.getFeatures(request)
-            else:
-                features = layer.getFeatures()
-        return features
-
     def _run_centroid_query(self, layer, id_attribute, encoding, use_selected,
                             analysis_step, output_path=None,
                             file_save_progress_step=0,
-                            shape_file_path=None):
+                            shape_file_path=None, load_to_canvas=False):
         self.emit(SIGNAL('update_info'), 'Running centroid query...', 1)
         data = []
         if layer.crs().geographicFlag():
@@ -493,11 +462,11 @@ class InputsProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feature_ids = [f.id() for f in self._get_features(layer, use_selected)]
+        feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
         i = 0
         j = 0
         while i < len(feature_ids):
-            features = self._get_features(layer, use_selected, feature_ids[i])
+            features = utilities.get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
             int_c_id_attr = int(current.attribute(id_attribute))
             c_id_attr = self._decode_attribute(int_c_id_attr, encoding)
@@ -507,7 +476,7 @@ class InputsProcessor(QObject):
                                                          transformer)
             j = i + 1
             while j < len(feature_ids):
-                features = self._get_features(layer, use_selected,
+                features = utilities.get_features(layer, use_selected,
                                               feature_ids[j])
                 next_ = iter(features).next()
                 int_n_id_attr = int(next_.attribute(id_attribute))
@@ -572,7 +541,7 @@ class InputsProcessor(QObject):
                     output_name, 
                     encoding, 
                     layer.crs(),
-                    load_to_canvas=False
+                    load_to_canvas=load_to_canvas
                 )
                 self.global_progress += file_save_progress_step
                 self.emit(SIGNAL('progress_changed'))
@@ -590,7 +559,9 @@ class InputsProcessor(QObject):
 
     def _run_edge_query(self, layer, id_attribute, encoding, use_selected,
                         analysis_step, output_path=None,
-                        file_save_progress_step=0, shape_file_path=None):
+                        file_save_progress_step=0, 
+                        shape_file_path=None,
+                        load_to_canvas=False):
 
         # for each current and next features
         #   get the closest edge from current to next -> L1
@@ -606,11 +577,11 @@ class InputsProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feature_ids = [f.id() for f in self._get_features(layer, use_selected)]
+        feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
         i = 0
         j = 0
         while i < len(feature_ids):
-            features = self._get_features(layer, use_selected, feature_ids[i])
+            features = utilities.get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
             int_c_id_at = int(current.attribute(id_attribute))
             c_id_at = self._decode_attribute(int_c_id_at, encoding)
@@ -618,7 +589,7 @@ class InputsProcessor(QObject):
             current_poly = self._get_polygon(current_geom, transformer)
             j = i + 1
             while j < len(feature_ids):
-                features = self._get_features(layer, use_selected,
+                features = utilities.get_features(layer, use_selected,
                                               feature_ids[j])
                 next_ = iter(features).next()
                 int_n_id_at = int(next_.attribute(id_attribute))
@@ -681,7 +652,7 @@ class InputsProcessor(QObject):
                     output_name,
                     encoding, 
                     layer.crs(),
-                    load_to_canvas=False
+                    load_to_canvas=load_to_canvas
                 )
                 self.global_progress += file_save_progress_step
                 self.emit(SIGNAL('progress_changed'))
