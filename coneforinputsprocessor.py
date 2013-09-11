@@ -124,7 +124,6 @@ class InputsProcessor(QObject):
                 should be loaded into QGIS' map canvas.
         '''
 
-        print('load_to_canvas: %s' % load_to_canvas)
         output_path = os.path.join(output_dir, output_name)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
@@ -158,6 +157,7 @@ class InputsProcessor(QObject):
             registry = QgsMapLayerRegistry.instance()
             registry.addMapLayer(new_layer)
 
+    # unused?
     def _decode_attribute(self, the_attr, encoding):
         '''
         Decode the byte string the_attr to Unicode.
@@ -188,7 +188,11 @@ class InputsProcessor(QObject):
             os.mkdir(output_dir)
         output_path = os.path.join(output_dir, output_name)
         with codecs.open(output_path, 'w', encoding) as file_handler:
-            for line in sorted_data:
+            for tup in sorted_data:
+                line = ''
+                for item in tup:
+                    line += '%s\t' % item
+                line = line[:-1] + '\n'
                 file_handler.write(line)
             # Conefor manual states that files should terminate with a blank
             # line
@@ -367,17 +371,26 @@ class InputsProcessor(QObject):
         data = []
         features = utilities.get_features(layer, use_selected)
         for feat in features:
-            id_attr = self._decode_attribute(int(feat.attribute(id_attribute)),
-                                             encoding)
-            attr = self._decode_attribute(feat.attribute(attribute),
-                                            encoding)
-            data.append('%s\t%s\n' % (id_attr, attr))
+            id_attr = self._get_numeric_attribute(feat, id_attribute)
+            attr = self._get_numeric_attribute(feat, attribute, float)
+            if attr is not None and id_attr is not None:
+                if attr < 0:
+                    raise ValueError('Attribute must be non negative')
+                else:
+                    data.append((id_attr, attr))
         self.global_progress += analysis_step
         self.emit(SIGNAL('progress_changed'))
         output_dir, output_name = os.path.split(output_path)
         self._save_text_file(data, 'Writing attribute file...',
                              output_dir, output_name, encoding,
                              file_save_progress_step)
+
+    def _get_numeric_attribute(self, feature, attribute_name, type_=int):
+        the_attribute = feature.attribute(attribute_name)
+        result = None
+        if the_attribute != NULL:
+            result = type_(the_attribute)
+        return result
 
     def _run_area_query(self, layer, id_attribute, encoding, use_selected,
                         analysis_step, output_path, file_save_progress_step=0):
@@ -439,9 +452,9 @@ class InputsProcessor(QObject):
                 for hole in holes:
                     hole_areas += measurer.measurePolygon(hole)
             total_feat_area = outer_area - hole_areas
-            id_attr = self._decode_attribute(int(feat.attribute(id_attribute)),
-                                             encoding)
-            data.append('%s\t%s\n' % (id_attr, total_feat_area))
+            id_attr = self._get_numeric_attribute(feat, id_attribute)
+            if id_attr is not None:
+                data.append((id_attr, total_feat_area))
         self.global_progress += analysis_step
         self.emit(SIGNAL('progress_changed'))
         if any(data):
@@ -468,42 +481,40 @@ class InputsProcessor(QObject):
         while i < len(feature_ids):
             features = utilities.get_features(layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            int_c_id_attr = int(current.attribute(id_attribute))
-            c_id_attr = self._decode_attribute(int_c_id_attr, encoding)
-            current_geom = current.geometry()
-            orig_curr_centroid = current_geom.centroid().asPoint()
-            trans_curr_centroid = self._transform_point(orig_curr_centroid,
-                                                         transformer)
-            j = i + 1
-            while j < len(feature_ids):
-                features = utilities.get_features(layer, use_selected,
-                                              feature_ids[j])
-                next_ = iter(features).next()
-                int_n_id_attr = int(next_.attribute(id_attribute))
-                n_id_attr = self._decode_attribute(int_n_id_attr,
-                                                   encoding)
-
-                next_geom = next_.geometry()
-                orig_next_centroid = next_geom.centroid().asPoint()
-                trans_next_centroid = self._transform_point(orig_next_centroid,
+            c_id_attr = self._get_numeric_attribute(current, id_attribute)
+            if c_id_attr is not None:
+                current_geom = current.geometry()
+                orig_curr_centroid = current_geom.centroid().asPoint()
+                trans_curr_centroid = self._transform_point(orig_curr_centroid,
                                                             transformer)
-                distance = measurer.measureLine(trans_curr_centroid,
-                                                trans_next_centroid)
-                feat_result = {
-                    'current' : {
-                        'attribute' : c_id_attr,
-                        'centroid' : orig_curr_centroid,
-                        'feature_geometry' : current_geom,
-                    },
-                    'next' : {
-                        'attribute' : n_id_attr,
-                        'centroid' : orig_next_centroid,
-                        'feature_geometry' : next_geom,
-                    },
-                    'distance' : distance,
-                }
-                data.append(feat_result)
-                j += 1
+                j = i + 1
+                while j < len(feature_ids):
+                    features = utilities.get_features(layer, use_selected,
+                                                feature_ids[j])
+                    next_ = iter(features).next()
+                    n_id_attr = self._get_numeric_attribute(next_, id_attribute)
+                    if n_id_attr is not None:
+                        next_geom = next_.geometry()
+                        orig_n_centroid = next_geom.centroid().asPoint()
+                        trans_n_centroid = self._transform_point(orig_n_centroid,
+                                                                    transformer)
+                        distance = measurer.measureLine(trans_curr_centroid,
+                                                        trans_n_centroid)
+                        feat_result = {
+                            'current' : {
+                                'attribute' : c_id_attr,
+                                'centroid' : orig_curr_centroid,
+                                'feature_geometry' : current_geom,
+                            },
+                            'next' : {
+                                'attribute' : n_id_attr,
+                                'centroid' : orig_n_centroid,
+                                'feature_geometry' : next_geom,
+                            },
+                            'distance' : distance,
+                        }
+                        data.append(feat_result)
+                    j += 1
             i += 1
         if any(data):
             if output_path is not None:
@@ -513,8 +524,7 @@ class InputsProcessor(QObject):
                     current_id = c_dict['current']['attribute']
                     next_id = c_dict['next']['attribute']
                     distance = c_dict['distance']
-                    data_to_write.append('%s\t%s\t%s\n' % (current_id, next_id,
-                                        distance))
+                    data_to_write.append((current_id, next_id, distance))
                 self._save_text_file(data_to_write, 
                                      'Writing centroids file...',
                                      output_dir, output_name, encoding,
@@ -581,51 +591,59 @@ class InputsProcessor(QObject):
         i = 0
         j = 0
         while i < len(feature_ids):
-            features = utilities.get_features(layer, use_selected, feature_ids[i])
+            features = utilities.get_features(layer, use_selected, 
+                                              feature_ids[i])
             current = iter(features).next()
-            int_c_id_at = int(current.attribute(id_attribute))
-            c_id_at = self._decode_attribute(int_c_id_at, encoding)
-            current_geom = current.geometry()
-            current_poly = self._get_polygon(current_geom, transformer)
-            j = i + 1
-            while j < len(feature_ids):
-                features = utilities.get_features(layer, use_selected,
-                                              feature_ids[j])
-                next_ = iter(features).next()
-                int_n_id_at = int(next_.attribute(id_attribute))
-                n_id_at = self._decode_attribute(int_n_id_at,
-                                                   encoding)
-                next_geom = next_.geometry()
-                next_poly = self._get_polygon(next_geom, transformer)
-                segments = self.get_closest_segments(current_poly, next_poly)
-                current_segment, next_segment = segments
-                candidates = []
-                for current_vertex in current_segment:
-                    candidate = self.find_candidate_points(current_vertex,
-                                                           next_segment,
-                                                           measurer)
-                    candidates.append(candidate)
-                for next_vertex in next_segment:
-                    candidate = self.find_candidate_points(next_vertex,
-                                                           current_segment,
-                                                           measurer)
-                    candidates.append(candidate)
-                ordered_candidates = sorted(candidates, key=lambda c: c[2])
-                winner = ordered_candidates[0]
-                # transform the winner's coordinates back to layer crs
-                from_restored = self._transform_point(winner[0], transformer,
-                                                      reverse=True)
-                to_restored = self._transform_point(winner[1], transformer,
-                                                    reverse=True)
-                feat_result = {
-                    'distance' : winner[2],
-                    'from' : from_restored,
-                    'to' : to_restored,
-                    'from_attribute' : c_id_at,
-                    'to_attribute' : n_id_at,
-                }
-                data.append(feat_result)
-                j += 1
+            c_id_at = self._get_numeric_attribute(current, id_attribute)
+            if c_id_at is not None:
+                current_geom = current.geometry()
+                current_poly = self._get_polygon(current_geom, transformer)
+                j = i + 1
+                while j < len(feature_ids):
+                    features = utilities.get_features(layer, use_selected,
+                                                      feature_ids[j])
+                    next_ = iter(features).next()
+                    n_id_at = self._get_numeric_attribute(next_, id_attribute)
+                    if n_id_at is not None:
+                        next_geom = next_.geometry()
+                        next_poly = self._get_polygon(next_geom, transformer)
+                        segments = self.get_closest_segments(current_poly,
+                                                             next_poly)
+                        current_segment, next_segment = segments
+                        candidates = []
+                        for current_vertex in current_segment:
+                            candidate = self.find_candidate_points(
+                                current_vertex,
+                                next_segment,
+                                measurer
+                            )
+                            candidates.append(candidate)
+                        for next_vertex in next_segment:
+                            candidate = self.find_candidate_points(
+                                next_vertex,
+                                current_segment,
+                                measurer
+                            )
+                            candidates.append(candidate)
+                        ordered_candidates = sorted(candidates, 
+                                                    key=lambda c: c[2])
+                        winner = ordered_candidates[0]
+                        # transform the winner's coordinates back to layer crs
+                        from_restored = self._transform_point(winner[0],
+                                                              transformer,
+                                                              reverse=True)
+                        to_restored = self._transform_point(winner[1],
+                                                            transformer,
+                                                            reverse=True)
+                        feat_result = {
+                            'distance' : winner[2],
+                            'from' : from_restored,
+                            'to' : to_restored,
+                            'from_attribute' : c_id_at,
+                            'to_attribute' : n_id_at,
+                        }
+                        data.append(feat_result)
+                    j += 1
             i += 1
         if any(data):
             if output_path is not None:
@@ -635,8 +653,7 @@ class InputsProcessor(QObject):
                     from_id = e_dict['from_attribute']
                     to_id = e_dict['to_attribute']
                     distance = e_dict['distance']
-                    data_to_write.append('%s\t%s\t%s\n' % (from_id, to_id,
-                                        distance))
+                    data_to_write.append((from_id, to_id, distance))
                 self._save_text_file(data_to_write, 'Writing edges file...',
                                     output_dir, output_name, encoding,
                                     file_save_progress_step)
