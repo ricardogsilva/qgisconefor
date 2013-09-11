@@ -58,3 +58,42 @@ class LayerAnalyzerThread(QThread):
                     if any(the_fields):
                         usable_layers[the_layer] = the_fields
         return usable_layers
+
+
+class LayerProcessingThread(QThread):
+
+    def __init__(self, lock, processor, parent=None):
+        super(LayerProcessingThread, self).__init__(parent)
+        self.lock = lock
+        self.processor = processor
+        self.mutex = QMutex()
+        self.stopped = False
+        self.completed = False
+
+    def initialize(self, layers_data, output_dir, load_to_canvas,
+                   only_selected):
+        self.layers_data = layers_data
+        self.output_dir = output_dir
+        self.load_to_canvas = load_to_canvas
+        self.only_selected  = only_selected
+
+    def run(self):
+        self.processor.run_queries(
+            self.layers_data,
+            self.output_dir,
+            load_distance_files_to_canvas=self.load_to_canvas,
+            only_selected_features=self.only_selected
+        )
+        self.stop()
+        self.emit(SIGNAL('finished'))
+
+    def stop(self):
+        with QMutexLocker(self.mutex):
+            self.stopped = True
+
+    def is_stopped(self):
+        result = False
+        with QMutexLocker(self.mutex):
+            if self.stopped:
+                result = True
+        return result

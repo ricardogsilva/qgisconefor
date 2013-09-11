@@ -13,7 +13,7 @@ from ui_conefor_dlg import Ui_ConeforDialog
 from ui_help_dlg import Ui_Dialog
 
 import utilities
-from coneforthreads import LayerAnalyzerThread
+from coneforthreads import LayerAnalyzerThread, LayerProcessingThread
 from processlayer import ProcessLayerTableModel, ProcessLayerDelegate
 
 class NoUniqueFieldError(Exception):
@@ -41,10 +41,14 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.iface = plugin_obj.iface
         self.lock = QReadWriteLock()
         self.analyzer_thread = LayerAnalyzerThread(self.lock, self)
+        self.processing_thread = LayerProcessingThread(self.lock,
+                                                       self.processor, self)
         self.connect(self.analyzer_thread, SIGNAL('finished'),
                      self.finished_analyzing_layers)
         self.connect(self.analyzer_thread, SIGNAL('analyzing_layer'),
                      self.analyzing_layer)
+        self.connect(self.processing_thread, SIGNAL('finished'),
+                     self.finished_processing_layers)
         self.analyzer_thread.initialize(plugin_obj.registry.mapLayers(),
                                         self.unique_features_chb.isChecked())
         self.change_ui_availability(False)
@@ -62,6 +66,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def analyzing_layer(self, layer_name):
         self.progress_la.setText('Analyzing layers: %s...' % layer_name)
+
+    def finished_processing_layers(self):
+        self.change_ui_availability(True)
 
     def finished_analyzing_layers(self, usable_layers):
         self.analyzer_thread.wait()
@@ -199,20 +206,29 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 'edge_distance_name' : None,
             }
             if self.create_distances_files_chb.isChecked():
-                data['centroid_distance_name'] = 'centroid_distances_%s' % \
+                if la.process_centroid_distance:
+                    data['centroid_distance_name'] = 'centroid_distances_%s' %\
+                                                     la.qgis_layer.name()
+                if la.process_edge_distance:
+                    data['edge_distance_name'] = 'edge_distances_%s' % \
                                                  la.qgis_layer.name()
-                data['edge_distance_name'] = 'edge_distances_%s' % \
-                                             la.qgis_layer.name()
             layers.append(data)
         output_dir = str(self.output_dir_le.text())
 
         only_selected_features = self.use_selected_features_chb.isChecked()
         load_to_canvas = self.create_distances_files_chb.isChecked()
-        self.processor.run_queries(
-            layers, output_dir,
-            load_distance_files_to_canvas=load_to_canvas,
-            only_selected_features=only_selected_features
-        )
+
+        self.change_ui_availability(False)
+        self.processing_thread.initialize(layers, output_dir,
+                                         load_to_canvas=load_to_canvas,
+                                         only_selected=only_selected_features)
+        self.processing_thread.start()
+
+        #self.processor.run_queries(
+        #    layers, output_dir,
+        #    load_distance_files_to_canvas=load_to_canvas,
+        #    only_selected_features=only_selected_features
+        #)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
