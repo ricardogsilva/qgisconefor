@@ -44,7 +44,6 @@ class LayerAnalyzerThread(QThread):
             self.emit(SIGNAL('analyzing_layer'), the_layer.name())
             if the_layer.type() == QgsMapLayer.VectorLayer:
                 if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
-                    print('about to test for unique_fields...')
                     if self.get_unique_fields:
                         msg = '%s - Finding unique attributes...' % \
                                 the_layer.name()
@@ -85,7 +84,8 @@ class LayerProcessingThread(QThread):
             only_selected_features=self.only_selected
         )
         self.stop()
-        self.emit(SIGNAL('finished'))
+        layers = [d['layer'] for d in self.layers_data]
+        self.emit(SIGNAL('finished'), layers)
 
     def stop(self):
         with QMutexLocker(self.mutex):

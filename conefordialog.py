@@ -51,6 +51,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                      self.finished_processing_layers)
         self.analyzer_thread.initialize(plugin_obj.registry.mapLayers(),
                                         self.unique_features_chb.isChecked())
+        print('aqui')
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
         find_unique_features = self.load_settings('analyze_unique_features',
@@ -67,8 +68,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
     def analyzing_layer(self, layer_name):
         self.progress_la.setText('Analyzing layers: %s...' % layer_name)
 
-    def finished_processing_layers(self):
-        self.change_ui_availability(True)
+    def finished_processing_layers(self, layers):
+        self.processing_thread.wait()
+        exist_selected = utilities.exist_selected_features(layers)
+        self.change_ui_availability(True, exist_selected)
 
     def finished_analyzing_layers(self, usable_layers):
         self.analyzer_thread.wait()
@@ -77,7 +80,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             current_layer = self.iface.mapCanvas().currentLayer()
             if current_layer not in self.layers.keys():
                 current_layer = self.layers.keys()[0]
-            self.change_ui_availability(True)
+            selected = utilities.exist_selected_features(self.layers.keys())
+            self.change_ui_availability(True, selected)
             if utilities.exist_selected_features(self.layers.keys()):
                 self.use_selected_features_chb.setEnabled(True)
                 self.use_selected_features_chb.setChecked(True)
@@ -170,6 +174,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
     def run_queries(self):
         self.update_progress()
         layers = []
+        load_to_canvas = self.create_distances_files_chb.isChecked()
+        output_dir = str(self.output_dir_le.text())
+        only_selected_features = self.use_selected_features_chb.isChecked()
         for la in self.model.layers:
             if la.id_field_name == '<None>':
                 raise NoUniqueFieldError
@@ -179,15 +186,15 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             else:
                 attribute_field_name = la.attribute_field_name
                 attribute_file_name = 'nodes_%s_%s' % (attribute_field_name,
-                                                       la.qgis_layer.name()) 
+                                                        la.qgis_layer.name()) 
             if la.process_area:
                 area_file_name = 'nodes_calculated_area_%s' % \
-                                 la.qgis_layer.name()
+                                    la.qgis_layer.name()
             else:
                 area_file_name = None
             if la.process_centroid_distance:
                 centroid_file_name = 'distances_centroids_%s' % \
-                                     la.qgis_layer.name()
+                                        la.qgis_layer.name()
             else:
                 centroid_file_name = None
             if la.process_edge_distance:
@@ -205,30 +212,20 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 'centroid_distance_name' : None,
                 'edge_distance_name' : None,
             }
-            if self.create_distances_files_chb.isChecked():
+            if load_to_canvas:
                 if la.process_centroid_distance:
                     data['centroid_distance_name'] = 'centroid_distances_%s' %\
-                                                     la.qgis_layer.name()
+                                                        la.qgis_layer.name()
                 if la.process_edge_distance:
                     data['edge_distance_name'] = 'edge_distances_%s' % \
-                                                 la.qgis_layer.name()
+                                                    la.qgis_layer.name()
             layers.append(data)
-        output_dir = str(self.output_dir_le.text())
-
-        only_selected_features = self.use_selected_features_chb.isChecked()
-        load_to_canvas = self.create_distances_files_chb.isChecked()
 
         self.change_ui_availability(False)
         self.processing_thread.initialize(layers, output_dir,
-                                         load_to_canvas=load_to_canvas,
-                                         only_selected=only_selected_features)
+                                            load_to_canvas,
+                                            only_selected_features)
         self.processing_thread.start()
-
-        #self.processor.run_queries(
-        #    layers, output_dir,
-        #    load_distance_files_to_canvas=load_to_canvas,
-        #    only_selected_features=only_selected_features
-        #)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
@@ -275,7 +272,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         else:
             self.run_btn.setEnabled(False)
 
-    def change_ui_availability(self, boolean):
+    def change_ui_availability(self, boolean, selected_features=False):
         widgets = [
             self.layers_la,
             self.tableView,
@@ -291,3 +288,5 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         ]
         for widget in widgets:
             widget.setEnabled(boolean)
+        if boolean:
+            self.use_selected_features_chb.setEnabled(selected_features)
