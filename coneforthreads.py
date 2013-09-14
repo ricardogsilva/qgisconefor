@@ -77,15 +77,14 @@ class LayerProcessingThread(QThread):
         self.only_selected  = only_selected
 
     def run(self):
-        self.processor.run_queries(
+        new_files = self.processor.run_queries(
             self.layers_data,
             self.output_dir,
-            load_distance_files_to_canvas=self.load_to_canvas,
             only_selected_features=self.only_selected
         )
         self.stop()
         layers = [d['layer'] for d in self.layers_data]
-        self.emit(SIGNAL('finished'), layers)
+        self.emit(SIGNAL('finished'), layers, new_files)
 
     def stop(self):
         with QMutexLocker(self.mutex):

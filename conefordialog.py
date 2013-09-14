@@ -68,10 +68,18 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
     def analyzing_layer(self, layer_name):
         self.progress_la.setText('Analyzing layers: %s...' % layer_name)
 
-    def finished_processing_layers(self, layers):
+    def finished_processing_layers(self, layers, new_files=[]):
         self.processing_thread.wait()
         exist_selected = utilities.exist_selected_features(layers)
         self.change_ui_availability(True, exist_selected)
+        registry = QgsMapLayerRegistry.instance()
+        if self.create_distances_files_chb.isChecked():
+            for new_layer_path in new_files:
+                if new_layer_path.endswith('.shp'):
+                    layer_name = os.path.basename(new_layer_path)
+                    new_layer = QgsVectorLayer(new_layer_path, layer_name,
+                                               'ogr')
+                    registry.addMapLayer(new_layer)
 
     def finished_analyzing_layers(self, usable_layers):
         self.analyzer_thread.wait()
