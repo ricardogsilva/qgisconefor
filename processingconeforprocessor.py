@@ -7,12 +7,15 @@ from PyQt4.QtGui import QIcon
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingUtils import ProcessingUtils
+from processing.core.ProcessingResults import ProcessingResults
 from processing.parameters.ParameterFile import ParameterFile
 from processing.parameters.ParameterBoolean import ParameterBoolean
 from processing.parameters.ParameterNumber import ParameterNumber
 from processing.parameters.ParameterSelection import ParameterSelection
 from processing.core.GeoAlgorithmExecutionException import \
     GeoAlgorithmExecutionException
+
+import utilities
 
 class ConeforProcessorBase(GeoAlgorithm):
     '''
@@ -22,7 +25,6 @@ class ConeforProcessorBase(GeoAlgorithm):
     '''
 
     _connection_types = ['dist', 'prob'] # links is not supported atm
-    _number_of_connections = 'all'
     _precision = 'double'
 
     NAME = ''
@@ -31,10 +33,15 @@ class ConeforProcessorBase(GeoAlgorithm):
     INPUT_NODES_FILE = 'INPUT_NODES_FILE'
     INPUT_CONNECTIONS_FILE = 'INPUT_CONNECTIONS_FILE'
     INPUT_CONNECTION_TYPE = 'INPUT_CONNECTION_TYPE'
+    NUMBER_OF_CONNECTIONS = 'NUMBER_OF_CONNECTIONS'
     THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
     DISTANCE_PROB = 'DISTANCE_PROB'
     PROBABILITY_PROB = 'PROBABILITY_PROB'
     CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
+    REMOVAL = 'REMOVAL'
+    REMOVAL_DISTANCE = 'REMOVAL_DISTANCE'
+    IMPROVEMENT = 'IMPROVEMENT'
+    IMPROVEMENT_DISTANCE = 'IMPROVEMENT_DISTANCE'
     WRITE_COMPONENT_FILE = 'WRITE_COMPONENT_FILE'
     WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
     WRITE_PROB_DIR = 'WRITE_PROB_DIR'
@@ -45,7 +52,7 @@ class ConeforProcessorBase(GeoAlgorithm):
         INPUT_NODES_FILE,
         INPUT_CONNECTIONS_FILE,
         INPUT_CONNECTION_TYPE,
-        # _number_of_connections is not exposed in the GUI, yet
+        NUMBER_OF_CONNECTIONS,
         # -* option is not used by this plugin
         THRESHOLD_DIRECT_LINKS,
         # binary_indices are not selectable in the GUI
@@ -55,9 +62,11 @@ class ConeforProcessorBase(GeoAlgorithm):
         CREATE_NODE_IMPORTANCES,
         # pcHeur is not implemented, yet
         # -add is not implemented, yet
-        # -removal is not implemented, yet
-        # -improvement is not implemented, yet
-        # -change is not implemented, yet
+        REMOVAL,
+        REMOVAL_DISTANCE,
+        IMPROVEMENT,
+        IMPROVEMENT_DISTANCE,
+        # -change is not implemented in this plugin
         # self._precision is not exposed in the GUI
         # -noout is not used by this plugin
         WRITE_COMPONENT_FILE,
@@ -80,6 +89,9 @@ class ConeforProcessorBase(GeoAlgorithm):
             ParameterFile(self.INPUT_NODES_FILE, 'Nodes file', optional=False),
             ParameterFile(self.INPUT_CONNECTIONS_FILE, 'Connections file',
                           optional=False),
+            ParameterBoolean(self.NUMBER_OF_CONNECTIONS, 'All the pairs of '
+                             'nodes are llisted in the connection file',
+                             default=True),
         ]
         return parameters
 
@@ -89,41 +101,24 @@ class ConeforProcessorBase(GeoAlgorithm):
     def processAlgorithm(self, progress):
         problems = self._problems_to_run()
         if problems is None:
-            #try:
-            #    conefor_path = ProcessingConfig.getSetting(
-            #        self.provider.CONEFOR_EXECUTABLE_PATH)
-            #    conefor_dir = os.path.dirname(conefor_path)
-            #    before = os.listdir(conefor_dir)
-            #    nodes = self.getParameterValue(self.INPUT_NODES_FILE)
-            #    connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
-            #    prefix = os.path.splitext(os.path.basename(nodes))[0]
-            #    rc, stdout, stderr = self._run_the_algorithm(conefor_path,
-            #            nodes, connections, prefix, progress)
-            #    after = os.listdir(conefor_dir)
-            #    new_files = [os.path.join(conefor_dir, f) for f in after if \
-            #                 f not in before]
-            #    print('new_files: %s' % new_files)
-            #    output_dir = self.getParameterValue(self.OUTPUT_DIR)
-            #    self._merge_results(output_dir, new_files)
-            #    progress.setPercentage(100)
-            #except Exception as e:
-            #    raise GeoAlgorithmExecutionException(e.message)
-
             conefor_path = ProcessingConfig.getSetting(
                 self.provider.CONEFOR_EXECUTABLE_PATH)
             conefor_dir = os.path.dirname(conefor_path)
             before = os.listdir(conefor_dir)
             nodes = self.getParameterValue(self.INPUT_NODES_FILE)
             connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
+            all_conn = self.getParameterValue(self.NUMBER_OF_CONNECTIONS)
             prefix = os.path.splitext(os.path.basename(nodes))[0]
             rc, stdout, stderr = self._run_the_algorithm(conefor_path,
-                    nodes, connections, prefix, progress)
+                    nodes, connections, all_conn, prefix, progress)
             after = os.listdir(conefor_dir)
             new_files = [os.path.join(conefor_dir, f) for f in after if \
                             f not in before]
-            print('new_files: %s' % new_files)
             output_dir = self.getParameterValue(self.OUTPUT_DIR)
-            self._merge_results(output_dir, new_files)
+            result_files = self._merge_results(output_dir, new_files)
+            for new_file in result_files:
+                name = os.path.basename(new_file)
+                ProcessingResults.addResult(name, new_file)
             progress.setPercentage(100)
         else:
             raise GeoAlgorithmExecutionException(problems)
@@ -146,41 +141,33 @@ class ConeforProcessorBase(GeoAlgorithm):
         for order, param in ordered_params:
             self.addParameter(param)
 
-    def _extract_results(self, file_path):
-        '''
-        Extract the results from input file_path.
-
-        This method scans the file that came out of Conefor and returns the
-        output.
-        '''
-
-        result = []
-        with open(file_path) as fh:
-            for line in fh:
-                result.append(line)
-        return result
-
     def _merge_results(self, intended_output_dir, new_output_files):
         overall_results_file_name = 'results_all_overall_indices.txt'
         ec_iic_results_file_name = 'results_all_EC(IIC).txt'
         ec_pc_results_file_name = 'results_all_EC(PC).txt'
+        new_results = []
         for f in new_output_files:
             f_name = os.path.basename(f)
             if f_name == overall_results_file_name:
-                self._merge_overall_results(intended_output_dir, f)
+                new_p = self._merge_overall_results(intended_output_dir, f)
+                new_results.append(new_p)
             elif f_name in (ec_iic_results_file_name, ec_pc_results_file_name):
-                self._merge_special_files_results(intended_output_dir, f)
+                new_p = self._merge_special_files_results(intended_output_dir,
+                                                          f)
+                new_results.append(new_p)
             else:
-                self._merge_other_results(intended_output_dir, f)
+                new_p = self._merge_other_results(intended_output_dir, f)
+                new_results.append(new_p)
+        return new_results
 
     def _merge_overall_results(self, intended_output_dir, file_path):
         f_name = os.path.basename(file_path)
         if f_name in os.listdir(intended_output_dir):
-            print('the file is already present in %s' % intended_output_dir)
-            print('Appending %s to previous existing overal results file ' \
-                  'in %s ...' % (f_name, intended_output_dir))
-            f_contents = self._extract_results(file_path)
-            print('removing original %s ...' % f_name)
+            #print('the file is already present in %s' % intended_output_dir)
+            #print('Appending %s to previous existing overal results file ' \
+            #      'in %s ...' % (f_name, intended_output_dir))
+            f_contents = utilities.extract_contents(file_path)
+            #print('removing original %s ...' % f_name)
             os.remove(file_path)
             with open(os.path.join(intended_output_dir, f_name), 'a') as fh:
                 for line in f_contents:
@@ -192,44 +179,49 @@ class ConeforProcessorBase(GeoAlgorithm):
             with open(file_path) as fh:
                 for line in fh:
                     num_lines += 1
-            print('num_lines after scanning %s: %i' % (file_path, num_lines))
             if num_lines == 0:
-                print('the file is empty. Removing...')
+                #print('the file is empty. Removing...')
                 os.remove(file_path)
             else:
-                print('Moving %s to %s ...' % (f_name, intended_output_dir))
+                #print('Moving %s to %s ...' % (f_name, intended_output_dir))
                 shutil.move(file_path, intended_output_dir)
+        return os.path.join(intended_output_dir, f_name)
 
     def _merge_special_files_results(self, intended_output_dir, file_path):
         f_name = os.path.basename(file_path)
         if f_name in os.listdir(intended_output_dir):
-            print('the file is already present in %s' % intended_output_dir)
-            print('Appending %s to previous existing overal results file ' \
-                  'in %s ...' % (f_name, intended_output_dir))
-            f_contents = self._extract_results(file_path)
-            print('removing original %s ...' % f_name)
+            #print('the file is already present in %s' % intended_output_dir)
+            #print('Appending %s to previous existing overal results file ' \
+            #      'in %s ...' % (f_name, intended_output_dir))
+            f_contents = utilities.extract_contents(file_path)
+            #print('removing original %s ...' % f_name)
             os.remove(file_path)
             with open(os.path.join(intended_output_dir, f_name), 'a') as fh:
                 for line in f_contents:
                     fh.write(line)
         else:
-            print('Moving %s to %s ...' % (f_name, intended_output_dir))
+            #print('Moving %s to %s ...' % (f_name, intended_output_dir))
             shutil.move(file_path, intended_output_dir)
+        return os.path.join(intended_output_dir, f_name)
 
     def _merge_other_results(self, intended_output_dir, file_path):
         f_name = os.path.basename(file_path)
-        print('Moving %s to %s ...' % (f_name, intended_output_dir))
+        #print('Moving %s to %s ...' % (f_name, intended_output_dir))
         if os.path.isfile(os.path.join(intended_output_dir, f_name)):
-            print('%s is already present in %s. Deleting it before moving ' \
-                  'the new file...' % (f_name, intended_output_dir))
+            #print('%s is already present in %s. Deleting it before moving ' \
+            #      'the new file...' % (f_name, intended_output_dir))
             os.remove(os.path.join(intended_output_dir, f_name))
         shutil.move(file_path, intended_output_dir)
+        return os.path.join(intended_output_dir, f_name)
 
     def _run_conefor(self, progress, conefor_path, nodes_file_path,
                      connections_file_path, connection_type,
+                     all_pairs_connected,
                      threshold_direct_links=0,
                      binary_indexes=[], decay_distance=0, decay_probability=0,
                      probability_indexes=[], only_overall=False,
+                     removal=False, removal_threshold=None,
+                     improvement=False, improvement_threshold=None,
                      write_component_file=False, write_links_file=False,
                      write_dispersal_probabilities_file=False,
                      write_maximum_probabilities_file=False,
@@ -238,7 +230,7 @@ class ConeforProcessorBase(GeoAlgorithm):
         Run Conefor and return the output
 
         In order to successfuly run the conefor CLI executable, the following
-        constraints must be take into consideration:
+        constraints must be taken into consideration:
 
             - conefor will only save the output files to disk if it is called
               from the same directory where the executable is located
@@ -255,8 +247,11 @@ class ConeforProcessorBase(GeoAlgorithm):
             '-nodeFile', nodes_file_path,
             '-conFile', connections_file_path,
             '-t', connection_type,
-            self._number_of_connections,
         ]
+        if all_pairs_connected:
+            command_list.append('all')
+        else:
+            command_list.append('notall')
         if any(binary_indexes):
             command_list += ['-confAdj', '%1.3f' % threshold_direct_links]
             if 'BCIIC' in binary_indexes and 'IIC' not in binary_indexes:
@@ -266,8 +261,11 @@ class ConeforProcessorBase(GeoAlgorithm):
             for index in binary_indexes:
                 command_list.append('-%s' % index)
         if any(probability_indexes):
-            command_list += ['-confProb', '%1.3f' % decay_distance, 
-                             '%1.3f' % decay_probability]
+            if connection_type == 'dist':
+                command_list += ['-confProb', '%1.3f' % decay_distance, 
+                                '%1.3f' % decay_probability]
+            elif connection_type == 'prob':
+                pass
             if 'BCPC' in probability_indexes and \
                     'PC' not in probability_indexes:
                 probability_indexes.append('PC')
@@ -278,6 +276,14 @@ class ConeforProcessorBase(GeoAlgorithm):
                 command_list.append('-%s' % index)
         if only_overall:
             command_list.append('onlyoverall')
+        if removal:
+            command_list.append('-removal')
+            if removal_threshold is not None:
+                command_list += ['maxValue', '%s' % removal_threshold]
+        if improvement:
+            command_list.append('-improvement')
+            if improvement_threshold is not None:
+                command_list += ['maxValue', '%s' % improvement_threshold]
         command_list.append('-%s' % self._precision)
         if write_component_file and 'NC' in binary_indexes:
             command_list.append('-wcomp')
@@ -291,7 +297,7 @@ class ConeforProcessorBase(GeoAlgorithm):
             command_list += ['-landArea', landArea]
         if prefix is not None:
             command_list += ['-prefix', prefix]
-        print('command_list: %s' % command_list)
+        #print('command_list: %s' % command_list)
         process = Popen(command_list, cwd=conefor_dir, stdout=PIPE,
                         stderr=STDOUT)
         while True:
@@ -303,7 +309,7 @@ class ConeforProcessorBase(GeoAlgorithm):
         return process.returncode, None, None #change this
 
     def _run_the_algorithm(self, nodes_file_path, connections_file_path,
-                           prefix, progress):
+                           all_connections, prefix, progress):
         raise NotImplementedError
 
     def _check_for_wine(self):
@@ -355,6 +361,14 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
                              'individual node importances', default=False),
             ParameterBoolean(self.WRITE_LINKS_FILE, 'Write links file',
                              default=False),
+            ParameterBoolean(self.REMOVAL, 'Process link removal importances '
+                             '(-removal)', default=False),
+            ParameterNumber(self.REMOVAL_DISTANCE, 'Maximum threshold for '
+                            'link removal analysis'),
+            ParameterBoolean(self.IMPROVEMENT, 'Process link improvement '
+                             'importances (-improvement)', default=False),
+            ParameterNumber(self.IMPROVEMENT_DISTANCE, 'Maximum threshold '
+                            'for link improvement analysis'),
         ]
         return parameters
 
@@ -379,7 +393,8 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -387,15 +402,26 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_component_file=self.getParameterValue(self.WRITE_COMPONENT_FILE),
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
@@ -415,7 +441,8 @@ class ConeforNLProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -423,15 +450,28 @@ class ConeforNLProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
         )
@@ -450,7 +490,8 @@ class ConeforHProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -458,15 +499,28 @@ class ConeforHProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
         )
@@ -485,7 +539,8 @@ class ConeforCCPProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -493,15 +548,28 @@ class ConeforCCPProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
         )
@@ -520,7 +588,8 @@ class ConeforLCPProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -528,15 +597,28 @@ class ConeforLCPProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
         )
@@ -555,7 +637,8 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
         self._add_parameters(parameters)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -563,15 +646,28 @@ class ConeforIICProcessor(ConeforBinaryIndexBase):
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_component_file=self.getParameterValue(self.WRITE_COMPONENT_FILE),
             write_links_file=self.getParameterValue(self.WRITE_LINKS_FILE),
             prefix=prefix
@@ -604,7 +700,8 @@ class ConeforBCProcessor(ConeforProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -615,6 +712,7 @@ class ConeforBCProcessor(ConeforProcessorBase):
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=[self.INDEX_CODE],
             only_overall=False,
@@ -631,7 +729,8 @@ class ConeforBCIICProcessor(ConeforBCProcessor):
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         conn_type_param = self.getParameterFromName(self.INPUT_CONNECTION_TYPE)
         connection_type = conn_type_param.options[conn_type_param.value]
         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
@@ -642,6 +741,7 @@ class ConeforBCIICProcessor(ConeforBCProcessor):
             nodes_file_path,
             connections_file_path,
             connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=['IIC', self.INDEX_CODE],
             only_overall=False,
@@ -664,15 +764,32 @@ class ConeforProbabilityIndexBase(ConeforProcessorBase):
             ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
                              'dispersal probabilities for each pair of nodes',
                              default=False),
+            ParameterBoolean(self.REMOVAL, 'Process link removal importances '
+                             '(-removal)', default=False),
+            ParameterNumber(self.REMOVAL_DISTANCE, 'Maximum threshold for '
+                            'link removal analysis'),
+            ParameterBoolean(self.IMPROVEMENT, 'Process link improvement '
+                             'importances (-improvement)', default=False),
+            ParameterNumber(self.IMPROVEMENT_DISTANCE, 'Maximum threshold '
+                            'for link improvement analysis'),
         ]
         return parameters
 
 
-class ConeforProbabilityDistanceProcessorBase(ConeforProbabilityIndexBase):
+class ConeforFDistanceProcessor(ConeforProbabilityIndexBase):
+    GROUP = 'Probability indices (distance based)'
+    INDEX_NAME = 'Flux'
+    INDEX_CODE = 'F'
+    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
     _connection_type = 'dist'
+
+    def defineCharacteristics(self):
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
  
     def _create_parameters(self):
-        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters = ConeforProbabilityIndexBase._create_parameters(self)
         parameters += [
             ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
                             'probability (confProb distance)'),
@@ -681,26 +798,23 @@ class ConeforProbabilityDistanceProcessorBase(ConeforProbabilityIndexBase):
         ]
         return parameters
 
-
-class ConeforFProcessor(ConeforProbabilityDistanceProcessorBase):
-    GROUP = 'Probability indices (distance based)'
-    INDEX_NAME = 'Flux'
-    INDEX_CODE = 'F'
-    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-
-    def defineCharacteristics(self):
-        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
-        parameters = self._create_parameters()
-        self._add_parameters(parameters)
-
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
             progress,
@@ -708,35 +822,107 @@ class ConeforFProcessor(ConeforProbabilityDistanceProcessorBase):
             nodes_file_path,
             connections_file_path,
             self._connection_type,
+            all_connections,
             decay_distance=distance_prob,
             decay_probability=prob_prob,
             probability_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_dispersal_probabilities_file=write_prob_dir,
             prefix=prefix
         )
         return returncode, stdout, stderr
 
 
-class ConeforAWFProcessor(ConeforProbabilityDistanceProcessorBase):
+class ConeforFProbabilityProcessor(ConeforProbabilityIndexBase):
+    GROUP = 'Probability indices (probability based)'
+    INDEX_NAME = 'Flux'
+    INDEX_CODE = 'F'
+    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+    _connection_type = 'prob'
+
+    def defineCharacteristics(self):
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _run_the_algorithm(self, conefor_path, nodes_file_path,
+                           connections_file_path, all_connections,
+                           prefix, progress):
+        write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
+        only_overall = True
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
+        prefix +='_%s' % self.INDEX_CODE
+        returncode, stdout, stderr = self._run_conefor(
+            progress,
+            conefor_path,
+            nodes_file_path,
+            connections_file_path,
+            self._connection_type,
+            all_connections,
+            probability_indexes=[self.INDEX_CODE],
+            only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
+            write_dispersal_probabilities_file=write_prob_dir,
+            prefix=prefix
+        )
+        return returncode, stdout, stderr
+
+
+class ConeforAWFDistanceProcessor(ConeforProbabilityIndexBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Area-weighted Flux'
     INDEX_CODE = 'AWF'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+    _connection_type = 'dist'
 
     def defineCharacteristics(self):
-        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
         parameters = self._create_parameters()
         self._add_parameters(parameters)
 
+    def _create_parameters(self):
+        parameters = ConeforProbabilityIndexBase._create_parameters(self)
+        parameters += [
+            ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
+                            'probability (confProb distance)'),
+            ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
+                            'with distance (confProb probability)'),
+        ]
+        return parameters
+
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
         returncode, stdout, stderr = self._run_conefor(
             progress,
@@ -744,29 +930,148 @@ class ConeforAWFProcessor(ConeforProbabilityDistanceProcessorBase):
             nodes_file_path,
             connections_file_path,
             self._connection_type,
+            all_connections,
             decay_distance=distance_prob,
             decay_probability=prob_prob,
             probability_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_dispersal_probabilities_file=write_prob_dir,
             prefix=prefix
         )
         return returncode, stdout, stderr
 
 
-class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
+class ConeforAWFProbabilityProcessor(ConeforProbabilityIndexBase):
+    GROUP = 'Probability indices (probability based)'
+    INDEX_NAME = 'Area-weighted Flux'
+    INDEX_CODE = 'AWF'
+    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+    _connection_type = 'prob'
+
+    def defineCharacteristics(self):
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _run_the_algorithm(self, conefor_path, nodes_file_path,
+                           connections_file_path, all_connections,
+                           prefix, progress):
+        write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
+        only_overall = True
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
+        prefix +='_%s' % self.INDEX_CODE
+        returncode, stdout, stderr = self._run_conefor(
+            progress,
+            conefor_path,
+            nodes_file_path,
+            connections_file_path,
+            self._connection_type,
+            all_connections,
+            probability_indexes=[self.INDEX_CODE],
+            only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
+            write_dispersal_probabilities_file=write_prob_dir,
+            prefix=prefix
+        )
+        return returncode, stdout, stderr
+
+
+class ConeforPCDistanceProcessor(ConeforProbabilityIndexBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Probability of Connectivity'
     INDEX_CODE = 'PC'
     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+    _connection_type = 'dist'
 
     def defineCharacteristics(self):
-        ConeforProbabilityDistanceProcessorBase.defineCharacteristics(self)
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
         parameters = self._create_parameters()
         self._add_parameters(parameters)
 
     def _create_parameters(self):
-        parameters = ConeforProbabilityDistanceProcessorBase._create_parameters(self)
+        parameters = ConeforProbabilityIndexBase._create_parameters(self)
+        parameters += [
+            ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
+                            'probability (confProb distance)'),
+            ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
+                            'with distance (confProb probability)'),
+            ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
+                             'product probabilities for each pair of nodes',
+                             default=False),
+        ]
+        return parameters
+
+    def _run_the_algorithm(self, conefor_path, nodes_file_path,
+                           connections_file_path, all_connections,
+                           prefix, progress):
+        distance_prob = self.getParameterValue(self.DISTANCE_PROB)
+        prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
+        write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
+        write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
+        only_overall = True
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
+        prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
+        returncode, stdout, stderr = self._run_conefor(
+            progress,
+            conefor_path,
+            nodes_file_path,
+            connections_file_path,
+            self._connection_type,
+            all_connections,
+            decay_distance=distance_prob,
+            decay_probability=prob_prob,
+            probability_indexes=[self.INDEX_CODE],
+            only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
+            write_dispersal_probabilities_file=write_prob_dir,
+            write_maximum_probabilities_file=write_prob_max,
+            prefix=prefix
+        )
+        return returncode, stdout, stderr
+
+
+class ConeforPCProbabilityProcessor(ConeforProbabilityIndexBase):
+    GROUP = 'Probability indices (probability based)'
+    INDEX_NAME = 'Probability of Connectivity'
+    INDEX_CODE = 'PC'
+    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
+    _connection_type = 'prob'
+
+    def defineCharacteristics(self):
+        ConeforProbabilityIndexBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforProbabilityIndexBase._create_parameters(self)
         parameters += [
             ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
                              'product probabilities for each pair of nodes',
@@ -775,25 +1080,35 @@ class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
-        distance_prob = self.getParameterValue(self.DISTANCE_PROB)
-        prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
+                           connections_file_path, all_connections,
+                           prefix, progress):
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
         write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
         only_overall = True
         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
             only_overall = False
-        prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
+        if removal_threshold <= 0:
+            removal_threshold = None
+        improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
+        if improv_threshold <= 0:
+            improv_threshold = None
+        prefix +='_%s' % self.INDEX_CODE
         returncode, stdout, stderr = self._run_conefor(
             progress,
             conefor_path,
             nodes_file_path,
             connections_file_path,
             self._connection_type,
-            decay_distance=distance_prob,
-            decay_probability=prob_prob,
+            all_connections,
             probability_indexes=[self.INDEX_CODE],
             only_overall=only_overall,
+            removal=self.getParameterValue(self.REMOVAL),
+            removal_threshold=removal_threshold,
+            improvement=self.getParameterValue(self.IMPROVEMENT),
+            improvement_threshold=improv_threshold,
             write_dispersal_probabilities_file=write_prob_dir,
             write_maximum_probabilities_file=write_prob_max,
             prefix=prefix
@@ -801,7 +1116,7 @@ class ConeforPCProcessor(ConeforProbabilityDistanceProcessorBase):
         return returncode, stdout, stderr
 
 
-class ConeforBCPCProcessor(ConeforProcessorBase):
+class ConeforBCPCDistanceProcessor(ConeforProcessorBase):
     GROUP = 'Probability indices (distance based)'
     INDEX_NAME = 'Betweeness Centrality Generalized(PC)'
     INDEX_CODE = 'BCPC'
@@ -837,7 +1152,8 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
         return parameters
 
     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, prefix, progress):
+                           connections_file_path, all_connections,
+                           prefix, progress):
         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
@@ -853,6 +1169,7 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
             nodes_file_path,
             connections_file_path,
             self._connection_type,
+            all_connections,
             threshold_direct_links=thresh_d_links,
             binary_indexes=['BC'],
             decay_distance=distance_prob,
@@ -866,7 +1183,60 @@ class ConeforBCPCProcessor(ConeforProcessorBase):
         return returncode, stdout, stderr
 
 
-class ConeforProbabilityProbabilityProcessor(ConeforProbabilityIndexBase):
+class ConeforBCPCProbabilityProcessor(ConeforProcessorBase):
+    GROUP = 'Probability indices (probability based)'
+    INDEX_NAME = 'Betweeness Centrality Generalized(PC)'
+    INDEX_CODE = 'BCPC'
+    NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
     _connection_type = 'prob'
 
-    pass
+    def defineCharacteristics(self):
+        ConeforProcessorBase.defineCharacteristics(self)
+        parameters = self._create_parameters()
+        self._add_parameters(parameters)
+
+    def _create_parameters(self):
+        parameters = ConeforProcessorBase._create_parameters(self)
+        parameters += [
+            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, '(BC) Threshold ' \
+                            '(distance/probability) for connecting nodes ' \
+                            '(confAdj)'),
+            ParameterBoolean(self.WRITE_LINKS_FILE, '(BC) Write links file',
+                             default=False),
+            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
+                             'individual node importances', default=False),
+            ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
+                             'dispersal probabilities for each pair of nodes',
+                             default=False),
+            ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
+                             'product probabilities for each pair of nodes',
+                             default=False),
+        ]
+        return parameters
+
+    def _run_the_algorithm(self, conefor_path, nodes_file_path,
+                           connections_file_path, all_connections,
+                           prefix, progress):
+        write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
+        write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
+        thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
+        only_overall = True
+        if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
+            only_overall = False
+        prefix +='_%s' % self.INDEX_CODE
+        returncode, stdout, stderr = self._run_conefor(
+            progress,
+            conefor_path,
+            nodes_file_path,
+            connections_file_path,
+            self._connection_type,
+            all_connections,
+            threshold_direct_links=thresh_d_links,
+            binary_indexes=['BC'],
+            probability_indexes=['PC', self.INDEX_CODE],
+            only_overall=only_overall,
+            write_dispersal_probabilities_file=write_prob_dir,
+            write_maximum_probabilities_file=write_prob_max,
+            prefix=prefix
+        )
+        return returncode, stdout, stderr

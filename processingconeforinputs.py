@@ -101,8 +101,7 @@ class ConeforInputsAttribute(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100, attribute=process_attribute,
                                 attribute_file_name=attribute_file_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsArea(ConeforInputsBase):
@@ -120,8 +119,7 @@ class ConeforInputsArea(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100,
                                 area_file_name=area_file_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsCentroid(ConeforInputsBase):
@@ -138,8 +136,7 @@ class ConeforInputsCentroid(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100,
                                 centroid_file_name=centroid_file_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsEdge(ConeforInputsBase):
@@ -157,8 +154,7 @@ class ConeforInputsEdge(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100,
                                 edge_file_name=edge_file_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsCentroidDistance(ConeforInputsBase):
@@ -177,8 +173,7 @@ class ConeforInputsCentroidDistance(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100,
                                 centroid_distance_file_name=shape_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsEdgeDistance(ConeforInputsBase):
@@ -197,8 +192,7 @@ class ConeforInputsEdgeDistance(ConeforInputsBase):
         processor.process_layer(layer, unique_attribute, output_dir,
                                 progress_step=100,
                                 edge_distance_file_name=shape_name,
-                                only_selected_features=use_selected,
-                                load_distance_files_to_canvas=False)
+                                only_selected_features=use_selected)
 
 
 class ConeforInputsPointAttribute(ConeforInputsAttribute):
