@@ -51,7 +51,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                      self.finished_processing_layers)
         self.analyzer_thread.initialize(plugin_obj.registry.mapLayers(),
                                         self.unique_features_chb.isChecked())
-        print('aqui')
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
         find_unique_features = self.load_settings('analyze_unique_features',

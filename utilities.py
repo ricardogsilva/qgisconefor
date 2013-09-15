@@ -80,3 +80,15 @@ def exist_selected_features(qgis_layers):
         if layer.selectedFeatureCount() > 1:
             exist_selected = True
     return exist_selected
+
+def extract_contents(path):
+    '''
+    Extract a text file's contents.
+    Assumes ASCII file and encoding
+    '''
+
+    result = []
+    with open(path) as fh:
+        for line in fh:
+            result.append(line)
+    return result
