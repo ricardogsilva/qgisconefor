@@ -314,6 +314,7 @@ class InputsProcessor(QObject):
                                               shape_output_path)
             created_files += edge_files
         self.global_progress = 100
+        self.emit(SIGNAL('progress_changed'))
         return created_files
 
     def _determine_num_queries(self, attribute_file_name, area_file_name,
@@ -544,7 +545,7 @@ class InputsProcessor(QObject):
                 self.emit(SIGNAL('update_info'), 'Creating centroid distance file', 1)
                 if not os.path.isdir(output_dir):
                     os.mkdir(output_dir)
-                self.emit(SIGNAL('update_info'), 'centroids...', 2)
+                #self.emit(SIGNAL('update_info'), 'centroids...', 2)
                 data_to_write = []
                 for c_dict in data:
                     the_data = {
