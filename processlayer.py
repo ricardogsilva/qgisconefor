@@ -3,7 +3,7 @@ from PyQt4.QtGui import *
 
 from qgis.core import *
 
-LAYER, ID, ATTRIBUTE, CENTROID, EDGE, AREA = range(6)
+LAYER, ID, ATTRIBUTE, AREA, EDGE, CENTROID = range(6)
 
 class ProcessLayer(object):
 
@@ -14,8 +14,8 @@ class ProcessLayer(object):
         self.id_field_name = unique_fields[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
-        self.process_centroid_distance = True
-        self.process_edge_distance = False
+        self.process_centroid_distance = False
+        self.process_edge_distance = True
 
 
 class ProcessLayerTableModel(QAbstractTableModel):
@@ -24,11 +24,11 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self.processor = processor
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
-        self._header_labels[ID] = 'Unique\nattribute'
+        self._header_labels[ID] = 'Node ID\n(unique)'
         self._header_labels[CENTROID] = 'Centroid\ndistance'
         self._header_labels[EDGE] = 'Edge\ndistance'
-        self._header_labels[AREA] = 'Process\narea'
-        self._header_labels[ATTRIBUTE] = 'Process\nattribute'
+        self._header_labels[AREA] = 'Calculate area\nas the node\nattribute'
+        self._header_labels[ATTRIBUTE] = 'Node\nattribute'
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>577</width>
+    <width>640</width>
     <height>529</height>
    </rect>
   </property>
@@ -56,8 +56,11 @@
      <property name="selectionMode">
       <enum>QAbstractItemView::SingleSelection</enum>
      </property>
+     <property name="textElideMode">
+      <enum>Qt::ElideRight</enum>
+     </property>
      <attribute name="horizontalHeaderDefaultSectionSize">
-      <number>90</number>
+      <number>102</number>
      </attribute>
      <attribute name="horizontalHeaderStretchLastSection">
       <bool>true</bool>
@@ -127,7 +130,7 @@
      <item>
       <widget class="QCheckBox" name="create_distances_files_chb">
        <property name="text">
-        <string>Create distances files</string>
+        <string>Create link vector layer</string>
        </property>
       </widget>
      </item>

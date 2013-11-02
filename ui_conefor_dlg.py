@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'conefor_dlg.ui'
 #
-# Created: Mon Sep  9 21:20:10 2013
+# Created: Sat Nov  2 21:23:26 2013
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -17,7 +17,7 @@ except AttributeError:
 class Ui_ConeforDialog(object):
     def setupUi(self, ConeforDialog):
         ConeforDialog.setObjectName(_fromUtf8("ConeforDialog"))
-        ConeforDialog.resize(577, 529)
+        ConeforDialog.resize(640, 529)
         self.gridLayout = QtGui.QGridLayout(ConeforDialog)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
         self.unique_features_chb = QtGui.QCheckBox(ConeforDialog)
@@ -35,8 +35,9 @@ class Ui_ConeforDialog(object):
         self.tableView.setEditTriggers(QtGui.QAbstractItemView.AllEditTriggers)
         self.tableView.setAlternatingRowColors(True)
         self.tableView.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
+        self.tableView.setTextElideMode(QtCore.Qt.ElideRight)
         self.tableView.setObjectName(_fromUtf8("tableView"))
-        self.tableView.horizontalHeader().setDefaultSectionSize(90)
+        self.tableView.horizontalHeader().setDefaultSectionSize(102)
         self.tableView.horizontalHeader().setStretchLastSection(True)
         self.tableView.verticalHeader().setVisible(False)
         self.gridLayout.addWidget(self.tableView, 2, 0, 1, 1)
@@ -125,7 +126,7 @@ class Ui_ConeforDialog(object):
         self.remove_row_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Remove row", None, QtGui.QApplication.UnicodeUTF8))
         self.add_row_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Add row", None, QtGui.QApplication.UnicodeUTF8))
         self.use_selected_features_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Only use selected features", None, QtGui.QApplication.UnicodeUTF8))
-        self.create_distances_files_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Create distances files", None, QtGui.QApplication.UnicodeUTF8))
+        self.create_distances_files_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Create link vector layer", None, QtGui.QApplication.UnicodeUTF8))
         self.output_la.setText(QtGui.QApplication.translate("ConeforDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Output directory</span></p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
         self.output_dir_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Browse...", None, QtGui.QApplication.UnicodeUTF8))
         self.progress_la.setText(QtGui.QApplication.translate("ConeforDialog", "Label", None, QtGui.QApplication.UnicodeUTF8))

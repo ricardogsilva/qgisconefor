@@ -117,7 +117,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             if str(output_dir) == '':
                 output_dir = os.path.expanduser('~')
             self.output_dir_le.setText(output_dir)
-            self.create_distances_files_chb.setChecked(True)
+            self.create_distances_files_chb.setChecked(False)
             self.reset_progress_bar()
             self.progressBar.setValue(self.processor.global_progress)
             self.update_info('')
@@ -221,10 +221,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             }
             if load_to_canvas:
                 if la.process_centroid_distance:
-                    data['centroid_distance_name'] = 'centroid_distances_%s' %\
+                    data['centroid_distance_name'] = 'Centroid_links_%s' %\
                                                         la.qgis_layer.name()
                 if la.process_edge_distance:
-                    data['edge_distance_name'] = 'edge_distances_%s' % \
+                    data['edge_distance_name'] = 'Edge_links_%s' % \
                                                     la.qgis_layer.name()
             layers.append(data)
 

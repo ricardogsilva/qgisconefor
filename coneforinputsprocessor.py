@@ -74,7 +74,8 @@ class InputsProcessor(QObject):
                     edge_file_name=layer_parameters['edge_file_name'],
                     centroid_distance_file_name=layer_parameters['centroid_distance_name'],
                     edge_distance_file_name=layer_parameters['edge_distance_name'],
-                    only_selected_features=only_selected_features
+                    only_selected_features=only_selected_features,
+                    add_vector_layers_out_dir=True
                 )
                 new_files += layer_files
             except NoFeaturesToProcessError:
@@ -125,7 +126,9 @@ class InputsProcessor(QObject):
             if not output_path.endswith('.shp'):
                 output_path = '%s.shp' % output_path
         fields = QgsFields()
-        fields.append(QgsField('from_to', QVariant.String, 'from_to', 255))
+        fields.append(QgsField('From_Node', QVariant.String, 'From_NodeID',
+                      255))
+        fields.append(QgsField('To_Node', QVariant.String, 'To_NodeID', 255))
         fields.append(QgsField('distance', QVariant.Double,
                       'distance', 255, 1))
         writer = QgsVectorFileWriter(output_path, encoding, fields,
@@ -133,13 +136,12 @@ class InputsProcessor(QObject):
         if writer.hasError() == QgsVectorFileWriter.NoError:
             for item in data:
                 feat = QgsFeature()
-                from_to = u'%s_%s' % (item['from_attribute'],
-                                      item['to_attribute'])
                 line = [item['from'], item['to']]
                 feat.setGeometry(QgsGeometry.fromPolyline(line))
                 feat.setFields(fields)
-                feat.initAttributes(2)
-                feat.setAttribute('from_to', from_to)
+                feat.initAttributes(3)
+                feat.setAttribute('From_Node', item['from_attribute'])
+                feat.setAttribute('To_Node', item['to_attribute'])
                 feat.setAttribute('distance', item['distance'])
                 writer.addFeature(feat)
         else:
@@ -174,6 +176,8 @@ class InputsProcessor(QObject):
     def _save_text_file(self, data, log_text, output_dir, output_name,
                         encoding, progress_step):
         self.emit(SIGNAL('update_info'), '%s' % log_text, 1)
+        if not output_name.endswith('.txt'):
+            output_name = '%s.txt' % output_name
         sorted_data = sorted(data, key=lambda tup: tup[0])
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
@@ -197,7 +201,8 @@ class InputsProcessor(QObject):
                       attribute_file_name=None, centroid_file_name=None,
                       edge_file_name=None, centroid_distance_file_name=None,
                       edge_distance_file_name=None,
-                      only_selected_features=True):
+                      only_selected_features=True,
+                      add_vector_layers_out_dir=False):
         '''
         Process an individual layer.
 
@@ -239,6 +244,11 @@ class InputsProcessor(QObject):
             only_selected_features - A boolean indicating if the processing
                 should be restricted to the currently selected features on
                 each layer.
+
+            add_vector_layers_out_dir - A boolean indicating if a dedicated
+                subdirectory should be created under the input output_dir
+                in order to store the vector files with the distances.
+                Defaults to False.
         '''
 
         created_files = []
@@ -282,8 +292,17 @@ class InputsProcessor(QObject):
             except AttributeError:
                 output_path = None
             try:
-                shape_output_path = os.path.join(output_dir,
-                                                 centroid_distance_file_name)
+                if add_vector_layers_out_dir:
+                    shape_output_path = os.path.join(
+                        output_dir,
+                        'Link_vector_layers',
+                        centroid_distance_file_name
+                    )
+                else:
+                    shape_output_path = os.path.join(
+                        output_dir,
+                        centroid_distance_file_name
+                    )
             except AttributeError:
                 shape_output_path = None
             centroid_files = self._run_centroid_query(
@@ -303,8 +322,17 @@ class InputsProcessor(QObject):
             except AttributeError:
                 output_path = None
             try:
-                shape_output_path = os.path.join(output_dir,
-                                                 edge_distance_file_name)
+                if add_vector_layers_out_dir:
+                    shape_output_path = os.path.join(
+                        output_dir,
+                        'Link_vector_layers',
+                        edge_distance_file_name
+                    )
+                else:
+                    shape_output_path = os.path.join(
+                        output_dir,
+                        edge_distance_file_name
+                    )
             except AttributeError:
                 shape_output_path = None
             edge_files = self._run_edge_query(layer, id_attribute, encoding,
