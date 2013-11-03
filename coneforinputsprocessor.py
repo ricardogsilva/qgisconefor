@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 import codecs
 
 from PyQt4.QtCore import *
@@ -81,10 +82,32 @@ class InputsProcessor(QObject):
             except NoFeaturesToProcessError:
                 print('Layer %s has no features to process' % \
                       layer_parameters['layer'].name())
+            except Exception as e:
+                traceback.print_exc()
+                raise
             self.emit(SIGNAL('progress_changed'))
         self.emit(SIGNAL('update_info'), 'Processing finished!')
         self.global_progress = 0
         return new_files
+
+    def _get_output_file_name(self, directory, name):
+        '''
+        Rename the output name if it is already present in the directory.
+        '''
+
+        the_name, extension = os.path.splitext(name)
+        path_already_exists = True
+        index = 1
+        while path_already_exists:
+            if index == 1:
+                tentative_name = '%s%s' % (the_name, extension)
+            else:
+                tentative_name = '%s%i%s' % (the_name, index, extension)
+            tentative_path = os.path.join(directory, tentative_name)
+            if not os.path.isfile(tentative_path):
+                path_already_exists = False
+            index += 1
+        return tentative_name
 
     def _write_distance_file(self, data, output_dir, output_name, encoding,
                              crs, file_type='ESRI Shapefile'):
@@ -119,12 +142,13 @@ class InputsProcessor(QObject):
             file_type - A string representing the type of file format to use
         '''
 
+        if file_type == 'ESRI Shapefile':
+            if not output_name.endswith('.shp'):
+                output_name = '%s.shp' % output_name
+        output_name = self._get_output_file_name(output_dir, output_name)
         output_path = os.path.join(output_dir, output_name)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        if file_type == 'ESRI Shapefile':
-            if not output_path.endswith('.shp'):
-                output_path = '%s.shp' % output_path
         fields = QgsFields()
         fields.append(QgsField('From_Node', QVariant.String, 'From_NodeID',
                       255))
@@ -176,11 +200,12 @@ class InputsProcessor(QObject):
     def _save_text_file(self, data, log_text, output_dir, output_name,
                         encoding, progress_step):
         self.emit(SIGNAL('update_info'), '%s' % log_text, 1)
-        if not output_name.endswith('.txt'):
-            output_name = '%s.txt' % output_name
-        sorted_data = sorted(data, key=lambda tup: tup[0])
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
+        if not output_name.endswith('.txt'):
+            output_name = '%s.txt' % output_name
+        output_name = self._get_output_file_name(output_dir, output_name)
+        sorted_data = sorted(data, key=lambda tup: tup[0])
         output_path = os.path.join(output_dir, output_name)
         with codecs.open(output_path, 'w', encoding) as file_handler:
             for tup in sorted_data:
@@ -631,8 +656,12 @@ class InputsProcessor(QObject):
             current = iter(features).next()
             c_id_at = self._get_numeric_attribute(current, id_attribute)
             if c_id_at is not None:
+                print('current_node_id: %s' % c_id_at)
                 current_geom = current.geometry()
+                print('current_geom: %s' % current_geom)
+                print('transformer: %s' % transformer)
                 current_poly = self._get_polygon(current_geom, transformer)
+                print('current_poly: %s' % current_poly)
                 j = i + 1
                 while j < len(feature_ids):
                     features = utilities.get_features(layer, use_selected,
@@ -642,6 +671,7 @@ class InputsProcessor(QObject):
                     if n_id_at is not None:
                         next_geom = next_.geometry()
                         next_poly = self._get_polygon(next_geom, transformer)
+                        print('next_poly: %s' % next_poly)
                         segments = self.get_closest_segments(current_poly,
                                                              next_poly)
                         current_segment, next_segment = segments
