@@ -16,10 +16,6 @@ from processing.core.Processing import Processing
 from processingconeforprovider import ProcessingConeforProvider
 
 
-class NoFeaturesToProcessError(Exception):
-    pass
-
-
 class ConeforProcessor(object):
 
     _plugin_name = 'Conefor inputs'

@@ -8,7 +8,8 @@ from qgis.core import *
 
 import utilities
 
-class NoFeaturesToProcessError(Exception):
+
+class InvalidFeatureError(Exception):
     pass
 
 
@@ -59,8 +60,8 @@ class InputsProcessor(QObject):
         self.emit(SIGNAL('update_info'), 'Processing started...')
         new_files = []
         layer_progress_step = 100.0 / len(layers)
-        for index, layer_parameters in enumerate(layers):
-            try:
+        try:
+            for index, layer_parameters in enumerate(layers):
                 self.emit(SIGNAL('update_info'), 'layer: %s' % \
                                  layer_parameters['layer'].name())
                 layer_files = self.process_layer(
@@ -79,15 +80,16 @@ class InputsProcessor(QObject):
                     add_vector_layers_out_dir=True
                 )
                 new_files += layer_files
-            except NoFeaturesToProcessError:
-                print('Layer %s has no features to process' % \
-                      layer_parameters['layer'].name())
-            except Exception as e:
-                traceback.print_exc()
-                raise
             self.emit(SIGNAL('progress_changed'))
-        self.emit(SIGNAL('update_info'), 'Processing finished!')
-        self.global_progress = 0
+        except InvalidFeatureError as e:
+            self.emit(SIGNAL('update_info'), 'ERROR: %s' % e)
+        except Exception as e:
+            traceback.print_exc()
+            raise
+        else:
+            self.emit(SIGNAL('update_info'), 'Processing finished!')
+        finally:
+            self.global_progress = 0
         return new_files
 
     def _get_output_file_name(self, directory, name):
@@ -545,6 +547,14 @@ class InputsProcessor(QObject):
             c_id_attr = self._get_numeric_attribute(current, id_attribute)
             if c_id_attr is not None:
                 current_geom = current.geometry()
+                geometry_errors = current_geom.validateGeometry()
+                if any(geometry_errors):
+                    raise InvalidFeatureError('Layer: %s - Feature %s has '
+                                              'geometry errors. Aborting...' \
+                                              % (layer.name(), c_id_attr))
+                elif current_geom.isMultipart():
+                    raise InvalidFeatureError('Feature %s is multipart. '
+                                              'Aborting...' % c_id_attr)
                 orig_curr_centroid = current_geom.centroid().asPoint()
                 trans_curr_centroid = self._transform_point(orig_curr_centroid,
                                                             transformer)
@@ -656,12 +666,16 @@ class InputsProcessor(QObject):
             current = iter(features).next()
             c_id_at = self._get_numeric_attribute(current, id_attribute)
             if c_id_at is not None:
-                print('current_node_id: %s' % c_id_at)
                 current_geom = current.geometry()
-                print('current_geom: %s' % current_geom)
-                print('transformer: %s' % transformer)
+                geometry_errors = current_geom.validateGeometry()
+                if any(geometry_errors):
+                    raise InvalidFeatureError('Layer: %s - Feature %s has '
+                                              'geometry errors. Aborting...' \
+                                              % (layer.name(), c_id_at))
+                elif current_geom.isMultipart():
+                    raise InvalidFeatureError('Feature %s is multipart. '
+                                              'Aborting...' % c_id_at)
                 current_poly = self._get_polygon(current_geom, transformer)
-                print('current_poly: %s' % current_poly)
                 j = i + 1
                 while j < len(feature_ids):
                     features = utilities.get_features(layer, use_selected,
@@ -671,7 +685,6 @@ class InputsProcessor(QObject):
                     if n_id_at is not None:
                         next_geom = next_.geometry()
                         next_poly = self._get_polygon(next_geom, transformer)
-                        print('next_poly: %s' % next_poly)
                         segments = self.get_closest_segments(current_poly,
                                                              next_poly)
                         current_segment, next_segment = segments

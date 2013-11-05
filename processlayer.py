@@ -14,8 +14,12 @@ class ProcessLayer(object):
         self.id_field_name = unique_fields[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
+        geometry_type = qgis_layer.geometryType()
         self.process_centroid_distance = False
         self.process_edge_distance = True
+        if geometry_type == QGis.Point:
+            self.process_centroid_distance = True
+            self.process_edge_distance = False
 
 
 class ProcessLayerTableModel(QAbstractTableModel):
