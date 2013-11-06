@@ -55,7 +55,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
         find_unique_features = self.load_settings('analyze_unique_features',
-                                                  type_hint=bool)
+                                                  type_hint=bool,
+                                                  default_to=False)
         if find_unique_features is None:
             find_unique_features = False
         if not isinstance(find_unique_features, bool):
@@ -119,7 +120,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
-            output_dir = self.load_settings('output_dir')
+            output_dir = self.load_settings('output_dir',
+                                            default_to=os.path.expanduser('~'))
             if str(output_dir) == '':
                 output_dir = os.path.expanduser('~')
             self.output_dir_le.setText(output_dir)
@@ -189,10 +191,13 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         settings.setValue(key, value)
         settings.sync()
 
-    def load_settings(self, key, type_hint=str):
+    def load_settings(self, key, type_hint=str, default_to=None):
         settings = QSettings()
         full_key = '%s/%s' % (self._settings_key, key)
-        value = settings.value(full_key, type=type_hint)
+        try:
+            value = settings.value(full_key, type=type_hint)
+        except TypeError:
+            value = default_to
         return value
 
     def run_queries(self):

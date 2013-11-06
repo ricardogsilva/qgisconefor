@@ -6,7 +6,7 @@ from PyQt4.QtGui import QIcon
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.ProcessingUtils import ProcessingUtils
+import processing.tools.system
 from processing.core.ProcessingResults import ProcessingResults
 from processing.parameters.ParameterFile import ParameterFile
 from processing.parameters.ParameterBoolean import ParameterBoolean
@@ -240,7 +240,7 @@ class ConeforProcessorBase(GeoAlgorithm):
 
         conefor_dir, conefor_file_name = os.path.split(conefor_path)
         command_list = []
-        if not ProcessingUtils.isWindows():
+        if not processing.tools.system.isWindows():
             command_list.append('wine')
         command_list += [
             conefor_file_name,
