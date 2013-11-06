@@ -84,9 +84,16 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.analyzer_thread.wait()
         if any(usable_layers):
             self.layers = usable_layers
-            current_layer = self.iface.mapCanvas().currentLayer()
-            if current_layer not in self.layers.keys():
-                current_layer = self.layers.keys()[0]
+            #current_layer = self.iface.mapCanvas().currentLayer()
+            #if current_layer not in self.layers.keys():
+            #    current_layer = self.layers.keys()[0]
+
+            # aqui
+            current_layers = self.iface.legendInterface().selectedLayers()
+            if not any(current_layers):
+                current_layers.append(self.layers.keys()[0])
+
+
             selected = utilities.exist_selected_features(self.layers.keys())
             self.change_ui_availability(True, selected)
             if utilities.exist_selected_features(self.layers.keys()):
@@ -94,7 +101,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 self.use_selected_features_chb.setChecked(True)
             else:
                 self.use_selected_features_chb.setEnabled(False)
-            self.model = ProcessLayerTableModel(self.layers, current_layer,
+            self.model = ProcessLayerTableModel(self.layers, current_layers,
                                                 self.processor)
             self.tableView.setModel(self.model)
             delegate = ProcessLayerDelegate(self, self)

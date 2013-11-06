@@ -24,7 +24,7 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
-    def __init__(self, qgis_layers, current_layer, processor):
+    def __init__(self, qgis_layers, current_layers, processor):
         self.processor = processor
         self._header_labels = range(6)
         self._header_labels[LAYER] = 'Layer'
@@ -36,9 +36,15 @@ class ProcessLayerTableModel(QAbstractTableModel):
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers
-        current_fields = qgis_layers[current_layer]
-        self.layers = [ProcessLayer(current_layer, self.processor,
-                                    current_fields)]
+
+        #current_fields = qgis_layers[current_layer]
+        #self.layers = [ProcessLayer(current_layer, self.processor,
+        #                            current_fields)]
+
+        self.layers = []
+        for la in current_layers:
+            fields = qgis_layers[la]
+            self.layers.append(ProcessLayer(la, self.processor, fields))
 
     def rowCount(self, index=QModelIndex()):
         return len(self.layers)

@@ -39,7 +39,6 @@ class LayerAnalyzerThread(QThread):
         '''
 
         usable_layers = dict()
-        print('get_unique_fields: %s' % self.get_unique_fields)
         for layer_id, the_layer in self.loaded_layers.iteritems():
             self.emit(SIGNAL('analyzing_layer'), the_layer.name())
             if the_layer.type() == QgsMapLayer.VectorLayer:
