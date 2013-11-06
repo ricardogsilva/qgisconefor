@@ -6,7 +6,6 @@ from PyQt4.QtGui import QIcon
 
 from processing.core.Processing import Processing
 from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.QGisLayers import QGisLayers
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
