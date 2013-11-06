@@ -112,6 +112,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                             self.toggle_run_button)
             self.connect(self.output_dir_btn, SIGNAL('released()'),
                          self.get_output_dir)
+
+            #self.connect(self.lock_layers_chb, SIGNAL('toggled(bool)'),
+            #             self.toggle_lock_layers_to_first)
+
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
@@ -158,6 +162,18 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.model.removeRows(last_row)
         if self.model.rowCount() == 1:
             self.remove_row_btn.setEnabled(False)
+
+    #def toggle_lock_layers_to_first(self, lock_layers):
+    #    if len(self.model.layers) < 1:
+    #        pass
+    #    else:
+    #        for i in range(len(self.model.layers)):
+    #            if i > 0 and lock_layers:
+    #                self.model.layers[i].id_field_name = '<Locked>'
+    #                self.model.layers[i].attribute_field_name = '<Locked>'
+    #                self.model.layers[i].process_area = '<Locked>'
+    #                self.model.layers[i].process_centroid_distance = '<Locked>'
+    #                self.model.layers[i].process_edge_distance = '<Locked>'
 
     def get_output_dir(self):
         home_dir = os.path.expanduser('~')
