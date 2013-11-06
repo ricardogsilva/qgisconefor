@@ -36,11 +36,6 @@ class ProcessLayerTableModel(QAbstractTableModel):
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers
-
-        #current_fields = qgis_layers[current_layer]
-        #self.layers = [ProcessLayer(current_layer, self.processor,
-        #                            current_fields)]
-
         self.layers = []
         for la in current_layers:
             fields = qgis_layers[la]

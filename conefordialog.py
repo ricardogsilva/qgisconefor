@@ -43,6 +43,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.analyzer_thread = LayerAnalyzerThread(self.lock, self)
         self.processing_thread = LayerProcessingThread(self.lock,
                                                        self.processor, self)
+        self.connect(self.help_btn, SIGNAL('released()'), self.show_help)
         self.connect(self.analyzer_thread, SIGNAL('finished'),
                      self.finished_analyzing_layers)
         self.connect(self.analyzer_thread, SIGNAL('analyzing_layer'),
@@ -84,16 +85,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.analyzer_thread.wait()
         if any(usable_layers):
             self.layers = usable_layers
-            #current_layer = self.iface.mapCanvas().currentLayer()
-            #if current_layer not in self.layers.keys():
-            #    current_layer = self.layers.keys()[0]
-
-            # aqui
             current_layers = self.iface.legendInterface().selectedLayers()
             if not any(current_layers):
                 current_layers.append(self.layers.keys()[0])
-
-
             selected = utilities.exist_selected_features(self.layers.keys())
             self.change_ui_availability(True, selected)
             if utilities.exist_selected_features(self.layers.keys()):
@@ -116,9 +110,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                             self.update_info)
             QObject.connect(self.model, SIGNAL('is_runnable_check'),
                             self.toggle_run_button)
-            QObject.connect(self.help_btn, SIGNAL('released()'), self.show_help)
-            self.connect(self.output_dir_btn, SIGNAL('released()'), self.get_output_dir)
-            self.remove_row_btn.setEnabled(False)
+            self.connect(self.output_dir_btn, SIGNAL('released()'),
+                         self.get_output_dir)
+            if len(current_layers) < 2:
+                self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
             output_dir = self.load_settings('output_dir')
             if str(output_dir) == '':
@@ -159,9 +154,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             self.remove_row_btn.setEnabled(False)
 
     def remove_row(self):
-        index = self.tableView.currentIndex()
-        row = index.row()
-        self.model.removeRows(row)
+        last_row = self.model.rowCount() - 1
+        self.model.removeRows(last_row)
         if self.model.rowCount() == 1:
             self.remove_row_btn.setEnabled(False)
 
