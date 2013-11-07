@@ -200,34 +200,26 @@ class ProcessLayerDelegate(QItemDelegate):
         super(ProcessLayerDelegate, self).__init__(parent)
         self.dialog = dialog
 
-    #def createEditor(self, parent, option, index):
-    #    result = QItemDelegate.createEditor(self, parent, option, index)
-    #    column = index.column()
-    #    if column in (LAYER, ID, ATTRIBUTE):
-    #        combo_box = QComboBox(parent)
-    #        self.connect(combo_box, SIGNAL('currentIndexChanged(int)'),
-    #                     self.commitAndCloseEditor)
-    #        result = combo_box
-    #    return result
-
     def createEditor(self, parent, option, index):
         column = index.column()
-        if column == LAYER:
-            layer_cb = QComboBox(parent)
-            self.connect(layer_cb, SIGNAL('currentIndexChanged(int)'),
-                         self.commitAndCloseEditor)
-            result = layer_cb
-        elif column in (ID, ATTRIBUTE):
-            if index.row() > 0 and self.dialog.lock_layers_chb.isChecked():
-                line_edit = QLabel('<Locked>', parent)
-                result = line_edit
+        row = index.row()
+        if row > 0 and self.dialog.lock_layers_chb.isChecked():
+            if column == LAYER:
+                result = QLabel(parent)
+            elif column in (ID, ATTRIBUTE):
+                result = QLabel(parent)
             else:
+                result = QItemDelegate.createEditor(self, parent, option,
+                                                    index)
+        else:
+            if column in (LAYER, ID, ATTRIBUTE):
                 combo_box = QComboBox(parent)
-                self.connect(combo_box, SIGNAL('currentIndexChanged(int)'),
+                self.connect(combo_box, SIGNAL('activated(int)'),
                              self.commitAndCloseEditor)
                 result = combo_box
-        else:
-            result = QItemDelegate.createEditor(self, parent, option, index)
+            else:
+                result = QItemDelegate.createEditor(self, parent, option,
+                                                    index)
         return result
 
     def setEditorData(self, editor, index):
@@ -235,63 +227,68 @@ class ProcessLayerDelegate(QItemDelegate):
         column = index.column()
         model = index.model()
         selected_layer_name = model.layers[row].qgis_layer_name
-        selected_id_field_name = model.layers[row].id_field_name
-        selected_attribute_field_name = model.layers[row].attribute_field_name
-        layer = model._get_qgis_layer(selected_layer_name)
-        if column == LAYER:
-            layer_names = [la.name() for la in model.data_.keys()]
-            editor.addItems(layer_names)
-            cmb_index = editor.findText(selected_layer_name)
-            editor.setCurrentIndex(cmb_index)
-        elif column == ID:
-            if row > 0 and self.dialog.lock_layers_chb.isChecked():
-                #editor.addItems(['<Locked>'])
-                #editor.setCurrentIndex(0)
-                pass
+        if row > 0 and self.dialog.lock_layers_chb.isChecked():
+            if column == LAYER:
+                editor.setText(selected_layer_name)
+            elif column in (ID, ATTRIBUTE):
+                editor.setText('<Locked>')
             else:
+                QItemDelegate.setEditorData(self, editor, index)
+        else:
+            selected_id_field_name = model.layers[row].id_field_name
+            selected_attribute_field_name = model.layers[row].attribute_field_name
+            layer = model._get_qgis_layer(selected_layer_name)
+            if column == LAYER:
+                layer_names = [la.name() for la in model.data_.keys()]
+                editor.addItems(layer_names)
+                cmb_index = editor.findText(selected_layer_name)
+                editor.setCurrentIndex(cmb_index)
+            elif column == ID:
                 unique_field_names = model.data_.get(layer)
                 editor.addItems(unique_field_names)
                 cmb_index = editor.findText(selected_id_field_name)
                 editor.setCurrentIndex(cmb_index)
-
-            #unique_field_names = model.data_.get(layer)
-            #editor.addItems(unique_field_names)
-            #cmb_index = editor.findText(selected_id_field_name)
-            #editor.setCurrentIndex(cmb_index)
-
-        elif column == ATTRIBUTE:
-            if row > 0 and self.dialog.lock_layers_chb.isChecked():
-                #editor.addItems(['<Locked>'])
-                #editor.setCurrentIndex(0)
-                pass
-            else:
+            elif column == ATTRIBUTE:
                 field_names = model.get_field_names(selected_layer_name)
                 editor.addItems(['<None>'] + field_names)
                 cmb_index = editor.findText(selected_attribute_field_name)
                 editor.setCurrentIndex(cmb_index)
-            #field_names = model.get_field_names(selected_layer_name)
-            #editor.addItems(['<None>'] + field_names)
-            #cmb_index = editor.findText(selected_attribute_field_name)
-            #editor.setCurrentIndex(cmb_index)
-        else:
-            QItemDelegate.setEditorData(self, editor, index)
+            else:
+                QItemDelegate.setEditorData(self, editor, index)
 
     def setModelData(self, editor, model, index):
+        row = index.row()
         column = index.column()
-        if column == LAYER:
-            model.setData(index, editor.currentText())
-            selected_layer_name = str(editor.currentText())
-            layer = model._get_qgis_layer(selected_layer_name)
-            unique_field_names = model.data_.get(layer)
-            id_index = model.index(index.row(), ID)
-            attr_index = model.index(index.row(), ATTRIBUTE)
-            model.setData(id_index, unique_field_names[0])
-            model.setData(attr_index, '<None>')
-        elif column in (ID, ATTRIBUTE):
-            model.setData(index, editor.currentText())
-        else:
-            QItemDelegate.setModelData(self, editor, model, index)
+        QgsMessageLog.logMessage('row: %s\tcolumn: %s' % (row, column))
+        if row > 0 and self.dialog.lock_layers_chb.isChecked():
+            # get everything from the first layer, except layer name
+            first_id_attr = model.data(model.index(0, ID))
+            first_attr_attr = model.data(model.index(0, ATTRIBUTE))
+            first_process_area = model.data(model.index(0, AREA))
+            first_edge_distance = model.data(model.index(0, EDGE))
+            first_centroid_distance = model.data(model.index(0, CENTROID))
 
+            model.setData(model.index(row, LAYER), editor.text())
+            model.setData(model.index(row, ID), first_id_attr)
+            model.setData(model.index(row, ATTRIBUTE), first_attr_attr)
+            model.setData(model.index(row, AREA), first_process_area)
+            model.setData(model.index(row, EDGE), first_edge_distance)
+            model.setData(model.index(row, CENTROID), first_centroid_distance)
+        else:
+            if column == LAYER:
+                model.setData(index, editor.currentText())
+                selected_layer_name = str(editor.currentText())
+                layer = model._get_qgis_layer(selected_layer_name)
+                unique_field_names = model.data_.get(layer)
+                id_index = model.index(index.row(), ID)
+                attr_index = model.index(index.row(), ATTRIBUTE)
+                model.setData(id_index, unique_field_names[0])
+                model.setData(attr_index, '<None>')
+            elif column in (ID, ATTRIBUTE):
+                model.setData(index, editor.currentText())
+            else:
+                QItemDelegate.setModelData(self, editor, model, index)
+        
     def commitAndCloseEditor(self):
         editor = self.sender()
         if isinstance(editor, QComboBox):
