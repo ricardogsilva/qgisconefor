@@ -53,56 +53,66 @@ class ProcessLayerTableModel(QAbstractTableModel):
         else:
             layer = self.layers[index.row()]
             column = index.column()
-            if role == Qt.DisplayRole:
-                if column == LAYER:
-                    result = layer.qgis_layer_name
-                elif column == ID:
-                    result = layer.id_field_name
-                elif column == ATTRIBUTE:
-                    result = layer.attribute_field_name
-                elif column == AREA:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = '<Unavailable>'
+            if layer.qgis_layer is None: # layers are locked
+                if role == Qt.DisplayRole:
+                    if column == LAYER:
+                        result = layer.qgis_layer_name
                     else:
-                        result = None
-                elif column == EDGE:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = '<Unavailable>'
-                    else:
-                        result = None
-                else:
-                    result = None
-            elif role == Qt.CheckStateRole:
-                if column == AREA:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = None
-                    else:
-                        if layer.process_area:
-                            result = Qt.Checked
-                        else:
-                            result = Qt.Unchecked
-                elif column == CENTROID:
-                    if layer.process_centroid_distance:
-                        result = Qt.Checked
-                    else:
-                        result = Qt.Unchecked
-                elif column == EDGE:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
-                        result = None
-                    else:
-                        if layer.process_edge_distance:
-                            result = Qt.Checked
-                        else:
-                            result = Qt.Unchecked
-                else:
-                    result = None
-            elif role == Qt.TextAlignmentRole:
-                if column in (AREA, CENTROID, EDGE):
-                    result = int(Qt.AlignHCenter|Qt.AlignVCenter)
+                        result = layer.id_field_name
                 else:
                     result = None
             else:
-                result = None
+                column = index.column()
+                if role == Qt.DisplayRole:
+                    if column == LAYER:
+                        result = layer.qgis_layer_name
+                    elif column == ID:
+                        result = layer.id_field_name
+                    elif column == ATTRIBUTE:
+                        result = layer.attribute_field_name
+                    elif column == AREA:
+                        if layer.qgis_layer.geometryType() == QGis.Point:
+                            result = '<Unavailable>'
+                        else:
+                            result = None
+                    elif column == EDGE:
+                        if layer.qgis_layer.geometryType() == QGis.Point:
+                            result = '<Unavailable>'
+                        else:
+                            result = None
+                    else:
+                        result = None
+                elif role == Qt.CheckStateRole:
+                    if column == AREA:
+                        if layer.qgis_layer.geometryType() == QGis.Point:
+                            result = None
+                        else:
+                            if layer.process_area:
+                                result = Qt.Checked
+                            else:
+                                result = Qt.Unchecked
+                    elif column == CENTROID:
+                        if layer.process_centroid_distance:
+                            result = Qt.Checked
+                        else:
+                            result = Qt.Unchecked
+                    elif column == EDGE:
+                        if layer.qgis_layer.geometryType() == QGis.Point:
+                            result = None
+                        else:
+                            if layer.process_edge_distance:
+                                result = Qt.Checked
+                            else:
+                                result = Qt.Unchecked
+                    else:
+                        result = None
+                elif role == Qt.TextAlignmentRole:
+                    if column in (AREA, CENTROID, EDGE):
+                        result = int(Qt.AlignHCenter|Qt.AlignVCenter)
+                    else:
+                        result = None
+                else:
+                    result = None
         return result
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -137,17 +147,23 @@ class ProcessLayerTableModel(QAbstractTableModel):
             elif column == ATTRIBUTE:
                 layer.attribute_field_name = value
             elif column == AREA:
-                if layer.qgis_layer.geometryType() != QGis.Point:
+                try:
+                    if layer.qgis_layer.geometryType() != QGis.Point:
+                        layer.process_area = value
+                    else:
+                        layer.process_area = False
+                except AttributeError:
                     layer.process_area = value
-                else:
-                    layer.process_area = False
             elif column == CENTROID:
-                layer.process_centroid_distance = bool(value)
+                layer.process_centroid_distance = value
             elif column == EDGE:
-                if layer.qgis_layer.geometryType() != QGis.Point:
-                    layer.process_edge_distance = bool(value)
-                else:
-                    layer.process_edge_distance = False
+                try:
+                    if layer.qgis_layer.geometryType() != QGis.Point:
+                        layer.process_edge_distance = bool(value)
+                    else:
+                        layer.process_edge_distance = False
+                except AttributeError:
+                    layer.process_edge_distance = value
             self.dirty = True
             self.emit(SIGNAL('dataChanged(QModelIndex,QModelIndex)'),
                       index, index)
@@ -203,14 +219,30 @@ class ProcessLayerDelegate(QItemDelegate):
     def createEditor(self, parent, option, index):
         column = index.column()
         row = index.row()
-        if row > 0 and self.dialog.lock_layers_chb.isChecked():
-            if column == LAYER:
-                result = QLabel(parent)
-            elif column in (ID, ATTRIBUTE):
-                result = QLabel(parent)
+        if self.dialog.lock_layers_chb.isChecked():
+            if row == 0:
+                if column == LAYER:
+                    line_edit = QLineEdit(parent)
+                    line_edit.setReadOnly(True)
+                    line_edit.setDisabled(True)
+                    result = line_edit
+                elif column in (ID, ATTRIBUTE):
+                    combo_box = QComboBox(parent)
+                    self.connect(combo_box, SIGNAL('activated(int)'),
+                                self.commitAndCloseEditor)
+                    result = combo_box
+                else:
+                    result = QItemDelegate.createEditor(self, parent,
+                                                        option, index)
             else:
-                result = QItemDelegate.createEditor(self, parent, option,
-                                                    index)
+                if column in (LAYER, ID, ATTRIBUTE):
+                    line_edit = QLineEdit(parent)
+                    line_edit.setReadOnly(True)
+                    line_edit.setDisabled(True)
+                    result = line_edit
+                else:
+                    result = QItemDelegate.createEditor(self, parent,
+                                                        option, index)
         else:
             if column in (LAYER, ID, ATTRIBUTE):
                 combo_box = QComboBox(parent)
@@ -227,17 +259,29 @@ class ProcessLayerDelegate(QItemDelegate):
         column = index.column()
         model = index.model()
         selected_layer_name = model.layers[row].qgis_layer_name
-        if row > 0 and self.dialog.lock_layers_chb.isChecked():
-            if column == LAYER:
-                editor.setText(selected_layer_name)
-            elif column in (ID, ATTRIBUTE):
-                editor.setText('<Locked>')
+        selected_id_field_name = model.layers[row].id_field_name
+        selected_attribute_field_name = model.layers[row].attribute_field_name
+        layer = model._get_qgis_layer(selected_layer_name)
+
+        if self.dialog.lock_layers_chb.isChecked():
+            if row == 0:
+                if column == LAYER:
+                    editor.setText(selected_layer_name)
+                elif column == ID:
+                    unique_field_names = model.data_.get(layer)
+                    editor.addItems(unique_field_names)
+                    cmb_index = editor.findText(selected_id_field_name)
+                    editor.setCurrentIndex(cmb_index)
+                elif column == ATTRIBUTE:
+                    field_names = model.get_field_names(selected_layer_name)
+                    editor.addItems(['<None>'] + field_names)
+                    cmb_index = editor.findText(selected_attribute_field_name)
+                    editor.setCurrentIndex(cmb_index)
+                else:
+                    QItemDelegate.setEditorData(self, editor, index)
             else:
                 QItemDelegate.setEditorData(self, editor, index)
         else:
-            selected_id_field_name = model.layers[row].id_field_name
-            selected_attribute_field_name = model.layers[row].attribute_field_name
-            layer = model._get_qgis_layer(selected_layer_name)
             if column == LAYER:
                 layer_names = [la.name() for la in model.data_.keys()]
                 editor.addItems(layer_names)
@@ -276,8 +320,12 @@ class ProcessLayerDelegate(QItemDelegate):
             model.setData(model.index(row, CENTROID), first_centroid_distance)
         else:
             if column == LAYER:
-                model.setData(index, editor.currentText())
-                selected_layer_name = str(editor.currentText())
+                try:
+                    model.setData(index, editor.text())
+                    selected_layer_name = str(editor.text())
+                except AttributeError:
+                    model.setData(index, editor.currentText())
+                    selected_layer_name = str(editor.currentText())
                 layer = model._get_qgis_layer(selected_layer_name)
                 unique_field_names = model.data_.get(layer)
                 id_index = model.index(index.row(), ID)
@@ -288,7 +336,7 @@ class ProcessLayerDelegate(QItemDelegate):
                 model.setData(index, editor.currentText())
             else:
                 QItemDelegate.setModelData(self, editor, model, index)
-        
+
     def commitAndCloseEditor(self):
         editor = self.sender()
         if isinstance(editor, QComboBox):

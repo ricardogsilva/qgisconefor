@@ -114,8 +114,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             self.connect(self.output_dir_btn, SIGNAL('released()'),
                          self.get_output_dir)
 
-            #self.connect(self.lock_layers_chb, SIGNAL('toggled(bool)'),
-            #             self.toggle_lock_layers_to_first)
+            self.connect(self.lock_layers_chb, SIGNAL('toggled(bool)'),
+                         self.toggle_lock_layers)
 
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
@@ -137,6 +137,19 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             palette = QPalette()
             palette.setColor(QPalette.Foreground, Qt.red)
             self.progress_la.setPalette(palette)
+
+    def toggle_lock_layers(self, lock):
+        num_rows = self.model.rowCount()
+        num_columns = self.model.columnCount()
+        for row in range(num_rows):
+            if row > 0:
+                if lock:
+                    # the first column is layer name, which will not change
+                    for column in range(1, num_columns):
+                        index = self.model.index(row, column)
+                        self.model.setData(index, '<Locked>')
+                else:
+                    pass
 
     def reset_progress_bar(self):
         self.progressBar.setMinimum(0)
@@ -164,18 +177,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.model.removeRows(last_row)
         if self.model.rowCount() == 1:
             self.remove_row_btn.setEnabled(False)
-
-    #def toggle_lock_layers_to_first(self, lock_layers):
-    #    if len(self.model.layers) < 1:
-    #        pass
-    #    else:
-    #        for i in range(len(self.model.layers)):
-    #            if i > 0 and lock_layers:
-    #                self.model.layers[i].id_field_name = '<Locked>'
-    #                self.model.layers[i].attribute_field_name = '<Locked>'
-    #                self.model.layers[i].process_area = '<Locked>'
-    #                self.model.layers[i].process_centroid_distance = '<Locked>'
-    #                self.model.layers[i].process_edge_distance = '<Locked>'
 
     def get_output_dir(self):
         home_dir = os.path.expanduser('~')
