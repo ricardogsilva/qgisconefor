@@ -97,7 +97,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             else:
                 self.use_selected_features_chb.setEnabled(False)
             self.model = ProcessLayerTableModel(self.layers, current_layers,
-                                                self.processor)
+                                                self.processor, self)
             self.tableView.setModel(self.model)
             delegate = ProcessLayerDelegate(self, self)
             self.tableView.setItemDelegate(delegate)
@@ -113,6 +113,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                             self.toggle_run_button)
             self.connect(self.output_dir_btn, SIGNAL('released()'),
                          self.get_output_dir)
+
+            self.connect(self.lock_layers_chb, SIGNAL('toggled(bool)'),
+                         self.toggle_lock_layers)
+
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
@@ -133,6 +137,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             palette = QPalette()
             palette.setColor(QPalette.Foreground, Qt.red)
             self.progress_la.setPalette(palette)
+
+    def toggle_lock_layers(self, lock):
+        index = self.model.index(0, 0)
+        self.tableView.setFocus()
 
     def reset_progress_bar(self):
         self.progressBar.setMinimum(0)
@@ -190,34 +198,44 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         load_to_canvas = self.create_distances_files_chb.isChecked()
         output_dir = str(self.output_dir_le.text())
         only_selected_features = self.use_selected_features_chb.isChecked()
-        for la in self.model.layers:
-            if la.id_field_name == '<None>':
+        for layer_number, la in enumerate(self.model.layers):
+            id_ = la.id_field_name
+            attribute = la.attribute_field_name
+            area = la.process_area
+            centroid = la.process_centroid_distance
+            edge = la.process_edge_distance
+            if self.lock_layers_chb.isChecked() and layer_number > 0:
+                id_ = self.model.layers[0].id_field_name
+                attribute = self.model.layers[0].attribute_field_name
+                area = self.model.layers[0].process_area
+                centroid = self.model.layers[0].process_centroid_distance
+                edge = self.model.layers[0].process_edge_distance
+            if id_ == '<None>':
                 raise NoUniqueFieldError
-            if str(la.attribute_field_name) == '<None>':
-                attribute_field_name = None
+            if str(attribute) == '<None>':
+                attribute = None
                 attribute_file_name =  None
             else:
-                attribute_field_name = la.attribute_field_name
-                attribute_file_name = 'nodes_%s_%s' % (attribute_field_name,
+                attribute_file_name = 'nodes_%s_%s' % (attribute,
                                                         la.qgis_layer.name()) 
-            if la.process_area:
+            if area:
                 area_file_name = 'nodes_calculated_area_%s' % \
                                     la.qgis_layer.name()
             else:
                 area_file_name = None
-            if la.process_centroid_distance:
+            if centroid:
                 centroid_file_name = 'distances_centroids_%s' % \
                                         la.qgis_layer.name()
             else:
                 centroid_file_name = None
-            if la.process_edge_distance:
+            if edge:
                 edge_file_name = 'distances_edges_%s' % la.qgis_layer.name()
             else:
                 edge_file_name = None
             data = {
                 'layer' : la.qgis_layer,
-                'id_attribute' : la.id_field_name,
-                'attribute' : attribute_field_name,
+                'id_attribute' : id_,
+                'attribute' : attribute,
                 'attribute_file_name' : attribute_file_name,
                 'area_file_name' : area_file_name,
                 'centroid_file_name' : centroid_file_name,
@@ -226,14 +244,13 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                 'edge_distance_name' : None,
             }
             if load_to_canvas:
-                if la.process_centroid_distance:
+                if centroid:
                     data['centroid_distance_name'] = 'Centroid_links_%s' %\
                                                         la.qgis_layer.name()
-                if la.process_edge_distance:
+                if edge:
                     data['edge_distance_name'] = 'Edge_links_%s' % \
                                                     la.qgis_layer.name()
             layers.append(data)
-
         self.change_ui_availability(False)
         self.processing_thread.initialize(layers, output_dir,
                                             load_to_canvas,
@@ -262,6 +279,10 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             except IndexError:
                 sections.append(info)
             self.progress_la.setText(' - '.join(sections))
+        if 'ERROR' in info:
+            palette = QPalette()
+            palette.setColor(QPalette.Foreground, Qt.red)
+            self.progress_la.setPalette(palette)
 
     def toggle_run_button(self):
         '''

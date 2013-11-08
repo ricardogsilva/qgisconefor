@@ -12,6 +12,9 @@ import utilities
 class InvalidFeatureError(Exception):
     pass
 
+class InvalidAttributeError(Exception):
+    pass
+
 
 class InputsProcessor(QObject):
 
@@ -83,6 +86,9 @@ class InputsProcessor(QObject):
             self.emit(SIGNAL('progress_changed'))
         except InvalidFeatureError as e:
             self.emit(SIGNAL('update_info'), 'ERROR: %s' % e)
+        except InvalidAttributeError as e:
+            self.emit(SIGNAL('update_info'), 'ERROR: Selected attributes are' \
+                      ' not present in every layer - %s' % e)
         except Exception as e:
             traceback.print_exc()
             self.emit(SIGNAL('update_info'),
@@ -447,7 +453,11 @@ class InputsProcessor(QObject):
         return output_file
 
     def _get_numeric_attribute(self, feature, attribute_name, type_=int):
-        the_attribute = feature.attribute(attribute_name)
+        try:
+            the_attribute = feature.attribute(attribute_name)
+        except KeyError:
+            raise InvalidAttributeError('%s attribute does not exist' \
+                                        % attribute_name)
         result = None
         if the_attribute != NULL:
             result = type_(the_attribute)
