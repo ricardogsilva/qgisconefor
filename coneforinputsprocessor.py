@@ -92,7 +92,7 @@ class InputsProcessor(QObject):
         except Exception as e:
             traceback.print_exc()
             self.emit(SIGNAL('update_info'),
-            'ERROR: %s' % traceback.format_exc())
+                      'ERROR: %s' % traceback.format_exc())
         else:
             self.emit(SIGNAL('update_info'), 'Processing finished!')
         finally:
@@ -323,7 +323,7 @@ class InputsProcessor(QObject):
                 centroid_distance_file_name is not None:
             try:
                 output_path = os.path.join(output_dir, centroid_file_name)
-            except (AttributeError, TypeError):
+            except (TypeError, AttributeError):
                 output_path = None
             try:
                 if add_vector_layers_out_dir:
@@ -337,7 +337,7 @@ class InputsProcessor(QObject):
                         output_dir,
                         centroid_distance_file_name
                     )
-            except (AttributeError, TypeError):
+            except (TypeError, AttributeError):
                 shape_output_path = None
             centroid_files = self._run_centroid_query(
                 layer,
@@ -353,7 +353,7 @@ class InputsProcessor(QObject):
         if edge_file_name is not None or edge_distance_file_name is not None:
             try:
                 output_path = os.path.join(output_dir, edge_file_name)
-            except (AttributeError, TypeError):
+            except (TypeError, AttributeError):
                 output_path = None
             try:
                 if add_vector_layers_out_dir:
@@ -367,7 +367,7 @@ class InputsProcessor(QObject):
                         output_dir,
                         edge_distance_file_name
                     )
-            except (AttributeError, TypeError):
+            except (TypeError, AttributeError):
                 shape_output_path = None
             edge_files = self._run_edge_query(layer, id_attribute, encoding,
                                               only_selected_features,
