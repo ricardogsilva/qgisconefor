@@ -948,3 +948,117 @@ class InputsProcessor(QObject):
                 closest = vertex
                 distance = dist
         return closest
+
+    def _run_edge_query_fast(self, layer, id_attribute, encoding, use_selected,
+                        analysis_step, output_path=None,
+                        file_save_progress_step=0, shape_file_path=None):
+        '''
+        This method performs a faster edge query.
+
+        This method is only suitable for creating the output text file with
+        edge distances and cannot be used to also write the vector shape
+        with visual representation of the distances. Distances are calculated
+        with blazing speed using the underlying QGIS (which uses GEOS)
+        distance function. Unfortunately these calculations provide only the
+        distance and not the actual closest point coordinates.
+
+        Inputs:
+
+        Returns:
+        '''
+
+        self.emit(SIGNAL('update_info'), 'Running fast edge query...', 1)
+        data = []
+        if layer.crs().geographicFlag():
+            measurer = self._get_measurer(self.project_crs)
+            transformer = self._get_transformer(layer)
+        else:
+            measurer = self._get_measurer(layer.crs())
+            transformer = None
+        feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
+        i = 0
+        j = 0
+        while i < len(feature_ids):
+            features = utilities.get_features(layer, use_selected, 
+                                              feature_ids[i])
+            current = iter(features).next()
+            c_id_at = self._get_numeric_attribute(current, id_attribute)
+            if c_id_at is not None:
+                current_geom = current.geometry()
+                current_poly = self._get_polygon(current_geom, transformer)
+                j = i + 1
+                while j < len(feature_ids):
+                    features = utilities.get_features(layer, use_selected,
+                                                      feature_ids[j])
+                    next_ = iter(features).next()
+                    n_id_at = self._get_numeric_attribute(next_, id_attribute)
+                    if n_id_at is not None:
+                        next_geom = next_.geometry()
+                        next_poly = self._get_polygon(next_geom, transformer)
+                        segments = self.get_closest_segments(current_poly,
+                                                             next_poly)
+                        current_segment, next_segment = segments
+                        candidates = []
+                        for current_vertex in current_segment:
+                            candidate = self.find_candidate_points(
+                                current_vertex,
+                                next_segment,
+                                measurer
+                            )
+                            candidates.append(candidate)
+                        for next_vertex in next_segment:
+                            candidate = self.find_candidate_points(
+                                next_vertex,
+                                current_segment,
+                                measurer
+                            )
+                            candidates.append(candidate)
+                        ordered_candidates = sorted(candidates, 
+                                                    key=lambda c: c[2])
+                        winner = ordered_candidates[0]
+                        # transform the winner's coordinates back to layer crs
+                        from_restored = self._transform_point(winner[0],
+                                                              transformer,
+                                                              reverse=True)
+                        to_restored = self._transform_point(winner[1],
+                                                            transformer,
+                                                            reverse=True)
+                        feat_result = {
+                            'distance' : winner[2],
+                            'from' : from_restored,
+                            'to' : to_restored,
+                            'from_attribute' : c_id_at,
+                            'to_attribute' : n_id_at,
+                        }
+                        data.append(feat_result)
+                    j += 1
+            i += 1
+        output_files = []
+        if any(data):
+            if output_path is not None:
+                output_dir, output_name = os.path.split(output_path)
+                data_to_write = []
+                for e_dict in data:
+                    from_id = e_dict['from_attribute']
+                    to_id = e_dict['to_attribute']
+                    distance = e_dict['distance']
+                    data_to_write.append((from_id, to_id, distance))
+                output_file = self._save_text_file(data_to_write, 'Writing '
+                                                   'edges file...',
+                                                   output_dir, output_name,
+                                                   encoding,
+                                                  file_save_progress_step)
+                output_files.append(output_file)
+            if shape_file_path is not None:
+                output_dir, output_name = os.path.split(shape_file_path)
+                self.emit(SIGNAL('update_info'), 'Creating edge distance file', 1)
+                if not os.path.isdir(output_dir):
+                    os.mkdir(output_dir)
+                self.emit(SIGNAL('update_info'), 'edges...', 2)
+                output_shape = self._write_distance_file(data, output_dir,
+                                                         output_name, encoding,
+                                                         layer.crs())
+                output_files.append(output_shape)
+                self.global_progress += file_save_progress_step
+                self.emit(SIGNAL('progress_changed'))
+        return output_files
