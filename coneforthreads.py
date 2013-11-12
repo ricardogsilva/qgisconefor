@@ -68,11 +68,9 @@ class LayerProcessingThread(QThread):
         self.stopped = False
         self.completed = False
 
-    def initialize(self, layers_data, output_dir, load_to_canvas,
-                   only_selected):
+    def initialize(self, layers_data, output_dir, only_selected):
         self.layers_data = layers_data
         self.output_dir = output_dir
-        self.load_to_canvas = load_to_canvas
         self.only_selected  = only_selected
 
     def run(self):
