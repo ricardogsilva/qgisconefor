@@ -350,11 +350,20 @@ class InputsProcessor(QObject):
                 shape_output_path
             )
             created_files += centroid_files
-        if edge_file_name is not None or edge_distance_file_name is not None:
+
+
+        if edge_file_name is not None: # use fast distance method
             try:
                 output_path = os.path.join(output_dir, edge_file_name)
             except (TypeError, AttributeError):
                 output_path = None
+            edge_files = self._run_edge_query_fast(layer, id_attribute,
+                                                   encoding,
+                                                   only_selected_features,
+                                                   each_query_step, output_path,
+                                                   each_save_file_step)
+            created_files += edge_files
+        if edge_distance_file_name is not None: # use slow method
             try:
                 if add_vector_layers_out_dir:
                     shape_output_path = os.path.join(
@@ -369,11 +378,13 @@ class InputsProcessor(QObject):
                     )
             except (TypeError, AttributeError):
                 shape_output_path = None
-            edge_files = self._run_edge_query(layer, id_attribute, encoding,
-                                              only_selected_features,
-                                              each_query_step, output_path,
-                                              each_save_file_step,
-                                              shape_output_path)
+            edge_files = self._run_edge_query(
+                layer, id_attribute, encoding,only_selected_features,
+                each_query_step,
+                output_path=None,
+                file_save_progress_step=each_save_file_step,
+                shape_file_path=shape_output_path
+            )
             created_files += edge_files
         self.global_progress = 100
         self.emit(SIGNAL('progress_changed'))
@@ -516,16 +527,17 @@ class InputsProcessor(QObject):
                     else:
                         new_ring.append(transformer.transform(point))
                 new_polygon.append(new_ring)
-            outer_area = measurer.measurePolygon(new_polygon[0])
-            hole_areas = 0
-            if len(new_polygon) > 1:
-                holes = new_polygon[1:]
-                for hole in holes:
-                    hole_areas += measurer.measurePolygon(hole)
-            total_feat_area = outer_area - hole_areas
-            id_attr = self._get_numeric_attribute(feat, id_attribute)
-            if id_attr is not None:
-                data.append((id_attr, total_feat_area))
+            if any(new_polygon):
+                outer_area = measurer.measurePolygon(new_polygon[0])
+                hole_areas = 0
+                if len(new_polygon) > 1:
+                    holes = new_polygon[1:]
+                    for hole in holes:
+                        hole_areas += measurer.measurePolygon(hole)
+                total_feat_area = outer_area - hole_areas
+                id_attr = self._get_numeric_attribute(feat, id_attribute)
+                if id_attr is not None:
+                    data.append((id_attr, total_feat_area))
         self.global_progress += analysis_step
         self.emit(SIGNAL('progress_changed'))
         output_file = None
@@ -558,14 +570,6 @@ class InputsProcessor(QObject):
             c_id_attr = self._get_numeric_attribute(current, id_attribute)
             if c_id_attr is not None:
                 current_geom = current.geometry()
-                geometry_errors = current_geom.validateGeometry()
-                if any(geometry_errors):
-                    raise InvalidFeatureError('Layer: %s - Feature %s has '
-                                              'geometry errors. Aborting...' \
-                                              % (layer.name(), c_id_attr))
-                elif current_geom.isMultipart():
-                    raise InvalidFeatureError('Feature %s is multipart. '
-                                              'Aborting...' % c_id_attr)
                 orig_curr_centroid = current_geom.centroid().asPoint()
                 trans_curr_centroid = self._transform_point(orig_curr_centroid,
                                                             transformer)
@@ -951,7 +955,7 @@ class InputsProcessor(QObject):
 
     def _run_edge_query_fast(self, layer, id_attribute, encoding, use_selected,
                         analysis_step, output_path=None,
-                        file_save_progress_step=0, shape_file_path=None):
+                        file_save_progress_step=0):
         '''
         This method performs a faster edge query.
 
@@ -985,7 +989,8 @@ class InputsProcessor(QObject):
             c_id_at = self._get_numeric_attribute(current, id_attribute)
             if c_id_at is not None:
                 current_geom = current.geometry()
-                current_poly = self._get_polygon(current_geom, transformer)
+                if transformer is not None:
+                    current_geom.transform(transformer)
                 j = i + 1
                 while j < len(feature_ids):
                     features = utilities.get_features(layer, use_selected,
@@ -994,39 +999,13 @@ class InputsProcessor(QObject):
                     n_id_at = self._get_numeric_attribute(next_, id_attribute)
                     if n_id_at is not None:
                         next_geom = next_.geometry()
-                        next_poly = self._get_polygon(next_geom, transformer)
-                        segments = self.get_closest_segments(current_poly,
-                                                             next_poly)
-                        current_segment, next_segment = segments
-                        candidates = []
-                        for current_vertex in current_segment:
-                            candidate = self.find_candidate_points(
-                                current_vertex,
-                                next_segment,
-                                measurer
-                            )
-                            candidates.append(candidate)
-                        for next_vertex in next_segment:
-                            candidate = self.find_candidate_points(
-                                next_vertex,
-                                current_segment,
-                                measurer
-                            )
-                            candidates.append(candidate)
-                        ordered_candidates = sorted(candidates, 
-                                                    key=lambda c: c[2])
-                        winner = ordered_candidates[0]
-                        # transform the winner's coordinates back to layer crs
-                        from_restored = self._transform_point(winner[0],
-                                                              transformer,
-                                                              reverse=True)
-                        to_restored = self._transform_point(winner[1],
-                                                            transformer,
-                                                            reverse=True)
+                        if transformer is not None:
+                            next_geom.transform(transformer)
+                        dist = current_geom.distance(next_geom)
                         feat_result = {
-                            'distance' : winner[2],
-                            'from' : from_restored,
-                            'to' : to_restored,
+                            'distance' : dist,
+                            'from' : None,
+                            'to' : None,
                             'from_attribute' : c_id_at,
                             'to_attribute' : n_id_at,
                         }
@@ -1047,18 +1026,7 @@ class InputsProcessor(QObject):
                                                    'edges file...',
                                                    output_dir, output_name,
                                                    encoding,
-                                                  file_save_progress_step)
+                                                   file_save_progress_step)
                 output_files.append(output_file)
-            if shape_file_path is not None:
-                output_dir, output_name = os.path.split(shape_file_path)
-                self.emit(SIGNAL('update_info'), 'Creating edge distance file', 1)
-                if not os.path.isdir(output_dir):
-                    os.mkdir(output_dir)
-                self.emit(SIGNAL('update_info'), 'edges...', 2)
-                output_shape = self._write_distance_file(data, output_dir,
-                                                         output_name, encoding,
-                                                         layer.crs())
-                output_files.append(output_shape)
-                self.global_progress += file_save_progress_step
                 self.emit(SIGNAL('progress_changed'))
         return output_files
