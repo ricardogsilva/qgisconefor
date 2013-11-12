@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'conefor_dlg.ui'
 #
-# Created: Wed Nov  6 15:19:03 2013
-#      by: PyQt4 UI code generator 4.10
+# Created: Tue Nov 12 02:38:17 2013
+#      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,16 +12,7 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    def _fromUtf8(s):
-        return s
-
-try:
-    _encoding = QtGui.QApplication.UnicodeUTF8
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig, _encoding)
-except AttributeError:
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig)
+    _fromUtf8 = lambda s: s
 
 class Ui_ConeforDialog(object):
     def setupUi(self, ConeforDialog):
@@ -132,18 +123,18 @@ class Ui_ConeforDialog(object):
         ConeforDialog.setTabOrder(self.run_btn, self.help_btn)
 
     def retranslateUi(self, ConeforDialog):
-        ConeforDialog.setWindowTitle(_translate("ConeforDialog", "Conefor Inputs", None))
-        self.lock_layers_chb.setText(_translate("ConeforDialog", "Lock parameters to first layer", None))
-        self.unique_features_chb.setText(_translate("ConeforDialog", "Find each layer\'s unique features upon initialization", None))
-        self.layers_la.setText(_translate("ConeforDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Select layers and queries to perform</span></p></body></html>", None))
-        self.remove_row_btn.setText(_translate("ConeforDialog", "Remove row", None))
-        self.add_row_btn.setText(_translate("ConeforDialog", "Add row", None))
-        self.use_selected_features_chb.setText(_translate("ConeforDialog", "Only use selected features", None))
-        self.create_distances_files_chb.setText(_translate("ConeforDialog", "Create link vector layer", None))
-        self.output_la.setText(_translate("ConeforDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Output directory</span></p></body></html>", None))
-        self.output_dir_btn.setText(_translate("ConeforDialog", "Browse...", None))
-        self.progress_la.setText(_translate("ConeforDialog", "Label", None))
-        self.help_btn.setText(_translate("ConeforDialog", "Help", None))
-        self.run_btn.setText(_translate("ConeforDialog", "Run", None))
+        ConeforDialog.setWindowTitle(QtGui.QApplication.translate("ConeforDialog", "Conefor Inputs", None, QtGui.QApplication.UnicodeUTF8))
+        self.lock_layers_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Lock field names to first layer", None, QtGui.QApplication.UnicodeUTF8))
+        self.unique_features_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Find each layer\'s unique features upon initialization", None, QtGui.QApplication.UnicodeUTF8))
+        self.layers_la.setText(QtGui.QApplication.translate("ConeforDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Select layers and queries to perform</span></p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
+        self.remove_row_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Remove row", None, QtGui.QApplication.UnicodeUTF8))
+        self.add_row_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Add row", None, QtGui.QApplication.UnicodeUTF8))
+        self.use_selected_features_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Only use selected features", None, QtGui.QApplication.UnicodeUTF8))
+        self.create_distances_files_chb.setText(QtGui.QApplication.translate("ConeforDialog", "Create link vector layer (Slower and works only with valid geometries)", None, QtGui.QApplication.UnicodeUTF8))
+        self.output_la.setText(QtGui.QApplication.translate("ConeforDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Output directory</span></p></body></html>", None, QtGui.QApplication.UnicodeUTF8))
+        self.output_dir_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Browse...", None, QtGui.QApplication.UnicodeUTF8))
+        self.progress_la.setText(QtGui.QApplication.translate("ConeforDialog", "Label", None, QtGui.QApplication.UnicodeUTF8))
+        self.help_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Help", None, QtGui.QApplication.UnicodeUTF8))
+        self.run_btn.setText(QtGui.QApplication.translate("ConeforDialog", "Run", None, QtGui.QApplication.UnicodeUTF8))
 
 import resources_rc

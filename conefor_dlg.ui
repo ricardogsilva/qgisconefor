@@ -17,7 +17,7 @@
    <item row="0" column="0">
     <widget class="QCheckBox" name="lock_layers_chb">
      <property name="text">
-      <string>Lock parameters to first layer</string>
+      <string>Lock field names to first layer</string>
      </property>
     </widget>
    </item>
@@ -137,7 +137,7 @@
      <item>
       <widget class="QCheckBox" name="create_distances_files_chb">
        <property name="text">
-        <string>Create link vector layer</string>
+        <string>Create link vector layer (Slower and works only with valid geometries)</string>
        </property>
       </widget>
      </item>

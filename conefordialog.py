@@ -254,8 +254,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             layers.append(data)
         self.change_ui_availability(False)
         self.processing_thread.initialize(layers, output_dir,
-                                            load_to_canvas,
-                                            only_selected_features)
+                                          only_selected_features)
         self.processing_thread.start()
 
     def update_progress(self):

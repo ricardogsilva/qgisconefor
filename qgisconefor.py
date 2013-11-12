@@ -33,9 +33,11 @@ class ConeforProcessor(object):
                               self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
         self.iface.addPluginToVectorMenu('&Conefor inputs', self.action)
+        self.iface.addVectorToolBarIcon(self.action)
 
     def unload(self):
         self.iface.removePluginVectorMenu('&Conefor inputs', self.action)
+        self.iface.removeVectorToolBarIcon(self.action)
         Processing.removeProvider(self.processing_provider)
 
     def run(self):
