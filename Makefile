@@ -41,7 +41,7 @@ compile: $(UI_FILES) $(RESOURCE_FILES)
 %_rc.py : %.qrc
 	pyrcc4 -o $@  $<
 
-%.py : %.ui
+ui_%.py : %.ui
 	pyuic4 -o $@ $<
 
 deploy: compile

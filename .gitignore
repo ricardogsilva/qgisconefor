@@ -1,6 +1,10 @@
-#python files
+# compiled ui files
+ui_*.py
+
+# python files
 *.pyc
-#vim files
+
+# vim files
 *.swp
 *un~
 *~
