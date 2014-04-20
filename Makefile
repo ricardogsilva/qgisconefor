@@ -26,7 +26,9 @@ help_conefor.html \
 help.html \
 icon.png \
 metadata.txt \
-README.rst
+README.md \
+conefor_dlg.ui \
+help_dlg.ui
 
 PLUGIN_INSTALL_DIR = $(HOME)/.qgis2/python/plugins/$(PLUGIN_NAME)
 MODELS_DIR = models
