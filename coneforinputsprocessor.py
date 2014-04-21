@@ -298,8 +298,15 @@ class InputsProcessor(QObject):
             num_files_to_save += 1
         if edge_distance_file_name is not None:
             num_files_to_save += 1
-        running_queries_step = progress_step / 2.0
-        each_query_step = running_queries_step / num_queries
+        # assuming that the actual processing will take 90% of the time
+        # and saving the results to file will take only 10%
+        running_queries_step = progress_step * 0.9
+        # the attribute query is pretty fast, when compared to the others
+        # so we assign it a small progress step
+        attribute_query_step = 10
+        each_query_step = (running_queries_step - attribute_query_step) / (
+                           num_queries - 1)
+        #each_query_step = running_queries_step / num_queries
         saving_files_step = progress_step - running_queries_step
         each_save_file_step = saving_files_step / num_files_to_save
         if attribute is not None and attribute_file_name is not None:
@@ -307,7 +314,8 @@ class InputsProcessor(QObject):
             attribute_file = self._run_attribute_query(layer, id_attribute,
                                                        attribute, encoding,
                                                        only_selected_features,
-                                                       each_query_step,
+                                                       #each_query_step,
+                                                       attribute_query_step,
                                                        output_path,
                                                        each_save_file_step)
             if attribute_file is not None:
@@ -350,45 +358,102 @@ class InputsProcessor(QObject):
                 shape_output_path
             )
             created_files += centroid_files
+        print('global_progress before edge stuff: %s' % self.global_progress)
+        created_files += self._perform_edge_query(layer, id_attribute,
+                                                  encoding,
+                                                  only_selected_features,
+                                                  each_query_step,
+                                                  each_save_file_step,
+                                                  output_dir,
+                                                  edge_file_name,
+                                                  edge_distance_file_name,
+                                                  add_vector_layers_out_dir)
+        print('global_progress after edge stuff: %s' % self.global_progress)
+        self.global_progress = 100
+        self.emit(SIGNAL('progress_changed'))
+        return created_files
 
+    def _perform_edge_query(self, layer, id_attribute, encoding, use_selected,
+                            analysis_step, file_save_step, output_dir,
+                            text_file=None, shape_file=None,
+                            create_vector_dir=False):
+        '''
+        Inputs:
 
-        if edge_file_name is not None: # use fast distance method
+            text_file - A string with the name of the text file where the
+                        edge distances are to be stored. If None, no text file
+                        will be saved, but the analysis will still be performed
+            shape_file - A string with the name of the shape file where the
+                         vector layer holding the edge distances is to be
+                         stored. If None, no shape_file will be saved and a
+                         faster algorithm is used to calculate the distances.
+                         There are two algorithms for calculating edge
+                         distances:
+
+                         - slow algorithm. Pure python implementation of edge
+                           distance calculation. This method is slower, but
+                           provides the output coordinates for the distance
+                           points, therefore allowing a vector layer to be
+                           created to show the distances;
+                         - fast algorithm. Uses QGIS (and therefore GEOS) own
+                           edge_distance calculation, which is implemented
+                           directly in C++. This method is faster, but
+                           unfortunately does not provide the coordinates of
+                           the points, only the value of the shortest edge
+                           distance. As such, this method cannot be used to
+                           create a vector layer showing the distances.
+        '''
+
+        if shape_file is not None:
+            # must calculate edge distances AND must plot them -> slow method
+            # may not need to save the distances.txt file
             try:
-                output_path = os.path.join(output_dir, edge_file_name)
-            except (TypeError, AttributeError):
-                output_path = None
-            edge_files = self._run_edge_query_fast(layer, id_attribute,
-                                                   encoding,
-                                                   only_selected_features,
-                                                   each_query_step, output_path,
-                                                   each_save_file_step)
-            created_files += edge_files
-        if edge_distance_file_name is not None: # use slow method
-            try:
-                if add_vector_layers_out_dir:
+                if create_vector_dir:
                     shape_output_path = os.path.join(
                         output_dir,
                         'Link_vector_layers',
-                        edge_distance_file_name
+                        shape_file
                     )
                 else:
                     shape_output_path = os.path.join(
                         output_dir,
-                        edge_distance_file_name
+                        shape_file
                     )
             except (TypeError, AttributeError):
                 shape_output_path = None
+            if text_file is not None:
+                # must save the distances.txt file
+                try:
+                    text_out_path = os.path.join(output_dir, text_file)
+                except (TypeError, AttributeError):
+                    text_out_path = None
+            else:
+                text_out_path = None
             edge_files = self._run_edge_query(
-                layer, id_attribute, encoding,only_selected_features,
-                each_query_step,
-                output_path=None,
-                file_save_progress_step=each_save_file_step,
+                layer, id_attribute, encoding, use_selected,
+                analysis_step,
+                output_path=text_out_path,
+                file_save_progress_step=file_save_step,
                 shape_file_path=shape_output_path
             )
-            created_files += edge_files
-        self.global_progress = 100
-        self.emit(SIGNAL('progress_changed'))
-        return created_files
+        else:
+            # will not plot edge distances -> fast method
+            # may need to save the distances.txt file
+            if text_file is not None:
+                try:
+                    text_out_path = os.path.join(output_dir, text_file)
+                except (TypeError, AttributeError):
+                    text_out_path = None
+                edge_files = self._run_edge_query_fast(layer, id_attribute,
+                                                       encoding,
+                                                       use_selected,
+                                                       analysis_step,
+                                                       text_out_path,
+                                                       file_save_step)
+            else:
+                # do nothing, yay
+                edge_files = []
+        return edge_files
 
     def _determine_num_queries(self, attribute_file_name, area_file_name,
                                centroid_file_name, edge_file_name):
@@ -444,7 +509,7 @@ class InputsProcessor(QObject):
                 the results
         '''
 
-        self.emit(SIGNAL('update_info'), 'Running attribute query...', 1)
+        self.emit(SIGNAL('update_info'), 'Running attribute query', 1)
         data = []
         features = utilities.get_features(layer, use_selected)
         for feat in features:
@@ -664,7 +729,7 @@ class InputsProcessor(QObject):
         #   project L1's vertices on L2 and get their distance from L1
         #   project L2's vertices on L1 and get their distance from L2
         #   the pair with the smallest distance wins!
-        self.emit(SIGNAL('update_info'), 'Running edge query...', 1)
+        self.emit(SIGNAL('update_info'), 'Running edge query', 1)
         data = []
         if layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
@@ -673,9 +738,14 @@ class InputsProcessor(QObject):
             measurer = self._get_measurer(layer.crs())
             transformer = None
         feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
+        feature_step = analysis_step / float(len(feature_ids))
         i = 0
         j = 0
         while i < len(feature_ids):
+            self.emit(SIGNAL('update_info'),
+                      'Processing feature %i/%i' % (i+1, len(feature_ids)),
+                      2
+            )
             features = utilities.get_features(layer, use_selected, 
                                               feature_ids[i])
             current = iter(features).next()
@@ -738,6 +808,8 @@ class InputsProcessor(QObject):
                         data.append(feat_result)
                     j += 1
             i += 1
+            self.global_progress += feature_step
+            self.emit(SIGNAL('progress_changed'))
         output_files = []
         if any(data):
             if output_path is not None:
@@ -971,7 +1043,7 @@ class InputsProcessor(QObject):
         Returns:
         '''
 
-        self.emit(SIGNAL('update_info'), 'Running fast edge query...', 1)
+        self.emit(SIGNAL('update_info'), 'Running fast edge query', 1)
         data = []
         if layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
@@ -979,10 +1051,16 @@ class InputsProcessor(QObject):
         else:
             measurer = self._get_measurer(layer.crs())
             transformer = None
-        feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
+        feature_ids = [f.id() for f in utilities.get_features(
+                       layer, use_selected)]
+        feature_step = analysis_step / float(len(feature_ids))
         i = 0
         j = 0
         while i < len(feature_ids):
+            self.emit(SIGNAL('update_info'),
+                      'Processing feature %i/%i' % (i+1, len(feature_ids)),
+                      2
+            )
             features = utilities.get_features(layer, use_selected, 
                                               feature_ids[i])
             current = iter(features).next()
@@ -1012,6 +1090,8 @@ class InputsProcessor(QObject):
                         data.append(feat_result)
                     j += 1
             i += 1
+            self.global_progress += feature_step
+            self.emit(SIGNAL('progress_changed'))
         output_files = []
         if any(data):
             if output_path is not None:

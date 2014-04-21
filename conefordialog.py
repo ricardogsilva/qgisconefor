@@ -266,7 +266,21 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def update_info(self, info, section=0):
         '''
-        Update the progess label with the input info string.
+        Update the progress label with the input info string.
+
+        The information displayed in the progress label is a string composed
+        of three sections:
+
+        * section 0
+        * section 1
+        * section 2
+
+        Inputs:
+
+            info - a string with the information to display in the progress
+                   label
+            section - an integer specifying where in the displayed string
+                      should the 'info' argument be placed.
         '''
 
         if section == 0:

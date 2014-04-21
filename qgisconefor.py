@@ -32,7 +32,8 @@ class ConeforProcessor(object):
         self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'), 
                               self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
-        self.iface.addPluginToVectorMenu('&Conefor inputs', self.action)
+        self.iface.addPluginToVectorMenu('&%s' % self._plugin_name,
+                                         self.action)
         self.iface.addVectorToolBarIcon(self.action)
 
     def unload(self):
