@@ -321,10 +321,13 @@ class ConeforProcessorBase(GeoAlgorithm):
         '''
 
         result = False
-        process = Popen(['wine', '--version'], stdout=PIPE, stderr=PIPE)
-        process.communicate()
-        if process.returncode == 0:
-            result = True
+        try:
+            process = Popen(['wine', '--version'], stdout=PIPE, stderr=PIPE)
+            process.communicate()
+            if process.returncode == 0:
+                result = True
+        except OSError:
+            pass
         return result
 
     def _problems_to_run(self):
@@ -335,7 +338,8 @@ class ConeforProcessorBase(GeoAlgorithm):
             result = ("Couldn't find the Conefor executable. Set its correct "
                       "path in Processing options and configuration.")
         else:
-            if not self._check_for_wine():
+            if not processing.tools.system.isWindows() and \
+                    not self._check_for_wine():
                 result = ("In order to use the Processing Conefor plugin on "
                           "a non Windows Operating System you must install "
                           "the WINE compatibility layer. For more information "
