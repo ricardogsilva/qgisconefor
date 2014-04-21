@@ -38,13 +38,13 @@ class ConeforInputsBase(GeoAlgorithm):
         self.name = self.NAME
         self.group = self.GROUP
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                          'Input point layer', shapetype=self.SHAPE_TYPE))
+                          'Input layer', shapetype=self.SHAPE_TYPE))
         self.addParameter(ParameterTableField(self.UNIQUE_ATTRIBUTE,
                           'ID field:', self.INPUT_LAYER,
                           datatype=0, optional=False))
 
     def processAlgorithm(self, progress):
-        only_selected = ProcessingConfig.getSetting('USE_SELECTED')
+        only_selected = ProcessingConfig.getSetting(ProcessingConfig.USE_SELECTED)
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
         layer = Processing.getObject(input_file_path)
         unique_attribute = self.getParameterValue(self.UNIQUE_ATTRIBUTE)

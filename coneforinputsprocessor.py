@@ -285,14 +285,17 @@ class InputsProcessor(QObject):
                 Defaults to False.
         '''
 
+        print('process_layer_method called. locals: %s' % locals())
         created_files = []
         encoding = layer.dataProvider().encoding()
         if encoding == 'System':
             encoding = sys.getfilesystemencoding()
         num_queries = self._determine_num_queries(attribute_file_name,
                                                   area_file_name,
-                                                  centroid_file_name, 
-                                                  edge_file_name)
+                                                  centroid_file_name,
+                                                  edge_file_name,
+                                                  centroid_distance_file_name,
+                                                  edge_distance_file_name)
         num_files_to_save = num_queries
         if centroid_distance_file_name is not None:
             num_files_to_save += 1
@@ -456,24 +459,25 @@ class InputsProcessor(QObject):
         return edge_files
 
     def _determine_num_queries(self, attribute_file_name, area_file_name,
-                               centroid_file_name, edge_file_name):
+                               centroid_file_name, edge_file_name,
+                               centroid_distance_file_name,
+                               edge_distance_file_name):
         '''
         Return the number of queries that will be processed.
 
         This method's main purpose is calculating progress steps.
         '''
 
-        num_queries = 0
+        num_queries = 1 # the id attribute query is always run
         if attribute_file_name is not None:
             num_queries += 1
         if area_file_name is not None:
             num_queries += 1
-        if centroid_file_name is not None:
+        if centroid_file_name is not None or \
+                centroid_distance_file_name is not None:
             num_queries += 1
-        if edge_file_name is not None:
+        if edge_file_name is not None or edge_distance_file_name is not None:
             num_queries += 1
-        if num_queries == 0:
-            num_queries = 1
         return num_queries
 
     def _run_attribute_query(self, layer, id_attribute, attribute, encoding,
