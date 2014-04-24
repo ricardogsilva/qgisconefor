@@ -1,6 +1,3 @@
-# compiled ui files
-ui_*.py
-
 # python files
 *.pyc
 
