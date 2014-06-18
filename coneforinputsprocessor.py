@@ -183,29 +183,6 @@ class InputsProcessor(QObject):
         del writer
         return output_path
 
-    # unused?
-    def _decode_attribute(self, the_attr, encoding):
-        '''
-        Decode the byte string the_attr to Unicode.
-
-        Inputs:
-
-            the_attr - a byte string
-
-            encoding - a string with the encoding to use when decoding to
-                Unicode.
-
-        Returns a unicode string.
-        '''
-
-        if not isinstance(the_attr, basestring):
-            the_attr = str(the_attr)
-        if isinstance(the_attr, unicode):
-            uni_str = the_attr
-        else:
-            uni_str = unicode(the_attr, encoding)
-        return uni_str
-
     def _save_text_file(self, data, log_text, output_dir, output_name,
                         encoding, progress_step):
         self.emit(SIGNAL('update_info'), '%s' % log_text, 1)
@@ -285,7 +262,6 @@ class InputsProcessor(QObject):
                 Defaults to False.
         '''
 
-        print('process_layer_method called. locals: %s' % locals())
         created_files = []
         encoding = layer.dataProvider().encoding()
         if encoding == 'System':
@@ -306,10 +282,18 @@ class InputsProcessor(QObject):
         running_queries_step = progress_step * 0.9
         # the attribute query is pretty fast, when compared to the others
         # so we assign it a small progress step
-        attribute_query_step = 10
-        each_query_step = (running_queries_step - attribute_query_step) / (
-                           num_queries - 1)
-        #each_query_step = running_queries_step / num_queries
+        if num_queries > 1:
+            if attribute is not None:
+                attribute_query_step = running_queries_step * 0.1
+                each_query_step = (running_queries_step - attribute_query_step) / (
+                                   num_queries - 1)
+            else:
+                each_query_step = running_queries_step / num_queries
+        elif num_queries == 1:
+            each_query_step = running_queries_step / num_queries
+            attribute_query_step = each_query_step
+        else:
+            raise
         saving_files_step = progress_step - running_queries_step
         each_save_file_step = saving_files_step / num_files_to_save
         if attribute is not None and attribute_file_name is not None:
@@ -317,7 +301,6 @@ class InputsProcessor(QObject):
             attribute_file = self._run_attribute_query(layer, id_attribute,
                                                        attribute, encoding,
                                                        only_selected_features,
-                                                       #each_query_step,
                                                        attribute_query_step,
                                                        output_path,
                                                        each_save_file_step)
@@ -361,7 +344,6 @@ class InputsProcessor(QObject):
                 shape_output_path
             )
             created_files += centroid_files
-        print('global_progress before edge stuff: %s' % self.global_progress)
         created_files += self._perform_edge_query(layer, id_attribute,
                                                   encoding,
                                                   only_selected_features,
@@ -371,8 +353,6 @@ class InputsProcessor(QObject):
                                                   edge_file_name,
                                                   edge_distance_file_name,
                                                   add_vector_layers_out_dir)
-        print('global_progress after edge stuff: %s' % self.global_progress)
-        self.global_progress = 100
         self.emit(SIGNAL('progress_changed'))
         return created_files
 
@@ -468,7 +448,7 @@ class InputsProcessor(QObject):
         This method's main purpose is calculating progress steps.
         '''
 
-        num_queries = 1 # the id attribute query is always run
+        num_queries = 0
         if attribute_file_name is not None:
             num_queries += 1
         if area_file_name is not None:
@@ -671,6 +651,8 @@ class InputsProcessor(QObject):
                         data.append(feat_result)
                     j += 1
             i += 1
+        self.global_progress += analysis_step
+        self.emit(SIGNAL('progress_changed'))
         output_files = []
         if any(data):
             if output_path is not None:
