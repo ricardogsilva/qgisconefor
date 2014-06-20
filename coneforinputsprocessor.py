@@ -111,7 +111,7 @@ class InputsProcessor(QObject):
             if index == 1:
                 tentative_name = '%s%s' % (the_name, extension)
             else:
-                tentative_name = '%s%i%s' % (the_name, index, extension)
+                tentative_name = '%s_%i%s' % (the_name, index, extension)
             tentative_path = os.path.join(directory, tentative_name)
             if not os.path.isfile(tentative_path):
                 path_already_exists = False
