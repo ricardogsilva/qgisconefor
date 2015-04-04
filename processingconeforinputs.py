@@ -11,11 +11,16 @@ from processing.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
 #from processing.core.ProcessingLog import ProcessingLog
 #from processing.core.ProcessingResults import ProcessingResults
-from processing.parameters.ParameterVector import ParameterVector
-from processing.parameters.ParameterBoolean import ParameterBoolean
-from processing.parameters.ParameterTableField import ParameterTableField
-from processing.outputs.OutputVector import OutputVector
-from processing.outputs.OutputFile import OutputFile
+try:
+    from processing.core.parameters import \
+            ParameterVector, ParameterBoolean, ParameterTableField
+    from processing.core.outputs import OutputVector, OutputFile
+except ImportError:  # QGIS version < 2.8.1
+    from processing.parameters.ParameterVector import ParameterVector
+    from processing.parameters.ParameterBoolean import ParameterBoolean
+    from processing.parameters.ParameterTableField import ParameterTableField
+    from processing.outputs.OutputVector import OutputVector
+    from processing.outputs.OutputFile import OutputFile
 
 from coneforinputsprocessor import InputsProcessor
 

@@ -6,14 +6,17 @@ from PyQt4.QtGui import QIcon
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
-import processing.tools.system
-from processing.core.ProcessingResults import ProcessingResults
-from processing.parameters.ParameterFile import ParameterFile
-from processing.parameters.ParameterBoolean import ParameterBoolean
-from processing.parameters.ParameterNumber import ParameterNumber
-from processing.parameters.ParameterSelection import ParameterSelection
 from processing.core.GeoAlgorithmExecutionException import \
     GeoAlgorithmExecutionException
+from processing.core.ProcessingResults import ProcessingResults
+try:
+    from processing.core.parameters import ParameterFile, \
+            ParameterBoolean, ParameterNumber, ParameterSelection
+except ImportError:  # QGIS version < 2.8.1
+    from processing.parameters.ParameterFile import ParameterFile
+    from processing.parameters.ParameterBoolean import ParameterBoolean
+    from processing.parameters.ParameterNumber import ParameterNumber
+    from processing.parameters.ParameterSelection import ParameterSelection
 
 import utilities
 
@@ -240,10 +243,8 @@ class ConeforProcessorBase(GeoAlgorithm):
 
         conefor_dir, conefor_file_name = os.path.split(conefor_path)
         command_list = []
-        if not processing.tools.system.isWindows():
-            command_list.append('wine')
         command_list += [
-            conefor_file_name,
+            conefor_path,
             '-nodeFile', nodes_file_path,
             '-conFile', connections_file_path,
             '-t', connection_type,
@@ -297,7 +298,6 @@ class ConeforProcessorBase(GeoAlgorithm):
             command_list += ['-landArea', landArea]
         if prefix is not None:
             command_list += ['-prefix', prefix]
-        #print('command_list: %s' % command_list)
         process = Popen(command_list, cwd=conefor_dir, stdout=PIPE,
                         stderr=STDOUT)
         while True:
@@ -312,39 +312,13 @@ class ConeforProcessorBase(GeoAlgorithm):
                            all_connections, prefix, progress):
         raise NotImplementedError
 
-    def _check_for_wine(self):
-        '''
-        Test the presence of WINE for non Windows users.
-
-        WINE is a compatibility layer for POSIX compliant operating
-        systems that allows running Windows applications, such as Conefor.
-        '''
-
-        result = False
-        try:
-            process = Popen(['wine', '--version'], stdout=PIPE, stderr=PIPE)
-            process.communicate()
-            if process.returncode == 0:
-                result = True
-        except OSError:
-            pass
-        return result
-
     def _problems_to_run(self):
         result = None
         conefor_path = ProcessingConfig.getSetting(
-                        self.provider.CONEFOR_EXECUTABLE_PATH)
+            self.provider.CONEFOR_EXECUTABLE_PATH)
         if not os.path.isfile(conefor_path):
             result = ("Couldn't find the Conefor executable. Set its correct "
                       "path in Processing options and configuration.")
-        else:
-            if not processing.tools.system.isWindows() and \
-                    not self._check_for_wine():
-                result = ("In order to use the Processing Conefor plugin on "
-                          "a non Windows Operating System you must install "
-                          "the WINE compatibility layer. For more information "
-                          "visit the WINE website at\n\n\t"
-                          "http://www.winehq.org/\n\n")
         return result
 
 
