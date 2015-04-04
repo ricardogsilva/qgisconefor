@@ -20,7 +20,6 @@ class ProcessingConeforProvider(AlgorithmProvider):
     DESCRIPTION = 'Conefor (Habitat patches and landscape connectivity analysis)'
     NAME = 'Conefor'
     CONEFOR_EXECUTABLE_PATH = 'CONEFOR_EXECUTABLE_PATH'
-    RUN_THROUGH_WINE = 'RUN_THROUGH_WINE'
 
     def getDescription(self):
         return self.DESCRIPTION
@@ -33,8 +32,9 @@ class ProcessingConeforProvider(AlgorithmProvider):
         ProcessingConfig.addSetting(
             Setting(self.getDescription(),
                     self.CONEFOR_EXECUTABLE_PATH,
-                    'Path to conefor.exe',
+                    'Path to the conefor binary',
                     self._get_conefor_path())
+                    #valuetype=Setting.FILE
         )
 
     def unload(self):
