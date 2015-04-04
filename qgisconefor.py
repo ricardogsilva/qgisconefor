@@ -23,7 +23,7 @@ class ConeforProcessor(object):
     def __init__(self, iface):
         self.iface = iface
         self.registry = QgsMapLayerRegistry.instance()
-        project_crs = self.iface.mapCanvas().mapRenderer().destinationCrs()
+        project_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
         self.processor = InputsProcessor(project_crs)
         self.processing_provider = ProcessingConeforProvider()
 
