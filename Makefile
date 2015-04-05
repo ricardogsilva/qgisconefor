@@ -26,7 +26,7 @@ help_conefor.html \
 help.html \
 icon.png \
 metadata.txt \
-README.md \
+README.rst \
 conefor_dlg.ui \
 help_dlg.ui
 
