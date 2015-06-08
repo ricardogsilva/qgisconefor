@@ -4,6 +4,7 @@ from functools import partial
 from PyQt4.QtCore import QObject, SIGNAL
 from PyQt4.QtGui import QIcon
 
+from qgis.utils import iface
 from processing.core.Processing import Processing
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.GeoAlgorithm import GeoAlgorithm
@@ -53,7 +54,6 @@ class ConeforInputsBase(GeoAlgorithm):
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
         layer = Processing.getObject(input_file_path)
         unique_attribute = self.getParameterValue(self.UNIQUE_ATTRIBUTE)
-        iface = Processing.getInterface()
         project_crs = iface.mapCanvas().mapRenderer().destinationCrs()
         try:
             the_algorithm = InputsProcessor(project_crs)
