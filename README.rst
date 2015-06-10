@@ -21,7 +21,9 @@ Installation
 #. This plugin is only useful when the Conefor application is already
    installed and available. Conefor has both GUI and CLI applications,
    both are free to install. In order to use this plugin you must install
-   the Conefor CLI application.
+   the *Conefor CLI* application. Get it from
+
+   http://conefor.org
 
 #.  The plugin should be available in the official QGIS plugins repository.
     It can be searched and installed directly from within QGIS using the plugin
@@ -47,3 +49,10 @@ Usage
 
 #.  Using the standalone window
 #.  Using the Processing framework
+
+Issues and feature requests
+---------------------------
+
+Please use the bug tracker at
+
+http://hub.qgis.org/projects/qgisconefor/issues
