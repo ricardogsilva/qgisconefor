@@ -50,7 +50,8 @@ class ConeforInputsBase(GeoAlgorithm):
                           datatype=0, optional=False))
 
     def processAlgorithm(self, progress):
-        only_selected = ProcessingConfig.getSetting(ProcessingConfig.USE_SELECTED)
+        only_selected = ProcessingConfig.getSetting(
+            ProcessingConfig.USE_SELECTED)
         input_file_path = self.getParameterValue(self.INPUT_LAYER)
         layer = Processing.getObject(input_file_path)
         unique_attribute = self.getParameterValue(self.UNIQUE_ATTRIBUTE)
@@ -208,11 +209,6 @@ class ConeforInputsPolygonAttribute(ConeforInputsAttribute):
     SHAPE_TYPE = 2
     GROUP = 'Prepare polygon inputs'
     NAME = 'Attribute query [%s]' % GROUP
-
-class ConeforInputsPointArea(ConeforInputsArea):
-    SHAPE_TYPE = 0
-    GROUP = 'Prepare point inputs'
-    NAME = 'Area query [%s]' % GROUP
 
 class ConeforInputsPolygonArea(ConeforInputsArea):
     SHAPE_TYPE = 2
