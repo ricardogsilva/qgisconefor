@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'help_dlg.ui'
 #
-# Created: Thu Apr 24 10:07:41 2014
-#      by: PyQt4 UI code generator 4.10
+# Created: Wed Jun 10 16:18:01 2015
+#      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -27,10 +27,12 @@ class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName(_fromUtf8("Dialog"))
         Dialog.resize(564, 524)
+        self.verticalLayout = QtGui.QVBoxLayout(Dialog)
+        self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
         self.webView = QtWebKit.QWebView(Dialog)
-        self.webView.setGeometry(QtCore.QRect(9, 9, 546, 506))
-        self.webView.setUrl(QtCore.QUrl(_fromUtf8("qrc:/plugins/conefor_dev/help.html")))
+        self.webView.setProperty("url", QtCore.QUrl(_fromUtf8("qrc:/plugins/conefor_dev/help.html")))
         self.webView.setObjectName(_fromUtf8("webView"))
+        self.verticalLayout.addWidget(self.webView)
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)

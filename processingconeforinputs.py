@@ -71,10 +71,10 @@ class ConeforInputsBase(GeoAlgorithm):
             raise GeoAlgorithmExecutionException(e.message)
 
     def getIcon(self):
-        return QIcon(':/plugins/conefor_dev/icon.png')
+        return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
     def helpFile(self):
-        return 'qrc:/plugins/conefor_dev/help.html'
+        return 'qrc:/plugins/qgisconefor/assets/help.html'
 
     def update_progress(self, progress_obj, processor):
         progress_obj.setPercentage(processor.global_progress)

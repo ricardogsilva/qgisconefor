@@ -13,21 +13,17 @@
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
-  <widget class="QWebView" name="webView">
-   <property name="geometry">
-    <rect>
-     <x>9</x>
-     <y>9</y>
-     <width>546</width>
-     <height>506</height>
-    </rect>
-   </property>
-   <property name="url">
-    <url>
-     <string>qrc:/plugins/conefor_dev/help.html</string>
-    </url>
-   </property>
-  </widget>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWebView" name="webView" native="true">
+     <property name="url" stdset="0">
+      <url>
+       <string>qrc:/plugins/conefor_dev/help.html</string>
+      </url>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
  <customwidgets>
   <customwidget>

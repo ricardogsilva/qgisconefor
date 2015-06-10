@@ -33,6 +33,6 @@ tags=vector, landscape, connectivity, processing
 homepage=https://github.com/ricardogsilva/qgisconefor
 repository=https://github.com/ricardogsilva/qgisconefor
 tracker=http://hub.qgis.org/projects/qgisconefor/issues
-icon=icon.png
+icon=assets/icon.png
 category=Vector
 class_name=ConeforProcessor

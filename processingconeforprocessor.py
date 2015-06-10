@@ -127,10 +127,10 @@ class ConeforProcessorBase(GeoAlgorithm):
             raise GeoAlgorithmExecutionException(problems)
 
     def getIcon(self):
-        return QIcon(':/plugins/conefor_dev/icon.png')
+        return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
     def helpFile(self):
-        return 'qrc:/plugins/conefor_dev/help_conefor.html'
+        return 'qrc:/plugins/qgisconefor/assets/help_conefor.html'
 
     def _add_parameters(self, parameters):
         index_params = []

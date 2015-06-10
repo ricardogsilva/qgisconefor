@@ -45,7 +45,7 @@ class ProcessingConeforProvider(AlgorithmProvider):
         return self.NAME
 
     def getIcon(self):
-        return QIcon(':/plugins/conefor_dev/icon.png')
+        return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
     def _loadAlgorithms(self):
         self.algs = [

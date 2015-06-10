@@ -29,7 +29,7 @@ class ConeforProcessor(object):
 
     def initGui(self):
         Processing.addProvider(self.processing_provider, updateList=True)
-        self.action = QAction(QIcon(':plugins/conefor_dev/icon.png'),
+        self.action = QAction(QIcon(':plugins/qgisconefor/assets/icon.png'),
                               self._plugin_name, self.iface.mainWindow())
         QObject.connect(self.action, SIGNAL('triggered()'), self.run)
         self.iface.addPluginToVectorMenu('&%s' % self._plugin_name,

@@ -16,23 +16,13 @@ import utilities
 from coneforthreads import LayerAnalyzerThread, LayerProcessingThread
 from processlayer import ProcessLayerTableModel, ProcessLayerDelegate
 
+
 class NoUniqueFieldError(Exception):
     pass
 
-
-class HelpDialog(QDialog, Ui_Dialog):
-
-    def __init__(self, parent=None):
-        super(HelpDialog, self).__init__(parent)
-        self.setupUi(self)
-        self.webView.load(
-            QUrl("qrc:/plugins/conefor_dev/help.html"),
-        )
-
-
 class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
-    _settings_key = 'PythonPlugins/coneforinputs'
+    _settings_key = 'PythonPlugins/qgisconefor'
 
     def __init__(self, plugin_obj, parent=None):
         super(ConeforDialog, self).__init__(parent)
@@ -133,8 +123,9 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
         self.progressBar.setValue(0)
 
     def show_help(self):
-        dlg = HelpDialog(self)
-        dlg.exec_()
+        plugin_dir = os.path.dirname(__file__)
+        url = "file:///{}/assets/help.html".format(plugin_dir)
+        self.iface.openURL(url, False)
 
     def add_row(self):
         row = self.model.rowCount()

@@ -22,9 +22,6 @@ ui_conefor_dlg.py \
 ui_help_dlg.py
 
 OTHER_FILES = \
-help_conefor.html \
-help.html \
-icon.png \
 metadata.txt \
 README.rst \
 conefor_dlg.ui \
@@ -32,7 +29,7 @@ help_dlg.ui
 
 PLUGIN_INSTALL_DIR = $(HOME)/.qgis2/python/plugins/$(PLUGIN_NAME)
 MODELS_DIR = models
-HELP_ASSETS_DIR = help_assets
+ASSETS_DIR = assets
 
 # There should be no need to change anything below this line
 
@@ -49,10 +46,10 @@ ui_%.py : %.ui
 deploy: compile
 	mkdir -p $(PLUGIN_INSTALL_DIR)
 	mkdir -p $(PLUGIN_INSTALL_DIR)/$(MODELS_DIR)
-	mkdir -p $(PLUGIN_INSTALL_DIR)/$(HELP_ASSETS_DIR)
+	mkdir -p $(PLUGIN_INSTALL_DIR)/$(ASSETS_DIR)
 	cp -vf $(CODE_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(UI_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(RESOURCE_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(OTHER_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(MODELS_DIR)/* $(PLUGIN_INSTALL_DIR)/$(MODELS_DIR)
-	cp -vf $(HELP_ASSETS_DIR)/* $(PLUGIN_INSTALL_DIR)/$(HELP_ASSETS_DIR)
+	cp -vf $(ASSETS_DIR)/* $(PLUGIN_INSTALL_DIR)/$(ASSETS_DIR)

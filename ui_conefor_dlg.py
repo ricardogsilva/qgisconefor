@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'conefor_dlg.ui'
 #
-# Created: Wed Jun 10 14:50:54 2015
+# Created: Wed Jun 10 16:03:41 2015
 #      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
