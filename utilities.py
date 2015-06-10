@@ -1,6 +1,12 @@
 from PyQt4.QtCore import *
 
 from qgis.core import *
+import qgis.utils
+
+def log(message, level=qgis.utils.QgsMessageLog.INFO):
+    """Helper function to facilitate using QGIS' logging system."""
+    qgis.utils.QgsMessageLog.logMessage(message, level=level)
+
 
 def get_features(layer, use_selected, filter_id=None):
     '''
