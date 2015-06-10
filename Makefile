@@ -26,6 +26,7 @@ OTHER_FILES = \
 metadata.txt \
 README.rst \
 conefor_dlg.ui \
+LICENSE.txt
 
 PLUGIN_INSTALL_DIR = $(HOME)/.qgis2/python/plugins/$(PLUGIN_NAME)
 MODELS_DIR = models
