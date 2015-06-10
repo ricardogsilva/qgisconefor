@@ -1,0 +1,427 @@
+{
+    "values": {
+        "inputs": {
+            "FILE_OUTPUTDIR": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 307.0, 
+                            "x": 649.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "FILE_OUTPUTDIR", 
+                            "isFolder": true, 
+                            "value": null, 
+                            "ext": null, 
+                            "hidden": false, 
+                            "optional": true, 
+                            "description": "output_dir"
+                        }, 
+                        "class": "processing.core.parameters.ParameterFile"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }, 
+            "VECTORLAYER_POLS": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 253.0, 
+                            "x": 109.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "VECTORLAYER_POLS", 
+                            "shapetype": [
+                                0
+                            ], 
+                            "value": null, 
+                            "exported": null, 
+                            "hidden": false, 
+                            "optional": false, 
+                            "description": "ptos"
+                        }, 
+                        "class": "processing.core.parameters.ParameterVector"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }, 
+            "NUMBER_CONFADJ": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 482.0, 
+                            "x": 346.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "NUMBER_CONFADJ", 
+                            "min": 0.0, 
+                            "default": 0.0, 
+                            "max": 1.0, 
+                            "value": null, 
+                            "hidden": false, 
+                            "isInteger": false, 
+                            "description": "confAdj"
+                        }, 
+                        "class": "processing.core.parameters.ParameterNumber"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }, 
+            "NUMBER_CONFPROB": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 40.0, 
+                            "x": 659.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "NUMBER_CONFPROB", 
+                            "min": 0.0, 
+                            "default": 0.0, 
+                            "max": 1.0, 
+                            "value": null, 
+                            "hidden": false, 
+                            "isInteger": false, 
+                            "description": "confProb"
+                        }, 
+                        "class": "processing.core.parameters.ParameterNumber"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }, 
+            "TABLEFIELD_ATTR": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 41.0, 
+                            "x": 128.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "TABLEFIELD_ATTR", 
+                            "parent": "VECTORLAYER_POLS", 
+                            "datatype": -1, 
+                            "value": null, 
+                            "hidden": false, 
+                            "optional": false, 
+                            "description": "attr"
+                        }, 
+                        "class": "processing.core.parameters.ParameterTableField"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }, 
+            "TABLEFIELD_ID": {
+                "values": {
+                    "pos": {
+                        "values": {
+                            "y": 112.0, 
+                            "x": 137.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "param": {
+                        "values": {
+                            "isAdvanced": false, 
+                            "name": "TABLEFIELD_ID", 
+                            "parent": "VECTORLAYER_POLS", 
+                            "datatype": -1, 
+                            "value": null, 
+                            "hidden": false, 
+                            "optional": false, 
+                            "description": "id"
+                        }, 
+                        "class": "processing.core.parameters.ParameterTableField"
+                    }
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.ModelerParameter"
+            }
+        }, 
+        "helpContent": {}, 
+        "group": "conefor", 
+        "name": "example_01", 
+        "algs": {
+            "CONEFOREDGEQUERYPREPAREPOLYGONINPUTS_1": {
+                "values": {
+                    "name": "CONEFOREDGEQUERYPREPAREPOLYGONINPUTS_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 300.0, 
+                            "x": 366.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "UNIQUE_ATTRIBUTE": {
+                            "values": {
+                                "name": "TABLEFIELD_ID"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "INPUT_LAYER": {
+                            "values": {
+                                "name": "VECTORLAYER_POLS"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:edgequerypreparepolygoninputs", 
+                    "description": "Edge query [Prepare polygon inputs]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }, 
+            "CONEFORCENTROIDQUERYPREPAREPOINTINPUTS_1": {
+                "values": {
+                    "name": "CONEFORCENTROIDQUERYPREPAREPOINTINPUTS_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 409.0, 
+                            "x": 303.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "UNIQUE_ATTRIBUTE": {
+                            "values": {
+                                "name": "TABLEFIELD_ATTR"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "INPUT_LAYER": {
+                            "values": {
+                                "name": "VECTORLAYER_POLS"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:centroidquerypreparepointinputs", 
+                    "description": "Centroid query [Prepare point inputs]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }, 
+            "CONEFORNCINDEXNUMBEROFCOMPONENTSBINARYINDICES_1": {
+                "values": {
+                    "name": "CONEFORNCINDEXNUMBEROFCOMPONENTSBINARYINDICES_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 425.0, 
+                            "x": 756.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "IMPROVEMENT": true, 
+                        "WRITE_COMPONENT_FILE": true, 
+                        "IMPROVEMENT_DISTANCE": 0.0, 
+                        "WRITE_LINKS_FILE": true, 
+                        "REMOVAL": true, 
+                        "OUTPUT_DIR": {
+                            "values": {
+                                "name": "FILE_OUTPUTDIR"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "REMOVAL_DISTANCE": 0.0, 
+                        "INPUT_CONNECTION_TYPE": 0, 
+                        "NUMBER_OF_CONNECTIONS": true, 
+                        "THRESHOLD_DIRECT_LINKS": {
+                            "values": {
+                                "name": "NUMBER_CONFADJ"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "CREATE_NODE_IMPORTANCES": true, 
+                        "INPUT_CONNECTIONS_FILE": {
+                            "values": {
+                                "alg": "CONEFORCENTROIDQUERYPREPAREPOINTINPUTS_1", 
+                                "output": "OUTPUT_FILE"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromOutput"
+                        }, 
+                        "INPUT_NODES_FILE": {
+                            "values": {
+                                "alg": "CONEFORATTRIBUTEQUERYPREPAREPOLYGONINPUTS_1", 
+                                "output": "OUTPUT_FILE"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromOutput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:ncindexnumberofcomponentsbinaryindices", 
+                    "description": "NC index (Number of Components) [Binary indices]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }, 
+            "CONEFORPCINDEXPROBABILITYOFCONNECTIVITYPROBABILITYINDICESDISTANCEBASED_1": {
+                "values": {
+                    "name": "CONEFORPCINDEXPROBABILITYOFCONNECTIVITYPROBABILITYINDICESDISTANCEBASED_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 224.0, 
+                            "x": 827.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "WRITE_PROB_MAX": true, 
+                        "WRITE_PROB_DIR": true, 
+                        "IMPROVEMENT_DISTANCE": 0.0, 
+                        "REMOVAL": true, 
+                        "PROBABILITY_PROB": {
+                            "values": {
+                                "name": "NUMBER_CONFPROB"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "OUTPUT_DIR": {
+                            "values": {
+                                "name": "FILE_OUTPUTDIR"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "REMOVAL_DISTANCE": 0.0, 
+                        "DISTANCE_PROB": {
+                            "values": {
+                                "name": "NUMBER_CONFPROB"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "NUMBER_OF_CONNECTIONS": true, 
+                        "IMPROVEMENT": true, 
+                        "CREATE_NODE_IMPORTANCES": true, 
+                        "INPUT_CONNECTIONS_FILE": {
+                            "values": {
+                                "alg": "CONEFORCENTROIDQUERYPREPAREPOINTINPUTS_1", 
+                                "output": "OUTPUT_FILE"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromOutput"
+                        }, 
+                        "INPUT_NODES_FILE": {
+                            "values": {
+                                "alg": "CONEFORATTRIBUTEQUERYPREPAREPOLYGONINPUTS_1", 
+                                "output": "OUTPUT_FILE"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromOutput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:pcindexprobabilityofconnectivityprobabilityindicesdistancebased", 
+                    "description": "PC index (Probability of Connectivity) [Probability indices (distance based)]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }, 
+            "CONEFORATTRIBUTEQUERYPREPAREPOLYGONINPUTS_1": {
+                "values": {
+                    "name": "CONEFORATTRIBUTEQUERYPREPAREPOLYGONINPUTS_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 196.0, 
+                            "x": 381.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "UNIQUE_ATTRIBUTE": {
+                            "values": {
+                                "name": "TABLEFIELD_ID"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "INPUT_LAYER": {
+                            "values": {
+                                "name": "VECTORLAYER_POLS"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "PROCESS_ATTRIBUTE": {
+                            "values": {
+                                "name": "TABLEFIELD_ATTR"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:attributequerypreparepolygoninputs", 
+                    "description": "Attribute query [Prepare polygon inputs]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }, 
+            "CONEFORAREAQUERYPREPAREPOLYGONINPUTS_1": {
+                "values": {
+                    "name": "CONEFORAREAQUERYPREPAREPOLYGONINPUTS_1", 
+                    "paramsFolded": true, 
+                    "outputs": {}, 
+                    "outputsFolded": true, 
+                    "pos": {
+                        "values": {
+                            "y": 105.0, 
+                            "x": 430.0
+                        }, 
+                        "class": "point"
+                    }, 
+                    "dependencies": [], 
+                    "params": {
+                        "UNIQUE_ATTRIBUTE": {
+                            "values": {
+                                "name": "TABLEFIELD_ATTR"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }, 
+                        "INPUT_LAYER": {
+                            "values": {
+                                "name": "VECTORLAYER_POLS"
+                            }, 
+                            "class": "processing.modeler.ModelerAlgorithm.ValueFromInput"
+                        }
+                    }, 
+                    "active": true, 
+                    "consoleName": "conefor:areaquerypreparepolygoninputs", 
+                    "description": "Area query [Prepare polygon inputs]"
+                }, 
+                "class": "processing.modeler.ModelerAlgorithm.Algorithm"
+            }
+        }
+    }, 
+    "class": "processing.modeler.ModelerAlgorithm.ModelerAlgorithm"
+}
