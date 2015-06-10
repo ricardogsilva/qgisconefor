@@ -5,15 +5,16 @@
 A QGIS plugin for writing input files to the Conefor software.
 '''
 
+from __future__ import absolute_import
+
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
-
-from coneforinputsprocessor import InputsProcessor
-from conefordialog import ConeforDialog
-
 from processing.core.Processing import Processing
-from processingconeforprovider import ProcessingConeforProvider
+
+from .coneforinputsprocessor import InputsProcessor
+from .conefordialog import ConeforDialog
+from .processing.coneforprovider import ProcessingConeforProvider
 
 
 class ConeforProcessor(object):

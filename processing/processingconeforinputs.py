@@ -10,8 +10,6 @@ from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import \
         GeoAlgorithmExecutionException
-#from processing.core.ProcessingLog import ProcessingLog
-#from processing.core.ProcessingResults import ProcessingResults
 try:
     from processing.core.parameters import \
             ParameterVector, ParameterBoolean, ParameterTableField
@@ -23,7 +21,7 @@ except ImportError:  # QGIS version < 2.8.1
     from processing.outputs.OutputVector import OutputVector
     from processing.outputs.OutputFile import OutputFile
 
-from coneforinputsprocessor import InputsProcessor
+from ..coneforinputsprocessor import InputsProcessor
 
 class ConeforInputsBase(GeoAlgorithm):
 

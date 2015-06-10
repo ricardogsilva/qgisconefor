@@ -18,7 +18,7 @@ except ImportError:  # QGIS version < 2.8.1
     from processing.parameters.ParameterNumber import ParameterNumber
     from processing.parameters.ParameterSelection import ParameterSelection
 
-import utilities
+from .. import utilities
 
 class ConeforProcessorBase(GeoAlgorithm):
     '''

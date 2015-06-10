@@ -2,7 +2,6 @@ from PyQt4.QtCore import *
 
 from qgis.core import *
 
-import utilities
 
 class LayerAnalyzerThread(QThread):
 

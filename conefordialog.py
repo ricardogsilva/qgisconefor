@@ -7,10 +7,8 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from qgis.core import *
-from qgis.utils import showPluginHelp
 
 from ui_conefor_dlg import Ui_ConeforDialog
-from ui_help_dlg import Ui_Dialog
 
 import utilities
 from coneforthreads import LayerAnalyzerThread, LayerProcessingThread
@@ -125,7 +123,7 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
     def show_help(self):
         plugin_dir = os.path.dirname(__file__)
         url = "file:///{}/assets/help.html".format(plugin_dir)
-        self.iface.openURL(url, False)
+        QDesktopServices.openUrl(QUrl(url))
 
     def add_row(self):
         row = self.model.rowCount()
