@@ -3,22 +3,23 @@
 
 import os
 
+from PyQt4 import uic
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from qgis.core import *
 
-from ui_conefor_dlg import Ui_ConeforDialog
-
 import utilities
 from coneforthreads import LayerAnalyzerThread, LayerProcessingThread
 from processlayer import ProcessLayerTableModel, ProcessLayerDelegate
+import resources_rc
 
 
-class NoUniqueFieldError(Exception):
-    pass
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "conefor_dlg.ui"))
 
-class ConeforDialog(QDialog,  Ui_ConeforDialog):
+
+class ConeforDialog(QDialog,  FORM_CLASS):
 
     _settings_key = 'PythonPlugins/qgisconefor'
 
@@ -307,3 +308,8 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             widget.setEnabled(boolean)
         if boolean:
             self.use_selected_features_chb.setEnabled(selected_features)
+
+
+class NoUniqueFieldError(Exception):
+    pass
+

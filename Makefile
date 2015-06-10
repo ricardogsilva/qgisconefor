@@ -2,8 +2,6 @@
 
 PLUGIN_NAME = qgisconefor
 
-UI_FILES = ui_conefor_dlg.py
-
 RESOURCE_FILES = resources_rc.py
 
 CODE_FILES = \
@@ -38,13 +36,10 @@ ASSETS_DIR = assets
 
 default: deploy
 
-compile: $(UI_FILES) $(RESOURCE_FILES)
+compile: $(RESOURCE_FILES)
 
 %_rc.py : %.qrc
 	pyrcc4 -o $@  $<
-
-ui_%.py : %.ui
-	pyuic4 -o $@ $<
 
 deploy: compile
 	mkdir -p $(PLUGIN_INSTALL_DIR)
@@ -53,7 +48,6 @@ deploy: compile
 	mkdir -p $(PLUGIN_INSTALL_DIR)/$(ASSETS_DIR)
 	cp -vf $(CODE_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(PROCESSING_FILES) $(PLUGIN_INSTALL_DIR)/$(PROCESSING_DIR)
-	cp -vf $(UI_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(RESOURCE_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(OTHER_FILES) $(PLUGIN_INSTALL_DIR)
 	cp -vf $(MODELS_DIR)/* $(PLUGIN_INSTALL_DIR)/$(MODELS_DIR)
