@@ -71,8 +71,8 @@ class ConeforInputsBase(GeoAlgorithm):
     def getIcon(self):
         return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
-    def helpFile(self):
-        return 'qrc:/plugins/qgisconefor/assets/help.html'
+    def help(self):
+        return False, 'http://hub.qgis.org/projects/qgisconefor'
 
     def update_progress(self, progress_obj, processor):
         progress_obj.setPercentage(processor.global_progress)

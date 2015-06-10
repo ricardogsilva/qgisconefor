@@ -6,9 +6,6 @@ from PyQt4.QtGui import *
 from processing.core.Processing import Processing
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingConfig import Setting, ProcessingConfig
-from processing.modeler.ModelerAlgorithm import ModelerAlgorithm
-from processing.modeler.WrongModelException import WrongModelException
-#from processing.core.ProcessingLog import ProcessingLog
 
 import processingconeforinputs
 import processingconeforprocessor

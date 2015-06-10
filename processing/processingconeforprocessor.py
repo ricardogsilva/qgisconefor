@@ -129,8 +129,8 @@ class ConeforProcessorBase(GeoAlgorithm):
     def getIcon(self):
         return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
-    def helpFile(self):
-        return 'qrc:/plugins/qgisconefor/assets/help_conefor.html'
+    def help(self):
+        return False, 'http://hub.qgis.org/projects/qgisconefor'
 
     def _add_parameters(self, parameters):
         index_params = []
