@@ -13,22 +13,32 @@
   <property name="windowTitle">
    <string>Conefor Inputs</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QCheckBox" name="lock_layers_chb">
-     <property name="text">
-      <string>Lock field names to first layer</string>
-     </property>
-    </widget>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_7">
+     <item>
+      <widget class="QCheckBox" name="lock_layers_chb">
+       <property name="text">
+        <string>Lock field names to first layer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_6">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
    </item>
-   <item row="1" column="0">
-    <widget class="QCheckBox" name="unique_features_chb">
-     <property name="text">
-      <string>Find each layer's unique features upon initialization</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
       <widget class="QLabel" name="layers_la">
@@ -52,7 +62,7 @@
      </item>
     </layout>
    </item>
-   <item row="3" column="0">
+   <item>
     <widget class="QTableView" name="tableView">
      <property name="editTriggers">
       <set>QAbstractItemView::AllEditTriggers</set>
@@ -77,7 +87,7 @@
      </attribute>
     </widget>
    </item>
-   <item row="4" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_4">
      <item>
       <spacer name="horizontalSpacer">
@@ -108,7 +118,7 @@
      </item>
     </layout>
    </item>
-   <item row="5" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_6">
      <item>
       <widget class="QCheckBox" name="use_selected_features_chb">
@@ -132,7 +142,7 @@
      </item>
     </layout>
    </item>
-   <item row="6" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QCheckBox" name="create_distances_files_chb">
@@ -156,7 +166,7 @@
      </item>
     </layout>
    </item>
-   <item row="7" column="0">
+   <item>
     <widget class="QLabel" name="output_la">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Output directory&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -166,7 +176,7 @@
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
       <widget class="QLineEdit" name="output_dir_le"/>
@@ -180,14 +190,14 @@
      </item>
     </layout>
    </item>
-   <item row="9" column="0">
+   <item>
     <widget class="Line" name="line">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item row="10" column="0">
+   <item>
     <widget class="QLabel" name="progress_la">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -200,14 +210,14 @@
      </property>
     </widget>
    </item>
-   <item row="11" column="0">
+   <item>
     <widget class="QProgressBar" name="progressBar">
      <property name="value">
       <number>24</number>
      </property>
     </widget>
    </item>
-   <item row="12" column="0">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_5">
      <item>
       <widget class="QPushButton" name="help_btn">

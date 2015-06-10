@@ -13,9 +13,8 @@ class LayerAnalyzerThread(QThread):
         self.stopped = False
         self.completed = False
 
-    def initialize(self, loaded_layers, get_unique_fields):
+    def initialize(self, loaded_layers):
         self.loaded_layers = loaded_layers
-        self.get_unique_fields = get_unique_fields
 
     def run(self):
         usable_layers = self.analyze_layers()
@@ -43,16 +42,10 @@ class LayerAnalyzerThread(QThread):
             self.emit(SIGNAL('analyzing_layer'), the_layer.name())
             if the_layer.type() == QgsMapLayer.VectorLayer:
                 if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
-                    if self.get_unique_fields:
-                        msg = '%s - Finding unique attributes...' % \
-                                the_layer.name()
-                        self.emit(SIGNAL('analyzing_layer'), msg)
-                        the_fields = utilities.get_unique_fields(the_layer)
-                    else:
-                        the_fields = []
-                        for f in the_layer.dataProvider().fields():
-                            if f.type() in (QVariant.Int, QVariant.Double):
-                                the_fields.append(f.name())
+                    the_fields = []
+                    for f in the_layer.dataProvider().fields():
+                        if f.type() in (QVariant.Int, QVariant.Double):
+                            the_fields.append(f.name())
                     if any(the_fields):
                         usable_layers[the_layer] = the_fields
         return usable_layers

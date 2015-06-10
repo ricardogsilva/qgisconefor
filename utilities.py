@@ -44,31 +44,31 @@ def get_features(layer, use_selected, filter_id=None):
             features = layer.getFeatures()
     return features
 
-def get_unique_fields(layer):
-    unique_fields = [f for f in layer.dataProvider().fields() \
-            if f.type() in (QVariant.Int, QVariant.Double)]
-    seen = dict()
-    for f in unique_fields:
-        seen[f.name()] = []
-    request = QgsFeatureRequest()
-    request.setFlags(QgsFeatureRequest.NoGeometry)
-    for feat in layer.getFeatures(request):
-        to_remove = []
-        for f in unique_fields:
-            name = f.name()
-            value = feat.attribute(name)
-            if value not in seen[name]:
-                seen[name].append(value)
-            else:
-                to_remove.append(name)
-        if len(to_remove) > 0:
-            unique_fields = [f for f in unique_fields if \
-                    f.name() not in to_remove]
-        if not any(unique_fields):
-            print('No more unique fields')
-            break
-    result = [f.name() for f in unique_fields]
-    return result 
+#def get_unique_fields(layer):
+#    unique_fields = [f for f in layer.dataProvider().fields() \
+#            if f.type() in (QVariant.Int, QVariant.Double)]
+#    seen = dict()
+#    for f in unique_fields:
+#        seen[f.name()] = []
+#    request = QgsFeatureRequest()
+#    request.setFlags(QgsFeatureRequest.NoGeometry)
+#    for feat in layer.getFeatures(request):
+#        to_remove = []
+#        for f in unique_fields:
+#            name = f.name()
+#            value = feat.attribute(name)
+#            if value not in seen[name]:
+#                seen[name].append(value)
+#            else:
+#                to_remove.append(name)
+#        if len(to_remove) > 0:
+#            unique_fields = [f for f in unique_fields if \
+#                    f.name() not in to_remove]
+#        if not any(unique_fields):
+#            print('No more unique fields')
+#            break
+#    result = [f.name() for f in unique_fields]
+#    return result
 
 def get_all_values(layer, fields):
     result = []

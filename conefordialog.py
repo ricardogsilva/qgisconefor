@@ -50,23 +50,15 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
                      self.analyzing_layer)
         self.connect(self.processing_thread, SIGNAL('finished'),
                      self.finished_processing_layers)
-        self.analyzer_thread.initialize(plugin_obj.registry.mapLayers(),
-                                        self.unique_features_chb.isChecked())
+        self.analyzer_thread.initialize(plugin_obj.registry.mapLayers())
         self.change_ui_availability(False)
         self.progress_la.setText('Analyzing layers...')
-        find_unique_features = self.load_settings('analyze_unique_features',
-                                                  type_hint=bool,
-                                                  default_to=False)
-        if find_unique_features is None:
-            find_unique_features = False
-        if not isinstance(find_unique_features, bool):
-            find_unique_features = False
-        self.unique_features_chb.setChecked(find_unique_features)
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
         self.analyzer_thread.start()
 
     def analyzing_layer(self, layer_name):
+        utilities.log("analyzing layer: {}".format(layer_name))
         self.progress_la.setText('Analyzing layers: %s...' % layer_name)
 
     def finished_processing_layers(self, layers, new_files=[]):
@@ -102,22 +94,14 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
             self.tableView.setModel(self.model)
             delegate = ProcessLayerDelegate(self, self)
             self.tableView.setItemDelegate(delegate)
-            QObject.connect(self.add_row_btn, SIGNAL('released()'), self.add_row)
-            QObject.connect(self.remove_row_btn, SIGNAL('released()'),
-                            self.remove_row)
-            QObject.connect(self.run_btn, SIGNAL('released()'), self.run_queries)
-            QObject.connect(self.processor, SIGNAL('progress_changed'),
-                            self.update_progress)
-            QObject.connect(self.processor, SIGNAL('update_info'),
-                            self.update_info)
-            QObject.connect(self.model, SIGNAL('is_runnable_check'),
-                            self.toggle_run_button)
-            self.connect(self.output_dir_btn, SIGNAL('released()'),
-                         self.get_output_dir)
-
-            self.connect(self.lock_layers_chb, SIGNAL('toggled(bool)'),
-                         self.toggle_lock_layers)
-
+            self.add_row_btn.released.connect(self.add_row)
+            self.remove_row_btn.released.connect(self.remove_row)
+            self.run_btn.released.connect(self.run_queries)
+            self.output_dir_btn.released.connect(self.get_output_dir)
+            self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
+            self.processor.progress_changed.connect(self.update_progress)
+            self.processor.update_info.connect(self.update_info)
+            self.model.is_runnable_check.connect(self.toggle_run_button)
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
@@ -259,10 +243,6 @@ class ConeforDialog(QDialog,  Ui_ConeforDialog):
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
-
-    def closeEvent(self, event=None):
-        self.save_settings('%s/analyze_unique_features' % self._settings_key,
-                           self.unique_features_chb.isChecked())
 
     def update_info(self, info, section=0):
         '''

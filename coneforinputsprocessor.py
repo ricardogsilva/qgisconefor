@@ -19,6 +19,9 @@ class InvalidAttributeError(Exception):
 
 class InputsProcessor(QObject):
 
+    update_info = pyqtSignal(str, int)
+    progress_changed = pyqtSignal()
+
     def __init__(self, project_crs):
         super(InputsProcessor, self).__init__()
         self.project_crs = project_crs
@@ -61,17 +64,15 @@ class InputsProcessor(QObject):
                 saved to disk.
         """
 
-        self.emit(SIGNAL('update_info'), 'Processing started...')
+        self.update_info.emit('Processing started...', 0)
         new_files = []
         layer_progress_step = 100.0 / len(layers)
         try:
             for index, layer_params in enumerate(layers):
-                self.emit(
-                    SIGNAL('update_info'),
-                    'layer: {}'.format(layer_params['layer'].name())
-                )
+                layer = layer_params["layer"]
+                self.update_info.emit("layer: {}".format(layer.name()), 0)
                 layer_files = self.process_layer(
-                    layer_params['layer'],
+                    layer,
                     layer_params['id_attribute'],
                     output_dir, 
                     attribute=layer_params['attribute'],
@@ -86,18 +87,17 @@ class InputsProcessor(QObject):
                     add_vector_layers_out_dir=True
                 )
                 new_files += layer_files
-            self.emit(SIGNAL('progress_changed'))
+            self.progress_changed.emit()
         except InvalidFeatureError as e:
-            self.emit(SIGNAL('update_info'), 'ERROR: %s' % e)
+            self.update_info.emit('ERROR: {}'.format(e), 0)
         except InvalidAttributeError as e:
-            self.emit(SIGNAL('update_info'), 'ERROR: Selected attributes are'
-                      ' not present in every layer - %s' % e)
+            self.update_info.emit('ERROR: Selected attributes are not '
+                                  'present in every layer - {}'.format(e), 0)
         except Exception as e:
             traceback.print_exc()
-            self.emit(SIGNAL('update_info'),
-                      'ERROR: %s' % traceback.format_exc())
+            self.update_info.emit('ERROR: %s' % traceback.format_exc(), 0)
         else:
-            self.emit(SIGNAL('update_info'), 'Processing finished!')
+            self.update_info.emit("Processing finished!", 0)
         finally:
             self.global_progress = 0
         return new_files
@@ -188,7 +188,7 @@ class InputsProcessor(QObject):
 
     def _save_text_file(self, data, log_text, output_dir, output_name,
                         encoding, progress_step):
-        self.emit(SIGNAL('update_info'), '%s' % log_text, 1)
+        self.update_info.emit(log_text, 1)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         output_name = self._get_output_file_name(output_dir, output_name)
@@ -205,7 +205,7 @@ class InputsProcessor(QObject):
             # line
             file_handler.write('\n')
         self.global_progress += progress_step
-        self.emit(SIGNAL('progress_changed'))
+        self.progress_changed.emit()
         return output_path
 
     def process_layer(self, layer, id_attribute, output_dir, attribute=None,
@@ -354,7 +354,7 @@ class InputsProcessor(QObject):
                                                   edge_file_name,
                                                   edge_distance_file_name,
                                                   add_vector_layers_out_dir)
-        self.emit(SIGNAL('progress_changed'))
+        self.progress_changed.emit()
         return created_files
 
     def _perform_edge_query(self, layer, id_attribute, encoding, use_selected,
@@ -494,7 +494,7 @@ class InputsProcessor(QObject):
                 the results
         """
 
-        self.emit(SIGNAL('update_info'), 'Running attribute query', 1)
+        self.update_info.emit('Running attribute query', 1)
         data = []
         features = utilities.get_features(layer, use_selected)
         for feat in features:
@@ -506,7 +506,7 @@ class InputsProcessor(QObject):
                 else:
                     data.append((id_attr, attr))
         self.global_progress += analysis_step
-        self.emit(SIGNAL('progress_changed'))
+        self.progress_changed.emit()
         output_dir, output_name = os.path.split(output_path)
         output_file = self._save_text_file(data, 'Writing attribute file...',
                                            output_dir, output_name, encoding,
@@ -553,7 +553,7 @@ class InputsProcessor(QObject):
                 the results
         """
 
-        self.emit(SIGNAL('update_info'), 'Running area query...', 1)
+        self.update_info.emit('Running area query...', 1)
         data = []
         if layer.crs().geographicFlag():
             if self.project_crs.geographicFlag():
@@ -589,7 +589,7 @@ class InputsProcessor(QObject):
                 if id_attr is not None:
                     data.append((id_attr, total_feat_area))
         self.global_progress += analysis_step
-        self.emit(SIGNAL('progress_changed'))
+        self.progress_changed.emit()
         output_file = None
         if any(data):
             output_dir, output_name = os.path.split(output_path)
@@ -603,7 +603,7 @@ class InputsProcessor(QObject):
                             analysis_step, output_path=None,
                             file_save_progress_step=0,
                             shape_file_path=None):
-        self.emit(SIGNAL('update_info'), 'Running centroid query...', 1)
+        self.update_info.emit('Running centroid query...', 1)
         data = []
         if layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
@@ -656,7 +656,7 @@ class InputsProcessor(QObject):
                     j += 1
             i += 1
         self.global_progress += analysis_step
-        self.emit(SIGNAL('progress_changed'))
+        self.progress_changed.emit()
         output_files = []
         if any(data):
             if output_path is not None:
@@ -675,8 +675,7 @@ class InputsProcessor(QObject):
                 output_files.append(output_file)
             if shape_file_path is not None:
                 output_dir, output_name = os.path.split(shape_file_path)
-                self.emit(SIGNAL('update_info'),
-                          'Creating centroid distance file', 1)
+                self.update_info.emit('Creating centroid distance file', 1)
                 if not os.path.isdir(output_dir):
                     os.mkdir(output_dir)
                 data_to_write = []
@@ -695,7 +694,7 @@ class InputsProcessor(QObject):
                 )
                 output_files.append(output_shape)
                 self.global_progress += file_save_progress_step
-                self.emit(SIGNAL('progress_changed'))
+                self.progress_changed.emit()
         return output_files
 
     def _get_measurer(self, source_crs):
@@ -719,7 +718,7 @@ class InputsProcessor(QObject):
         #   project L1's vertices on L2 and get their distance from L1
         #   project L2's vertices on L1 and get their distance from L2
         #   the pair with the smallest distance wins!
-        self.emit(SIGNAL('update_info'), 'Running edge query', 1)
+        self.update_info.emit('Running edge query', 1)
         data = []
         if layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
@@ -732,9 +731,8 @@ class InputsProcessor(QObject):
         i = 0
         j = 0
         while i < len(feature_ids):
-            self.emit(SIGNAL('update_info'),
-                      'Processing feature %i/%i' % (i+1, len(feature_ids)),
-                      2)
+            self.update_info.emit(
+                "Processing feature {}/{}".format(i+1, len(feature_ids)), 2)
             features = utilities.get_features(layer, use_selected, 
                                               feature_ids[i])
             current = iter(features).next()
@@ -798,7 +796,7 @@ class InputsProcessor(QObject):
                     j += 1
             i += 1
             self.global_progress += feature_step
-            self.emit(SIGNAL('progress_changed'))
+            self.progress_changed.emit()
         output_files = []
         if any(data):
             if output_path is not None:
@@ -817,18 +815,17 @@ class InputsProcessor(QObject):
                 output_files.append(output_file)
             if shape_file_path is not None:
                 output_dir, output_name = os.path.split(shape_file_path)
-                self.emit(SIGNAL('update_info'),
-                          'Creating edge distance file', 1)
+                self.update_info.emit('Creating edge distance file', 1)
                 if not os.path.isdir(output_dir):
                     os.mkdir(output_dir)
-                self.emit(SIGNAL('update_info'), 'edges...', 2)
+                self.update_info.emit("edges ...", 2)
                 output_shape = self._write_distance_file(data, output_dir,
                                                          output_name,
                                                          encoding,
                                                          layer.crs())
                 output_files.append(output_shape)
                 self.global_progress += file_save_progress_step
-                self.emit(SIGNAL('progress_changed'))
+                self.progress_changed.emit()
         return output_files
 
     def find_candidate_points(self, point, line_segment, measurer):
@@ -1035,7 +1032,7 @@ class InputsProcessor(QObject):
         Returns:
         """
 
-        self.emit(SIGNAL('update_info'), 'Running fast edge query', 1)
+        self.update_info.emit('Running fast edge query', 1)
         data = []
         if layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
@@ -1049,10 +1046,8 @@ class InputsProcessor(QObject):
         i = 0
         j = 0
         while i < len(feature_ids):
-            self.emit(SIGNAL('update_info'),
-                      'Processing feature %i/%i' % (i+1, len(feature_ids)),
-                      2
-            )
+            self.update_info.emit(
+                "Processing feature {}/{}".format(i+1, len(feature_ids)), 2)
             features = utilities.get_features(layer, use_selected, 
                                               feature_ids[i])
             current = iter(features).next()
@@ -1083,7 +1078,7 @@ class InputsProcessor(QObject):
                     j += 1
             i += 1
             self.global_progress += feature_step
-            self.emit(SIGNAL('progress_changed'))
+            self.progress_changed.emit()
         output_files = []
         if any(data):
             if output_path is not None:
@@ -1100,5 +1095,5 @@ class InputsProcessor(QObject):
                                                    encoding,
                                                    file_save_progress_step)
                 output_files.append(output_file)
-                self.emit(SIGNAL('progress_changed'))
+                self.progress_changed.emit()
         return output_files

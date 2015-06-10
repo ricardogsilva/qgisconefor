@@ -24,6 +24,8 @@ class ProcessLayer(object):
 
 class ProcessLayerTableModel(QAbstractTableModel):
 
+    is_runnable_check = pyqtSignal()
+
     def __init__(self, qgis_layers, current_layers, processor, dialog):
         self.processor = processor
         self.dialog = dialog
@@ -170,10 +172,11 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 except AttributeError:
                     layer.process_edge_distance = value
             self.dirty = True
-            self.emit(SIGNAL('dataChanged(QModelIndex,QModelIndex)'),
-                      index, index)
+            #self.emit(SIGNAL('dataChanged(QModelIndex,QModelIndex)'),
+            #          index, index)
+            self.dataChanged.emit(index, index)
             result = True
-        self.emit(SIGNAL('is_runnable_check'))
+        self.is_runnable_check.emit()
         return result
 
     def _get_qgis_layer(self, layer_name):
