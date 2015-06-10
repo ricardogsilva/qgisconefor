@@ -1,6 +1,9 @@
 # python files
 *.pyc
 
+# pyqt resources
+resources_rc.py
+
 # other files
 *.swp
 *un~

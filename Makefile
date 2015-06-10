@@ -12,8 +12,7 @@ __init__.py \
 processlayer.py \
 qgisconefor.py \
 utilities.py \
-resources_rc.py \
-ui_conefor_dlg.py
+resources_rc.py
 
 PROCESSING_DIR = processing
 
