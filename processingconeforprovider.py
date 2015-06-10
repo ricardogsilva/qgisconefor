@@ -51,7 +51,6 @@ class ProcessingConeforProvider(AlgorithmProvider):
         self.algs = [
             processingconeforinputs.ConeforInputsPointAttribute(),
             processingconeforinputs.ConeforInputsPolygonAttribute(),
-            processingconeforinputs.ConeforInputsPointArea(),
             processingconeforinputs.ConeforInputsPolygonArea(),
             processingconeforinputs.ConeforInputsPointCentroid(),
             processingconeforinputs.ConeforInputsPolygonCentroid(),

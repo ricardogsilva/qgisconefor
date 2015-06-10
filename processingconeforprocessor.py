@@ -87,8 +87,8 @@ class ConeforProcessorBase(GeoAlgorithm):
 
     def _create_parameters(self):
         parameters = [
-            ParameterFile(self.OUTPUT_DIR, 'output directory for placing ' \
-                          'the results', isFolder=True),
+            ParameterFile(self.OUTPUT_DIR, 'output directory for placing '
+                          'the results', isFolder=True, optional=False),
             ParameterFile(self.INPUT_NODES_FILE, 'Nodes file', optional=False),
             ParameterFile(self.INPUT_CONNECTIONS_FILE, 'Connections file',
                           optional=False),
@@ -295,9 +295,10 @@ class ConeforProcessorBase(GeoAlgorithm):
         if write_maximum_probabilities_file and 'PC' in probability_indexes:
             command_list.append('-wprobmax')
         if land_area is not None:
-            command_list += ['-landArea', landArea]
+            command_list += ['-landArea', land_area]
         if prefix is not None:
             command_list += ['-prefix', prefix]
+        utilities.log(" ".join(command_list))
         process = Popen(command_list, cwd=conefor_dir, stdout=PIPE,
                         stderr=STDOUT)
         while True:
@@ -306,10 +307,11 @@ class ConeforProcessorBase(GeoAlgorithm):
                 progress.setText(line)
             else:
                 break
-        return process.returncode, None, None #change this
+        return process.returncode, None, None  # change this
 
-    def _run_the_algorithm(self, nodes_file_path, connections_file_path,
-                           all_connections, prefix, progress):
+    def _run_the_algorithm(self, conefor_path, nodes_file_path,
+                           connections_file_path, all_connections, prefix,
+                           progress):
         raise NotImplementedError
 
     def _problems_to_run(self):
@@ -332,10 +334,10 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
         parameters += [
             ParameterSelection(self.INPUT_CONNECTION_TYPE, 'Connection type',
                                self._connection_types),
-            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, 'Threshold ' \
-                            '(distance/probability) for connecting nodes ' \
+            ParameterNumber(self.THRESHOLD_DIRECT_LINKS, 'Threshold '
+                            '(distance/probability) for connecting nodes '
                             '(confAdj)'),
-            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
+            ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process '
                              'individual node importances', default=False),
             ParameterBoolean(self.WRITE_LINKS_FILE, 'Write links file',
                              default=False),
@@ -365,7 +367,7 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
     def _create_parameters(self):
         parameters = ConeforBinaryIndexBase._create_parameters(self)
         parameters += [
-            ParameterBoolean(self.WRITE_COMPONENT_FILE, 'Write components ' \
+            ParameterBoolean(self.WRITE_COMPONENT_FILE, 'Write components '
                              'file', default=False),
         ]
         return parameters
