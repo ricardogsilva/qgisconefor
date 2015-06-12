@@ -52,8 +52,11 @@ Installation
 Usage
 -----
 
-#.  [Using the standalone window](https://github.com/ricardogsilva/qgisconefor/blob/master/docs/manual.rst)
-#.  [Using the Processing framework](https://github.com/ricardogsilva/qgisconefor/blob/master/docs/manual.rst)
+#.  `Using the standalone window`_
+#.  `Using the Processing framework`_
+
+.. _Using the standalone window: https://github.com/ricardogsilva/qgisconefor/blob/master/docs/manual.rst
+
 
 Issues and feature requests
 ---------------------------
