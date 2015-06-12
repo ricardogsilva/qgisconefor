@@ -15,6 +15,11 @@ inputs to use by Conefor as a separate application.
 
 .. _Conefor: http://conefor.org
 
+Conefor authors are Santiago Saura (santiago.saura@upm.es) and Josep Torné. 
+This plugin was developed by Ricardo Garcia Silva (ricardo.garcia.silva@gmail.com) 
+with funding from ETSI Montes, Universidad Politécnica de Madrid. 
+The plugin is released under a GPL license.
+
 Installation
 ------------
 
@@ -47,8 +52,8 @@ Installation
 Usage
 -----
 
-#.  Using the standalone window
-#.  Using the Processing framework
+#.  [Using the standalone window](docs/manual.rst)
+#.  [Using the Processing framework](docs/manual.rst)
 
 Issues and feature requests
 ---------------------------
