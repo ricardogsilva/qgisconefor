@@ -57,6 +57,7 @@ Usage
 
 .. _Using the standalone window: https://github.com/ricardogsilva/qgisconefor/blob/master/docs/manual.rst
 
+.. _Using the Processing framework: https://github.com/ricardogsilva/qgisconefor/blob/master/docs/manual.rst
 
 Issues and feature requests
 ---------------------------
