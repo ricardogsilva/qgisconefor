@@ -52,8 +52,8 @@ Installation
 Usage
 -----
 
-#.  [Using the standalone window](docs/manual.rst)
-#.  [Using the Processing framework](docs/manual.rst)
+[Using the standalone window](docs/manual.rst)
+[Using the Processing framework](docs/manual.rst)
 
 Issues and feature requests
 ---------------------------
