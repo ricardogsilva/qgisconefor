@@ -10,7 +10,6 @@ from processing.core.ProcessingConfig import Setting, ProcessingConfig
 import processingconeforinputs
 import processingconeforprocessor
 
-import resources_rc
 
 class ProcessingConeforProvider(AlgorithmProvider):
 

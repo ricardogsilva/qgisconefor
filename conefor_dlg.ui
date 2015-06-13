@@ -259,8 +259,6 @@
   <tabstop>run_btn</tabstop>
   <tabstop>help_btn</tabstop>
  </tabstops>
- <resources>
-  <include location="resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>
