@@ -23,10 +23,11 @@ about=Conefor is a software that provides tools for studying landscape
       create Processing models and scripts that efectively enable a user to
       use QGIS as a frontend to interact with Conefor.
 
-version=1.2
+version=1.2.1
 author=Ricardo Garcia Silva
 email=ricardo.garcia.silva@gmail.com
-changelog=1.2 - Adapted code to run with QGIS 2.8
+changelog=1.2.1 - Bugfix release
+    1.2 - Adapted code to run with QGIS 2.8
     1.1 - Adapted to run with Processing API changes
     1.0 - First stable release
 tags=vector, landscape, connectivity, processing
