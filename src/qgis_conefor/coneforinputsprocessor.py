@@ -3,10 +3,10 @@ import sys
 import traceback
 import codecs
 
-from PyQt4.QtCore import *
-from qgis.core import *
+import qgis.core
+from qgis.PyQt import QtCore
 
-import utilities
+from . import utilities
 
 
 class InvalidFeatureError(Exception):
@@ -17,10 +17,10 @@ class InvalidAttributeError(Exception):
     pass
 
 
-class InputsProcessor(QObject):
+class InputsProcessor(QtCore.QObject):
 
-    update_info = pyqtSignal(str, int)
-    progress_changed = pyqtSignal()
+    update_info = QtCore.pyqtSignal(str, int)
+    progress_changed = QtCore.pyqtSignal()
 
     def __init__(self, project_crs):
         super(InputsProcessor, self).__init__()
@@ -161,19 +161,23 @@ class InputsProcessor(QObject):
         output_path = os.path.join(output_dir, output_name)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        fields = QgsFields()
-        fields.append(QgsField('From_Node', QVariant.String, 'From_NodeID',
-                      255))
-        fields.append(QgsField('To_Node', QVariant.String, 'To_NodeID', 255))
-        fields.append(QgsField('distance', QVariant.Double,
-                      'distance', 255, 1))
-        writer = QgsVectorFileWriter(output_path, encoding, fields,
-                                     QGis.WKBLineString, crs, file_type)
-        if writer.hasError() == QgsVectorFileWriter.NoError:
+        fields = qgis.core.QgsFields()
+        fields.append(
+            qgis.core.QgsField(
+                'From_Node', QtCore.QVariant.String, 'From_NodeID', 255)
+        )
+        fields.append(
+            qgis.core.QgsField('To_Node', QtCore.QVariant.String, 'To_NodeID', 255)
+        )
+        fields.append(
+            qgis.core.QgsField('distance', QtCore.QVariant.Double, 'distance', 255, 1))
+        writer = qgis.core.QgsVectorFileWriter(
+            output_path, encoding, fields, qgis.core.QGis.WKBLineString, crs, file_type)
+        if writer.hasError() == qgis.core.QgsVectorFileWriter.NoError:
             for item in data:
-                feat = QgsFeature()
+                feat = qgis.core.QgsFeature()
                 line = [item['from'], item['to']]
-                feat.setGeometry(QgsGeometry.fromPolyline(line))
+                feat.setGeometry(qgis.core.QgsGeometry.fromPolyline(line))
                 feat.setFields(fields)
                 feat.initAttributes(3)
                 feat.setAttribute('From_Node', item['from_attribute'])
@@ -698,14 +702,14 @@ class InputsProcessor(QObject):
         return output_files
 
     def _get_measurer(self, source_crs):
-        measurer = QgsDistanceArea()
+        measurer = qgis.core.QgsDistanceArea()
         measurer.setEllipsoidalMode(False)
         measurer.setSourceCrs(source_crs.postgisSrid())
         return measurer
 
     def _get_transformer(self, layer):
         source_crs = layer.crs()
-        transformer = QgsCoordinateTransform(source_crs, self.project_crs)
+        transformer = qgis.core.QgsCoordinateTransform(source_crs, self.project_crs)
         return transformer
 
     def _run_edge_query(self, layer, id_attribute, encoding, use_selected,
@@ -865,7 +869,7 @@ class InputsProcessor(QObject):
             if reverse:
                 result = transformer.transform(
                             point,
-                            QgsCoordinateTransform.ReverseTransform
+                            qgis.core.QgsCoordinateTransform.ReverseTransform
                          )
             else:
                 result = transformer.transform(point)
@@ -897,8 +901,8 @@ class InputsProcessor(QObject):
         distance = None
         for seg1 in segments1:
             for seg2 in segments2:
-                line1 = QgsGeometry.fromPolyline(seg1)
-                line2 = QgsGeometry.fromPolyline(seg2)
+                line1 = qgis.core.QgsGeometry.fromPolyline(seg1)
+                line2 = qgis.core.QgsGeometry.fromPolyline(seg2)
                 dist = line1.distance(line2)
                 if distance is None or distance > dist:
                     distance = dist
@@ -976,7 +980,7 @@ class InputsProcessor(QObject):
             # line_string is paralel to y axis
             x = pt1.x()
             y = point.y()
-        projected = QgsPoint(x, y)
+        projected = qgis.core.QgsPoint(x, y)
         distance = measurer.measureLine(point, projected)
         return projected, distance
 

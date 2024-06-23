@@ -1,35 +1,43 @@
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from qgis.PyQt import (
+    QtCore,
+    QtGui,
+    QtWidgets,
+)
 
-from qgis.core import *
+import qgis.core
 
 LAYER, ID, ATTRIBUTE, AREA, EDGE, CENTROID = range(6)
 
-class ProcessLayer(object):
 
-    def __init__(self, qgis_layer, processor, unique_fields):
+class ProcessLayer:
+
+    def __init__(
+            self,
+            qgis_layer: qgis.core.QgsVectorLayer,
+            processor,
+            unique_fields
+    ):
         self.qgis_layer_name = qgis_layer.name()
         self.qgis_layer = qgis_layer
         provider = qgis_layer.dataProvider()
         self.id_field_name = unique_fields[0]
         self.attribute_field_name = '<None>'
         self.process_area = False
-        geometry_type = qgis_layer.geometryType()
         self.process_centroid_distance = False
         self.process_edge_distance = True
-        if geometry_type == QGis.Point:
+        if qgis_layer.wkbType() == qgis.core.QgsWkbTypes.Point:  # noqa
             self.process_centroid_distance = True
             self.process_edge_distance = False
 
 
-class ProcessLayerTableModel(QAbstractTableModel):
+class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
-    is_runnable_check = pyqtSignal()
+    is_runnable_check = QtCore.pyqtSignal()
 
     def __init__(self, qgis_layers, current_layers, processor, dialog):
         self.processor = processor
         self.dialog = dialog
-        self._header_labels = range(6)
+        self._header_labels = list(range(6))
         self._header_labels[LAYER] = 'Layer'
         self._header_labels[ID] = 'Node ID\n(unique)'
         self._header_labels[CENTROID] = 'Centroid\ndistance'
@@ -44,13 +52,13 @@ class ProcessLayerTableModel(QAbstractTableModel):
             fields = qgis_layers[la]
             self.layers.append(ProcessLayer(la, self.processor, fields))
 
-    def rowCount(self, index=QModelIndex()):
+    def rowCount(self, index=QtCore.QModelIndex()):
         return len(self.layers)
 
-    def columnCount(self, index=QModelIndex):
+    def columnCount(self, index=QtCore.QModelIndex):
         return 6
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=QtCore.Qt.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self.layers)):
             result = None
         else:
@@ -60,7 +68,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
             row = index.row()
             if row != 0 and self.dialog.lock_layers_chb.isChecked():
                 layer = self.layers[0]
-            if role == Qt.DisplayRole:
+            if role == QtCore.Qt.DisplayRole:
                 if column == LAYER:
                     result = locked_layer.qgis_layer_name
                 elif column == ID:
@@ -68,80 +76,88 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 elif column == ATTRIBUTE:
                     result = layer.attribute_field_name
                 elif column == AREA:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
+                    if layer.qgis_layer.wkbType() == qgis.core.QgsWkbTypes.Point:
                         result = '<Unavailable>'
                     else:
                         result = None
                 elif column == EDGE:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
+                    if layer.qgis_layer.wkbType() == qgis.core.QgsWkbTypes.Point:
                         result = '<Unavailable>'
                     else:
                         result = None
                 else:
                     result = None
-            elif role == Qt.CheckStateRole:
+            elif role == QtCore.Qt.CheckStateRole:
                 if column == AREA:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
+                    if layer.qgis_layer.wkbType() == qgis.core.QgsWkbTypes.Point:
                         result = None
                     else:
                         if layer.process_area:
-                            result = Qt.Checked
+                            result = QtCore.Qt.Checked
                         else:
-                            result = Qt.Unchecked
+                            result = QtCore.Qt.Unchecked
                 elif column == CENTROID:
                     if layer.process_centroid_distance:
-                        result = Qt.Checked
+                        result = QtCore.Qt.Checked
                     else:
-                        result = Qt.Unchecked
+                        result = QtCore.Qt.Unchecked
                 elif column == EDGE:
-                    if layer.qgis_layer.geometryType() == QGis.Point:
+                    if layer.qgis_layer.wkbType() == qgis.core.QgsWkbTypes.Point:
                         result = None
                     else:
                         if layer.process_edge_distance:
-                            result = Qt.Checked
+                            result = QtCore.Qt.Checked
                         else:
-                            result = Qt.Unchecked
+                            result = QtCore.Qt.Unchecked
                 else:
                     result = None
-            elif role == Qt.TextAlignmentRole:
+            elif role == QtCore.Qt.TextAlignmentRole:
                 if column in (AREA, CENTROID, EDGE):
-                    result = int(Qt.AlignHCenter|Qt.AlignVCenter)
+                    result = int(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter)
                 else:
                     result = None
             else:
                 result = None
         return result
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
             result = self._header_labels[section]
         else:
-            result = QAbstractTableModel.headerData(self, section, orientation,
-                                                    role)
+            result = QtCore.QAbstractTableModel.headerData(
+                self, section, orientation, role)
         return result
 
     def flags(self, index):
         if self.dialog.lock_layers_chb.isChecked():
             if index.row() == 0:
                 if index.column() in (AREA, CENTROID, EDGE):
-                    result = Qt.ItemFlags(Qt.ItemIsEnabled|Qt.ItemIsUserCheckable)
+                    result = QtCore.Qt.ItemFlags(
+                        QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)
                 else:
-                    result = Qt.ItemFlags(QAbstractTableModel.flags(self, index)|
-                                        Qt.ItemIsEditable)
+                    result = QtCore.Qt.ItemFlags(
+                        QtCore.QAbstractTableModel.flags(self, index) |
+                        QtCore.Qt.ItemIsEditable
+                    )
             else:
-                result = Qt.NoItemFlags
+                result = QtCore.Qt.NoItemFlags
         else:
             if not index.isValid():
-                result = Qt.ItemIsEnabled()
+                result = QtCore.Qt.ItemIsEnabled()
             else:
                 if index.column() in (AREA, CENTROID, EDGE):
-                    result = Qt.ItemFlags(Qt.ItemIsEnabled|Qt.ItemIsUserCheckable)
+                    result = QtCore.Qt.ItemFlags(
+                        QtCore.Qt.ItemIsEnabled |
+                        QtCore.Qt.ItemIsUserCheckable
+                    )
                 else:
-                    result = Qt.ItemFlags(QAbstractTableModel.flags(self, index)|
-                                        Qt.ItemIsEditable)
+                    result = QtCore.Qt.ItemFlags(
+                        QtCore.QAbstractTableModel.flags(self, index) |
+                        QtCore.Qt.ItemIsEditable
+                    )
         return result
 
-    def setData(self, index, value, role=Qt.EditRole):
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
         result = False
         if index.isValid() and 0 <= index.row() < len(self.layers):
             layer = self.layers[index.row()]
@@ -155,7 +171,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 layer.attribute_field_name = value
             elif column == AREA:
                 try:
-                    if layer.qgis_layer.geometryType() != QGis.Point:
+                    if layer.qgis_layer.wkbType() != qgis.core.QgsWkbTypes.Point:
                         layer.process_area = value
                     else:
                         layer.process_area = False
@@ -165,7 +181,7 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 layer.process_centroid_distance = value
             elif column == EDGE:
                 try:
-                    if layer.qgis_layer.geometryType() != QGis.Point:
+                    if layer.qgis_layer.wkbType() != qgis.core.QgsWkbTypes.Point:
                         layer.process_edge_distance = bool(value)
                     else:
                         layer.process_edge_distance = False
@@ -186,8 +202,8 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 qgis_layer = la
         return qgis_layer
 
-    def insertRows(self, position, rows=1, index=QModelIndex()):
-        self.beginInsertRows(QModelIndex(), position, position + rows - 1)
+    def insertRows(self, position, rows=1, index=QtCore.QModelIndex()):
+        self.beginInsertRows(QtCore.QModelIndex(), position, position + rows - 1)
         a_layer = self.data_.keys()[0]
         unique_fields = self.data_[a_layer]
         for row in range(rows):
@@ -197,10 +213,10 @@ class ProcessLayerTableModel(QAbstractTableModel):
         self.dirty = True
         return True
 
-    def removeRows(self, position, rows=1, index=QModelIndex()):
+    def removeRows(self, position, rows=1, index=QtCore.QModelIndex()):
         result = False
         if self.rowCount() > 1:
-            self.beginRemoveRows(QModelIndex(), position, position + rows - 1)
+            self.beginRemoveRows(QtCore.QModelIndex(), position, position + rows - 1)
             self.layers = self.layers[:position] + self.layers[position + rows:]
             self.endRemoveRows()
             self.dirty = True
@@ -214,11 +230,11 @@ class ProcessLayerTableModel(QAbstractTableModel):
                 the_layer = layer
         provider = the_layer.dataProvider()
         the_fields = [f for f in provider.fields() \
-            if f.type() in (QVariant.Int, QVariant.Double)]
+            if f.type() in (QtCore.QVariant.Int, QtCore.QVariant.Double)]
         return [f.name() for f in the_fields]
 
 
-class ProcessLayerDelegate(QItemDelegate):
+class ProcessLayerDelegate(QtWidgets.QItemDelegate):
 
     def __init__(self, dialog, parent=None):
         super(ProcessLayerDelegate, self).__init__(parent)
@@ -228,13 +244,12 @@ class ProcessLayerDelegate(QItemDelegate):
         column = index.column()
         row = index.row()
         if column in (LAYER, ID, ATTRIBUTE):
-            combo_box = QComboBox(parent)
-            self.connect(combo_box, SIGNAL('activated(int)'),
-                         self.commitAndCloseEditor)
+            combo_box = QtWidgets.QComboBox(parent)
+            combo_box.activated[int].conntect(self.commitAndCloseEditor)
             result = combo_box
         else:
-            result = QItemDelegate.createEditor(self, parent, option,
-                                                    index)
+            result = QtWidgets.QItemDelegate.createEditor(
+                self, parent, option, index)
         return result
 
     def setEditorData(self, editor, index):
@@ -261,7 +276,7 @@ class ProcessLayerDelegate(QItemDelegate):
             cmb_index = editor.findText(selected_attribute_field_name)
             editor.setCurrentIndex(cmb_index)
         else:
-            QItemDelegate.setEditorData(self, editor, index)
+            QtWidgets.QItemDelegate.setEditorData(self, editor, index)
 
     def setModelData(self, editor, model, index):
         row = index.row()
@@ -278,10 +293,10 @@ class ProcessLayerDelegate(QItemDelegate):
         elif column in (ID, ATTRIBUTE):
             model.setData(index, editor.currentText())
         else:
-            QItemDelegate.setModelData(self, editor, model, index)
+            QtWidgets.QItemDelegate.setModelData(self, editor, model, index)
 
     def commitAndCloseEditor(self):
         editor = self.sender()
-        if isinstance(editor, QComboBox):
+        if isinstance(editor, QtWidgets.QComboBox):
             self.commitData.emit(editor)
-            self.closeEditor.emit(editor, QAbstractItemDelegate.EditNextItem)
+            self.closeEditor.emit(editor, QtWidgets.QAbstractItemDelegate.EditNextItem)

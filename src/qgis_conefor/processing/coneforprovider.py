@@ -1,9 +1,12 @@
 import os
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from qgis.PyQt import (
+    QtCore,
+    QtGui,
+)
+import qgis.core
 
-from processing.core.Processing import Processing
+
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingConfig import Setting, ProcessingConfig
 
@@ -11,7 +14,7 @@ import processingconeforinputs
 import processingconeforprocessor
 
 
-class ProcessingConeforProvider(AlgorithmProvider):
+class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
 
     DESCRIPTION = 'Conefor (Habitat patches and landscape connectivity analysis)'
     NAME = 'Conefor'
@@ -43,7 +46,7 @@ class ProcessingConeforProvider(AlgorithmProvider):
     def getIcon(self):
         return QIcon(':/plugins/qgisconefor/assets/icon.png')
 
-    def _loadAlgorithms(self):
+    def loadAlgorithms(self):
         self.algs = [
             processingconeforinputs.ConeforInputsPointAttribute(),
             processingconeforinputs.ConeforInputsPolygonAttribute(),

@@ -1,8 +1,0 @@
-<RCC>
-  <qresource prefix="/plugins/qgisconefor">
-    <file>assets/help_conefor.html</file>
-    <file>assets/help.html</file>
-    <file>assets/conefor_logo.png</file>
-    <file>assets/icon.png</file>
-  </qresource>
-</RCC>
