@@ -1,41 +1,48 @@
+import enum
 import os
 from typing import Optional
 from pathlib import Path
 
 import qgis.core
+import qgis.gui
 from qgis.PyQt import (
     QtCore,
     QtGui,
     QtWidgets,
-    QtWebKit,
     uic,
 )
 
-from . import (
-    tasks,
-    utilities,
-)
-# from .coneforthreads import (
-#     LayerAnalyzerThread,
-#     LayerProcessingThread,
-# )
+from . import tasks
 from .processlayer import (
+    ProcessLayer,
     ProcessLayerTableModel,
     ProcessLayerDelegate,
 )
+from .coneforinputsprocessor import InputsProcessor
+from .schemas import ConeforInputParameters
 
 UI_DIR = Path(__file__).parent / "ui"
 FORM_CLASS, _ = uic.loadUiType(str(UI_DIR / "conefor_dlg.ui"))
 
 
+class QgisConeforSettingsKey(enum.Enum):
+    OUTPUT_DIR = "PythonPlugins/qgisconefor/output_dir"
+    USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
+
+
 class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
-    _base_settings_key = "PythonPlugins/qgisconefor"
 
-    _analyzer_task: qgis.core.QgsTask
+    # tasks
+    analyzer_task: qgis.core.QgsTask
+    processing_task: Optional[qgis.core.QgsTask]
+
     _layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]]
+    iface: qgis.gui.QgisInterface
+    model: Optional[ProcessLayerTableModel]
+    processor: InputsProcessor
 
+    # UI controls
     add_row_btn: QtWidgets.QPushButton
-    # analyzer_thread: LayerAnalyzerThread
     create_distances_files_chb: QtWidgets.QCheckBox
     help_btn: QtWidgets.QPushButton
     layers_la: QtWidgets.QLabel
@@ -50,10 +57,12 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     tableView: QtWidgets.QTableView
     use_selected_features_chb: QtWidgets.QCheckBox
 
+
     def __init__(self, plugin_obj, parent=None):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.processor = plugin_obj.processor
+        self.model = None
         self.iface = plugin_obj.iface
         self.lock = QtCore.QReadWriteLock()
         self.change_ui_availability(False)
@@ -61,32 +70,35 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.progress_la.setText('Analyzing layers...')
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
+        self.use_selected_features_chb.setChecked(
+            self.load_settings_key(
+                QgisConeforSettingsKey.USE_SELECTED,
+                default_to=False
+            )
+        )
+        self.use_selected_features_chb.stateChanged.connect(
+            self.use_selected_features_toggled)
         self._layers = {}
-
-        # self.processing_thread = LayerProcessingThread(self.lock, self.processor, self)
-        # self.processing_thread.finished.connect(self.finished_processing_layers)
-
-        # self.analyzer_thread = LayerAnalyzerThread(
-        #     lock=self.lock,
-        #     loaded_layers=qgis.core.QgsProject.instance().mapLayers(),
-        #     parent=self
-        # )
-        # self.analyzer_thread.finished.connect(self.finished_analyzing_layers)
-        # self.analyzer_thread.start()
+        self.processing_task = None
         task_manager = qgis.core.QgsApplication.taskManager()
-        self._analyzer_task = tasks.LayerAnalyzer(
+        self.analyzer_task = tasks.LayerAnalyzerTask(
             description="analyze currently loaded layers",
             layers_to_analyze=qgis.core.QgsProject.instance().mapLayers(),
         )
-        self._analyzer_task.layers_analyzed.connect(self.finished_analyzing_layers)
-        task_manager.addTask(self._analyzer_task)
+        self.analyzer_task.layers_analyzed.connect(self.finished_analyzing_layers)
+        task_manager.addTask(self.analyzer_task)
+
+    def use_selected_features_toggled(self, state: int):
+        self.save_settings_key(
+            QgisConeforSettingsKey.USE_SELECTED,
+            True if state == QtCore.Qt.CheckState.Checked else False
+        )
 
     def finished_processing_layers(
-            self, layers, new_files: Optional[list[str]] = None
+            self, new_files: Optional[list[str]] = None
     ):
         self.processing_thread.wait()
-        exist_selected = utilities.exist_selected_features(layers)
-        self.change_ui_availability(True, exist_selected)
+        self.change_ui_availability(True)
         if self.create_distances_files_chb.isChecked():
             for new_layer_path in new_files or []:
                 if new_layer_path.endswith(".shp"):
@@ -98,39 +110,38 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def finished_analyzing_layers(
             self,
-            usable_layers: dict[str, list[qgis.core.QgsField]]
+            usable_layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]]
     ):
-        print(f"inside finished_analyzing_layers {usable_layers=}")
         if any(usable_layers):
             self._layers = usable_layers
-            current_layers = self.iface.layerTreeView().selectedLayers()
-            valid = [la for la in current_layers if la in self._layers.keys()]
-            if not any(valid):
-                valid.append(self._layers.keys()[0])
-            selected = utilities.exist_selected_features(self._layers.keys())
-            self.change_ui_availability(True, selected)
-            self.use_selected_features_chb.setChecked(selected)
+            selected_in_toc = self.iface.layerTreeView().selectedLayers()
+            selected_layers = [la for la in selected_in_toc if la in self._layers.keys()]
+            if not any(selected_layers):
+                selected_layers.append(self._layers.keys()[0])
+            self.change_ui_availability(True)
+            selected_layers: list[qgis.core.QgsVectorLayer]
             self.model = ProcessLayerTableModel(
                 qgis_layers=self._layers,
-                current_layers=valid,
+                current_layers=selected_layers,
                 processor=self.processor,
                 dialog=self
             )
             self.tableView.setModel(self.model)
             delegate = ProcessLayerDelegate(dialog=self, parent=self)
             self.tableView.setItemDelegate(delegate)
-            self.add_row_btn.released.connect(self.add_row)
-            self.remove_row_btn.released.connect(self.remove_row)
+            self.add_row_btn.released.connect(self.add_conefor_input)
+            self.remove_row_btn.released.connect(self.remove_conefor_input)
             self.run_btn.released.connect(self.run_queries)
             self.output_dir_btn.released.connect(self.get_output_dir)
             self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
             self.processor.progress_changed.connect(self.update_progress)
             self.processor.update_info.connect(self.update_info)
             self.model.is_runnable_check.connect(self.toggle_run_button)
-            if len(current_layers) < 2:
+            if len(selected_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
-            output_dir = self.load_settings_key("output_dir", default_to=str(Path.home()))
+            output_dir = self.load_settings_key(
+                QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
             self.output_dir_le.setText(output_dir)
             self.create_distances_files_chb.setChecked(False)
             self.progressBar.setValue(self.processor.global_progress)
@@ -138,7 +149,9 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.change_ui_availability(False)
             self.progress_la.setText(
-                "No suitable layers found. Please consult the plugin\'s Help page.")
+                "No suitable layers found. Please load some vector layers and check "
+                "out the plugin documentation"
+            )
             palette = QtGui.QPalette()
             palette.setColor(QtGui.QPalette.Foreground, QtCore.Qt.GlobalColor.red)
             self.progress_la.setPalette(palette)
@@ -154,9 +167,10 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.progressBar.setValue(0)
 
     def show_help(self):
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/ricardogsilva/qgisconefor"))
+        QtGui.QDesktopServices.openUrl(
+            QtCore.QUrl("https://github.com/ricardogsilva/qgisconefor"))
 
-    def add_row(self):
+    def add_conefor_input(self):
         row = self.model.rowCount()
         self.model.insertRows(row)
         index = self.model.index(row, 0)
@@ -168,93 +182,136 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.remove_row_btn.setEnabled(False)
 
-    def remove_row(self):
+    def remove_conefor_input(self):
         last_row = self.model.rowCount() - 1
         self.model.removeRows(last_row)
         if self.model.rowCount() == 1:
             self.remove_row_btn.setEnabled(False)
 
     def get_output_dir(self):
-        settings_key = "output_dir"
         initial_dir = self.load_settings_key(
-            settings_key, default_to=str(Path.home()))
+            QgisConeforSettingsKey.OUTPUT_DIR,
+            default_to=str(Path.home())
+        )
         chosen_dir = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select output directory", directory=initial_dir)
         final_dir = chosen_dir or initial_dir
-        self.save_settings_key(
-            "/".join((self._base_settings_key, settings_key)),
-            final_dir
-        )
+        self.save_settings_key(QgisConeforSettingsKey.OUTPUT_DIR, final_dir)
         self.output_dir_le.setText(final_dir)
 
-    def save_settings_key(self, key, value):
+    def save_settings_key(self, key: QgisConeforSettingsKey, value):
         settings = qgis.core.QgsSettings()
-        settings.setValue(key, value)
+        settings.setValue(key.value, value)
         settings.sync()
 
-    def load_settings_key(self, key, type_hint=str, default_to=None):
+    def load_settings_key(
+            self,
+            key: QgisConeforSettingsKey,
+            default_to=None
+    ):
         settings = qgis.core.QgsSettings()
-        full_key = "/".join((self._base_settings_key, key))
-        return settings.value(full_key, type=type_hint, defaultValue=default_to)
+        return settings.value(key.value, defaultValue=default_to)
+
+    def get_conefor_input_parameters(
+            self,
+            layer_info: ProcessLayer,
+            load_to_canvas: bool,
+            default_node_identifier_name: Optional[str] = None,
+            default_node_attribute_name: Optional[str] = None,
+            default_process_area: Optional[bool] = None,
+            default_process_centroid_distance: Optional[bool] = None,
+            default_process_edge_distance: Optional[bool] = None,
+    ) -> ConeforInputParameters:
+        node_identifier_name = (
+                default_node_identifier_name or layer_info.id_field_name)
+        if node_identifier_name != "<None>":
+            node_attribute_name = (
+                    default_node_attribute_name or layer_info.attribute_field_name)
+            if node_attribute_name == "<None>":
+                node_attribute_name = None
+
+            process_area = (
+                default_process_area if default_process_area is not None
+                else layer_info.process_area
+            )
+            process_centroid_distance = (
+                default_process_centroid_distance
+                if default_process_centroid_distance is not None
+                else layer_info.process_centroid_distance
+            )
+            process_edge_distance = (
+                default_process_edge_distance
+                if default_process_edge_distance is not None
+                else layer_info.process_edge_distance
+            )
+            return ConeforInputParameters(
+                layer=layer_info.qgis_layer,
+                id_attribute_field_name=node_identifier_name,
+                attribute_field_name=node_attribute_name,
+                attribute_file_name=(
+                    f"nodes_{node_attribute_name}_{layer_info.qgis_layer.name()}"
+                    if node_attribute_name else None
+                ),
+                area_file_name=(
+                    f"nodes_calculated_area_{layer_info.qgis_layer.name()}"
+                    if process_area else None
+                ),
+                centroid_file_name=(
+                    f"distances_centroids_{layer_info.qgis_layer.name()}"
+                    if process_centroid_distance else None
+                ),
+                edge_file_name=(
+                    f"distances_edges_{layer_info.qgis_layer.name()}"
+                    if process_edge_distance else None
+                ),
+                centroid_distance_name=(
+                    f"Centroid_links_{layer_info.qgis_layer.name()}"
+                    if load_to_canvas else None
+                ),
+                edge_distance_name=(
+                    f"Edge_links_{layer_info.qgis_layer.name()}"
+                    if load_to_canvas else None
+                ),
+            )
+        else:
+            raise NoUniqueFieldError
 
     def run_queries(self):
         self.update_progress()
-        layers = []
+        layer_inputs = []
         load_to_canvas = self.create_distances_files_chb.isChecked()
         output_dir = str(self.output_dir_le.text())
         only_selected_features = self.use_selected_features_chb.isChecked()
+
+        kwargs = {}
+        if len(self.model.layers) > 1:
+            first = self.model.layers[0]
+            kwargs.update({
+                "default_node_identifier_name": first.id_field_name,
+                "default_node_attribute_name": first.attribute_field_name,
+                "default_process_area": first.process_area,
+                "default_process_centroid_distance": first.process_centroid_distance,
+                "default_process_edge_distance": first.process_edge_distance,
+            })
+
         for layer_number, la in enumerate(self.model.layers):
-            id_ = la.id_field_name
-            attribute = la.attribute_field_name
-            area = la.process_area
-            centroid = la.process_centroid_distance
-            edge = la.process_edge_distance
-            if self.lock_layers_chb.isChecked() and layer_number > 0:
-                id_ = self.model.layers[0].id_field_name
-                attribute = self.model.layers[0].attribute_field_name
-                area = self.model.layers[0].process_area
-                centroid = self.model.layers[0].process_centroid_distance
-                edge = self.model.layers[0].process_edge_distance
-            if id_ == "<None>":
-                raise NoUniqueFieldError
-            if str(attribute) == "<None>":
-                attribute = None
-                attribute_file_name =  None
+            if layer_number == 0 or not self.lock_layers_chb.isChecked():
+                input_parameters = self.get_conefor_input_parameters(
+                    la, load_to_canvas)
             else:
-                attribute_file_name = f"nodes_{attribute}_{la.qgis_layer.name()}"
-            if area:
-                area_file_name = f"nodes_calculated_area_{la.qgis_layer.name()}"
-            else:
-                area_file_name = None
-            if centroid:
-                centroid_file_name = f"distances_centroids_{la.qgis_layer.name()}"
-            else:
-                centroid_file_name = None
-            if edge:
-                edge_file_name = f"distances_edges_{la.qgis_layer.name()}"
-            else:
-                edge_file_name = None
-            data = {
-                "layer": la.qgis_layer,
-                "id_attribute": id_,
-                "attribute": attribute,
-                "attribute_file_name": attribute_file_name,
-                "area_file_name": area_file_name,
-                "centroid_file_name": centroid_file_name,
-                "edge_file_name": edge_file_name,
-                "centroid_distance_name": None,
-                "edge_distance_name": None,
-            }
-            if load_to_canvas:
-                if centroid:
-                    data["centroid_distance_name"] = f"Centroid_links_{la.qgis_layer.name()}"
-                if edge:
-                    data["edge_distance_name"] = f"Edge_links_{la.qgis_layer.name()}"
-            layers.append(data)
+                input_parameters = self.get_conefor_input_parameters(
+                    la, load_to_canvas, **kwargs)
+            layer_inputs.append(input_parameters)
         self.change_ui_availability(False)
-        self.processing_thread.initialize(layers, output_dir,
-                                          only_selected_features)
-        self.processing_thread.start()
+        self.processing_task = tasks.LayerProcessorTask(
+            description="Generate Conefor input files",
+            conefor_processor=self.processor,
+            layers_data=layer_inputs,
+            output_dir=output_dir,
+            use_selected_features=only_selected_features
+        )
+        task_manager = qgis.core.QgsApplication.taskManager()
+        task_manager.addTask(self.processing_task)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)
@@ -314,8 +371,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.run_btn.setEnabled(False)
 
-    def change_ui_availability(
-            self, enabled: bool, selected_features: bool = False):
+    def change_ui_availability(self, enabled: bool):
         widgets = [
             self.layers_la,
             self.tableView,
@@ -331,8 +387,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         ]
         for widget in widgets:
             widget.setEnabled(enabled)
-        if enabled:
-            self.use_selected_features_chb.setEnabled(selected_features)
 
 
 class NoUniqueFieldError(Exception):

@@ -7,6 +7,7 @@ import qgis.core
 from qgis.PyQt import QtCore
 
 from . import utilities
+from .schemas import ConeforInputParameters
 
 
 class InvalidFeatureError(Exception):
@@ -27,9 +28,13 @@ class InputsProcessor(QtCore.QObject):
         self.project_crs = project_crs
         self.global_progress = 0
 
-    def run_queries(self, layers, output_dir,
-                    only_selected_features=True,
-                    save_text_files=True):
+    def run_queries(
+            self,
+            layers: list[ConeforInputParameters],
+            output_dir: str,
+            only_selected_features: bool = True,
+            save_text_files: bool = True
+    ):
         """
         Create the Conefor inputs files.
 
@@ -66,23 +71,15 @@ class InputsProcessor(QtCore.QObject):
 
         self.update_info.emit('Processing started...', 0)
         new_files = []
-        layer_progress_step = 100.0 / len(layers)
+        layer_progress_step = 100 // len(layers)
         try:
             for index, layer_params in enumerate(layers):
-                layer = layer_params["layer"]
-                self.update_info.emit("layer: {}".format(layer.name()), 0)
+                vector_layer = layer_params.layer
+                self.update_info.emit(f"layer: {vector_layer.name()}", 0)
                 layer_files = self.process_layer(
-                    layer,
-                    layer_params['id_attribute'],
-                    output_dir, 
-                    attribute=layer_params['attribute'],
+                    layer_params,
+                    output_dir,
                     progress_step=layer_progress_step,
-                    area_file_name=layer_params['area_file_name'],
-                    attribute_file_name=layer_params['attribute_file_name'],
-                    centroid_file_name=layer_params['centroid_file_name'],
-                    edge_file_name=layer_params['edge_file_name'],
-                    centroid_distance_file_name=layer_params['centroid_distance_name'],
-                    edge_distance_file_name=layer_params['edge_distance_name'],
                     only_selected_features=only_selected_features,
                     add_vector_layers_out_dir=True
                 )
@@ -190,8 +187,15 @@ class InputsProcessor(QtCore.QObject):
         del writer
         return output_path
 
-    def _save_text_file(self, data, log_text, output_dir, output_name,
-                        encoding, progress_step):
+    def _save_text_file(
+            self,
+            data,
+            log_text,
+            output_dir: str,
+            output_name,
+            encoding: str,
+            progress_step
+    ) -> str:
         self.update_info.emit(log_text, 1)
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
@@ -212,13 +216,15 @@ class InputsProcessor(QtCore.QObject):
         self.progress_changed.emit()
         return output_path
 
-    def process_layer(self, layer, id_attribute, output_dir, attribute=None,
-                      progress_step=0, area_file_name=None,
-                      attribute_file_name=None, centroid_file_name=None,
-                      edge_file_name=None, centroid_distance_file_name=None,
-                      edge_distance_file_name=None,
-                      only_selected_features=True,
-                      add_vector_layers_out_dir=False):
+    def process_layer(
+            self,
+            layer_params: ConeforInputParameters,
+            output_dir,
+            attribute=None,
+            progress_step=0,
+            only_selected_features=True,
+            add_vector_layers_out_dir=False
+    ):
         """
         Process an individual layer.
 
@@ -268,19 +274,14 @@ class InputsProcessor(QtCore.QObject):
         """
 
         created_files = []
-        encoding = layer.dataProvider().encoding()
+        encoding = layer_params.layer.dataProvider().encoding()
         if encoding == 'System':
             encoding = sys.getfilesystemencoding()
-        num_queries = self._determine_num_queries(attribute_file_name,
-                                                  area_file_name,
-                                                  centroid_file_name,
-                                                  edge_file_name,
-                                                  centroid_distance_file_name,
-                                                  edge_distance_file_name)
+        num_queries = self._determine_num_queries(layer_params)
         num_files_to_save = num_queries
-        if centroid_distance_file_name is not None:
+        if layer_params.centroid_file_name is not None:
             num_files_to_save += 1
-        if edge_distance_file_name is not None:
+        if layer_params.edge_file_name is not None:
             num_files_to_save += 1
         # assuming that the actual processing will take 90% of the time
         # and saving the results to file will take only 10%
@@ -290,38 +291,48 @@ class InputsProcessor(QtCore.QObject):
         if num_queries > 1:
             if attribute is not None:
                 attribute_query_step = running_queries_step * 0.1
-                each_query_step = (running_queries_step - attribute_query_step) / (
-                                   num_queries - 1)
+                each_query_step = (
+                        (running_queries_step - attribute_query_step) /
+                        (num_queries - 1)
+                )
             else:
                 each_query_step = running_queries_step / num_queries
         elif num_queries == 1:
             each_query_step = running_queries_step / num_queries
             attribute_query_step = each_query_step
-        else:
-            raise
+
         saving_files_step = progress_step - running_queries_step
         each_save_file_step = saving_files_step / num_files_to_save
-        if attribute is not None and attribute_file_name is not None:
-            output_path = os.path.join(output_dir, attribute_file_name)
-            attribute_file = self._run_attribute_query(layer, id_attribute,
-                                                       attribute, encoding,
-                                                       only_selected_features,
-                                                       attribute_query_step,
-                                                       output_path,
-                                                       each_save_file_step)
-            if attribute_file is not None:
-                created_files.append(attribute_file)
-        if area_file_name is not None:
-            output_path = os.path.join(output_dir, area_file_name)
-            area_file = self._run_area_query(layer, id_attribute, encoding,
-                                 only_selected_features, each_query_step,
-                                 output_path, each_save_file_step)
-            if area_file is not None:
-                created_files.append(area_file)
-        if centroid_file_name is not None or \
-                centroid_distance_file_name is not None:
+        if all(
+                (
+                        layer_params.attribute_field_name,
+                        layer_params.attribute_file_name
+                )
+        ):
+            output_path = os.path.join(output_dir, layer_params.attribute_file_name)
+            attribute_file_path = self._run_attribute_query(
+                layer_params,
+                encoding,
+                only_selected_features,
+                attribute_query_step,
+                output_path,
+                each_save_file_step
+            )
+            created_files.append(attribute_file_path)
+        if layer_params.area_file_name is not None:
+            output_path = os.path.join(output_dir, layer_params.area_file_name)
+            area_file_path = self._run_area_query(
+                layer_params,
+                encoding,
+                only_selected_features,
+                each_query_step,
+                output_path,
+                each_save_file_step
+            )
+            created_files.append(area_file_path)
+        if any((layer_params.centroid_file_name, layer_params.centroid_distance_name)):
             try:
-                output_path = os.path.join(output_dir, centroid_file_name)
+                output_path = os.path.join(output_dir, layer_params.centroid_file_name)
             except (TypeError, AttributeError):
                 output_path = None
             try:
@@ -329,18 +340,17 @@ class InputsProcessor(QtCore.QObject):
                     shape_output_path = os.path.join(
                         output_dir,
                         'Link_vector_layers',
-                        centroid_distance_file_name
+                        layer_params.centroid_distance_name,
                     )
                 else:
                     shape_output_path = os.path.join(
                         output_dir,
-                        centroid_distance_file_name
+                        layer_params.centroid_distance_name,
                     )
             except (TypeError, AttributeError):
                 shape_output_path = None
             centroid_files = self._run_centroid_query(
-                layer,
-                id_attribute,
+                layer_params,
                 encoding,
                 only_selected_features,
                 each_query_step,
@@ -349,22 +359,28 @@ class InputsProcessor(QtCore.QObject):
                 shape_output_path
             )
             created_files += centroid_files
-        created_files += self._perform_edge_query(layer, id_attribute,
-                                                  encoding,
-                                                  only_selected_features,
-                                                  each_query_step,
-                                                  each_save_file_step,
-                                                  output_dir,
-                                                  edge_file_name,
-                                                  edge_distance_file_name,
-                                                  add_vector_layers_out_dir)
+        created_files += self._perform_edge_query(
+            layer_params,
+            encoding,
+            only_selected_features,
+            each_query_step,
+            each_save_file_step,
+            output_dir,
+            add_vector_layers_out_dir
+        )
         self.progress_changed.emit()
         return created_files
 
-    def _perform_edge_query(self, layer, id_attribute, encoding, use_selected,
-                            analysis_step, file_save_step, output_dir,
-                            text_file=None, shape_file=None,
-                            create_vector_dir=False):
+    def _perform_edge_query(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            file_save_step,
+            output_dir: str,
+            create_vector_dir=False
+    ) -> list[str]:
         """
         Inputs:
 
@@ -392,7 +408,7 @@ class InputsProcessor(QtCore.QObject):
                            create a vector layer showing the distances.
         """
 
-        if shape_file is not None:
+        if layer_params.edge_distance_name:
             # must calculate edge distances AND must plot them -> slow method
             # may not need to save the distances.txt file
             try:
@@ -400,25 +416,28 @@ class InputsProcessor(QtCore.QObject):
                     shape_output_path = os.path.join(
                         output_dir,
                         'Link_vector_layers',
-                        shape_file
+                        layer_params.edge_distance_name
                     )
                 else:
                     shape_output_path = os.path.join(
                         output_dir,
-                        shape_file
+                        layer_params.edge_distance_name
                     )
             except (TypeError, AttributeError):
                 shape_output_path = None
-            if text_file is not None:
+            if layer_params.edge_file_name:
                 # must save the distances.txt file
                 try:
-                    text_out_path = os.path.join(output_dir, text_file)
+                    text_out_path = os.path.join(
+                        output_dir, layer_params.edge_file_name)
                 except (TypeError, AttributeError):
                     text_out_path = None
             else:
                 text_out_path = None
             edge_files = self._run_edge_query(
-                layer, id_attribute, encoding, use_selected,
+                layer_params,
+                encoding,
+                use_selected,
                 analysis_step,
                 output_path=text_out_path,
                 file_save_progress_step=file_save_step,
@@ -427,26 +446,26 @@ class InputsProcessor(QtCore.QObject):
         else:
             # will not plot edge distances -> fast method
             # may need to save the distances.txt file
-            if text_file is not None:
+            if layer_params.edge_file_name is not None:
                 try:
-                    text_out_path = os.path.join(output_dir, text_file)
+                    text_out_path = os.path.join(
+                        output_dir, layer_params.edge_file_name)
                 except (TypeError, AttributeError):
                     text_out_path = None
-                edge_files = self._run_edge_query_fast(layer, id_attribute,
-                                                       encoding,
-                                                       use_selected,
-                                                       analysis_step,
-                                                       text_out_path,
-                                                       file_save_step)
+                edge_files = self._run_edge_query_fast(
+                    layer_params,
+                    encoding,
+                    use_selected,
+                    analysis_step,
+                    text_out_path,
+                    file_save_step
+                )
             else:
                 # do nothing, yay
                 edge_files = []
         return edge_files
 
-    def _determine_num_queries(self, attribute_file_name, area_file_name,
-                               centroid_file_name, edge_file_name,
-                               centroid_distance_file_name,
-                               edge_distance_file_name):
+    def _determine_num_queries(self, layer_params: ConeforInputParameters):
         """
         Return the number of queries that will be processed.
 
@@ -454,20 +473,39 @@ class InputsProcessor(QtCore.QObject):
         """
 
         num_queries = 0
-        if attribute_file_name is not None:
-            num_queries += 1
-        if area_file_name is not None:
-            num_queries += 1
-        if centroid_file_name is not None or \
-                centroid_distance_file_name is not None:
-            num_queries += 1
-        if edge_file_name is not None or edge_distance_file_name is not None:
-            num_queries += 1
+        num_queries = (
+            num_queries + 1 if layer_params.attribute_file_name is not None
+            else num_queries
+        )
+        num_queries = (
+            num_queries + 1 if layer_params.area_file_name is not None
+            else num_queries
+        )
+        num_queries = (
+            num_queries + 1 if (
+                    layer_params.centroid_file_name is not None
+                    or layer_params.centroid_distance_name is not None
+            )
+            else num_queries
+        )
+        num_queries = (
+            num_queries + 1 if (
+                    layer_params.edge_file_name is not None
+                    or layer_params.edge_distance_name is not None
+            )
+            else num_queries
+        )
         return num_queries
 
-    def _run_attribute_query(self, layer, id_attribute, attribute, encoding,
-                             use_selected, analysis_step, output_path,
-                             file_save_progress_step=0):
+    def _run_attribute_query(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            output_path,
+            file_save_progress_step=0
+    ) -> str:
         """
         Process the attribute data query.
 
@@ -500,22 +538,28 @@ class InputsProcessor(QtCore.QObject):
 
         self.update_info.emit('Running attribute query', 1)
         data = []
-        features = utilities.get_features(layer, use_selected)
+        features = utilities.get_features(layer_params.layer, use_selected)
         for feat in features:
-            id_attr = self._get_numeric_attribute(feat, id_attribute)
-            attr = self._get_numeric_attribute(feat, attribute, float)
+            id_attr = self._get_numeric_attribute(
+                feat, layer_params.id_attribute_field_name)
+            attr = self._get_numeric_attribute(
+                feat, layer_params.attribute_field_name, float)
             if attr is not None and id_attr is not None:
                 if attr < 0:
-                    raise ValueError('Attribute must be non negative')
+                    raise ValueError("Attribute must be non negative")
                 else:
                     data.append((id_attr, attr))
         self.global_progress += analysis_step
         self.progress_changed.emit()
         output_dir, output_name = os.path.split(output_path)
-        output_file = self._save_text_file(data, 'Writing attribute file...',
-                                           output_dir, output_name, encoding,
-                                           file_save_progress_step)
-        return output_file
+        return self._save_text_file(
+            data,
+            "Writing attribute file...",
+            output_dir,
+            output_name,
+            encoding,
+            file_save_progress_step
+        )
 
     def _get_numeric_attribute(self, feature, attribute_name, type_=int):
         try:
@@ -528,8 +572,15 @@ class InputsProcessor(QtCore.QObject):
             result = type_(the_attribute)
         return result
 
-    def _run_area_query(self, layer, id_attribute, encoding, use_selected,
-                        analysis_step, output_path, file_save_progress_step=0):
+    def _run_area_query(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            output_path,
+            file_save_progress_step=0
+    ) -> str:
         """
         Process the area data query.
 
@@ -559,17 +610,20 @@ class InputsProcessor(QtCore.QObject):
 
         self.update_info.emit('Running area query...', 1)
         data = []
-        if layer.crs().geographicFlag():
+        vector_layer = layer_params.layer
+        if vector_layer.crs().geographicFlag():
             if self.project_crs.geographicFlag():
-                print('Neither the layer nor the project\'s coordinate ' \
-                        'system is projected. The area calculation will not ' \
-                        'be acurate.')
+                print(
+                    'Neither the layer nor the project\'s coordinate ' \
+                    'system is projected. The area calculation will not ' \
+                    'be acurate.'
+                )
             measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(layer)
+            transformer = self._get_transformer(vector_layer)
         else:
-            measurer = self._get_measurer(layer.crs())
+            measurer = self._get_measurer(vector_layer.crs())
             transformer = None
-        features = utilities.get_features(layer, use_selected)
+        features = utilities.get_features(vector_layer, use_selected)
         for feat in features:
             polygon = feat.geometry().asPolygon()
             new_polygon = []
@@ -589,7 +643,8 @@ class InputsProcessor(QtCore.QObject):
                     for hole in holes:
                         hole_areas += measurer.measurePolygon(hole)
                 total_feat_area = outer_area - hole_areas
-                id_attr = self._get_numeric_attribute(feat, id_attribute)
+                id_attr = self._get_numeric_attribute(
+                    feat, layer_params.id_attribute_field_name)
                 if id_attr is not None:
                     data.append((id_attr, total_feat_area))
         self.global_progress += analysis_step
@@ -597,33 +652,45 @@ class InputsProcessor(QtCore.QObject):
         output_file = None
         if any(data):
             output_dir, output_name = os.path.split(output_path)
-            output_file = self._save_text_file(data, 'Writing area file...',
-                                               output_dir, output_name,
-                                               encoding,
-                                               file_save_progress_step)
+            output_file = self._save_text_file(
+                data,
+                "Writing area file...",
+                output_dir,
+                output_name,
+                encoding,
+                file_save_progress_step
+            )
         return output_file
 
-    def _run_centroid_query(self, layer, id_attribute, encoding, use_selected,
-                            analysis_step, output_path=None,
-                            file_save_progress_step=0,
-                            shape_file_path=None):
+    def _run_centroid_query(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            output_path=None,
+            file_save_progress_step=0,
+            shape_file_path=None
+    ):
         self.update_info.emit('Running centroid query...', 1)
         data = []
-        if layer.crs().geographicFlag():
+        vector_layer = layer_params.layer
+        if vector_layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(layer)
+            transformer = self._get_transformer(vector_layer)
         else:
-            measurer = self._get_measurer(layer.crs())
+            measurer = self._get_measurer(vector_layer.crs())
             transformer = None
-        feature_ids = [f.id() for f in utilities.get_features(layer,
-                                                              use_selected)]
+        feature_ids = [
+            f.id() for f in utilities.get_features(vector_layer, use_selected)]
         i = 0
         j = 0
         while i < len(feature_ids):
-            features = utilities.get_features(layer, use_selected,
-                                              feature_ids[i])
+            features = utilities.get_features(
+                vector_layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            c_id_attr = self._get_numeric_attribute(current, id_attribute)
+            c_id_attr = self._get_numeric_attribute(
+                current, layer_params.id_attribute_field_name)
             if c_id_attr is not None:
                 current_geom = current.geometry()
                 orig_curr_centroid = current_geom.centroid().asPoint()
@@ -631,11 +698,12 @@ class InputsProcessor(QtCore.QObject):
                     orig_curr_centroid, transformer)
                 j = i + 1
                 while j < len(feature_ids):
-                    features = utilities.get_features(layer, use_selected,
-                                                      feature_ids[j])
+                    features = utilities.get_features(
+                        vector_layer, use_selected, feature_ids[j]
+                    )
                     next_ = iter(features).next()
-                    n_id_attr = self._get_numeric_attribute(next_,
-                                                            id_attribute)
+                    n_id_attr = self._get_numeric_attribute(
+                        next_, layer_params.id_attribute_field_name)
                     if n_id_attr is not None:
                         next_geom = next_.geometry()
                         orig_n_centroid = next_geom.centroid().asPoint()
@@ -694,7 +762,7 @@ class InputsProcessor(QtCore.QObject):
                     data_to_write.append(the_data)
                 output_shape = self._write_distance_file(
                     data_to_write, output_dir, output_name, encoding,
-                    layer.crs()
+                    vector_layer.crs()
                 )
                 output_files.append(output_shape)
                 self.global_progress += file_save_progress_step
@@ -712,10 +780,16 @@ class InputsProcessor(QtCore.QObject):
         transformer = qgis.core.QgsCoordinateTransform(source_crs, self.project_crs)
         return transformer
 
-    def _run_edge_query(self, layer, id_attribute, encoding, use_selected,
-                        analysis_step, output_path=None,
-                        file_save_progress_step=0, 
-                        shape_file_path=None):
+    def _run_edge_query(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            output_path=None,
+            file_save_progress_step=0,
+            shape_file_path=None
+    ) -> list[str]:
         # for each current and next features
         #   get the closest edge from current to next -> L1
         #   get the closest edge from next to current -> L2
@@ -724,40 +798,43 @@ class InputsProcessor(QtCore.QObject):
         #   the pair with the smallest distance wins!
         self.update_info.emit('Running edge query', 1)
         data = []
-        if layer.crs().geographicFlag():
+        vector_layer = layer_params.layer
+        if vector_layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(layer)
+            transformer = self._get_transformer(vector_layer)
         else:
-            measurer = self._get_measurer(layer.crs())
+            measurer = self._get_measurer(vector_layer.crs())
             transformer = None
-        feature_ids = [f.id() for f in utilities.get_features(layer, use_selected)]
+        feature_ids = [f.id() for f in utilities.get_features(vector_layer, use_selected)]
         feature_step = analysis_step / float(len(feature_ids))
         i = 0
         j = 0
         while i < len(feature_ids):
             self.update_info.emit(
                 "Processing feature {}/{}".format(i+1, len(feature_ids)), 2)
-            features = utilities.get_features(layer, use_selected, 
+            features = utilities.get_features(vector_layer, use_selected,
                                               feature_ids[i])
             current = iter(features).next()
-            c_id_at = self._get_numeric_attribute(current, id_attribute)
+            c_id_at = self._get_numeric_attribute(
+                current, layer_params.id_attribute_field_name)
             if c_id_at is not None:
                 current_geom = current.geometry()
                 geometry_errors = current_geom.validateGeometry()
                 if any(geometry_errors):
                     raise InvalidFeatureError('Layer: %s - Feature %s has '
                                               'geometry errors. Aborting...'
-                                              % (layer.name(), c_id_at))
+                                              % (vector_layer.name(), c_id_at))
                 elif current_geom.isMultipart():
                     raise InvalidFeatureError('Feature %s is multipart. '
                                               'Aborting...' % c_id_at)
                 current_poly = self._get_polygon(current_geom, transformer)
                 j = i + 1
                 while j < len(feature_ids):
-                    features = utilities.get_features(layer, use_selected,
+                    features = utilities.get_features(vector_layer, use_selected,
                                                       feature_ids[j])
                     next_ = iter(features).next()
-                    n_id_at = self._get_numeric_attribute(next_, id_attribute)
+                    n_id_at = self._get_numeric_attribute(
+                        next_, layer_params.id_attribute_field_name)
                     if n_id_at is not None:
                         next_geom = next_.geometry()
                         next_poly = self._get_polygon(next_geom, transformer)
@@ -826,7 +903,7 @@ class InputsProcessor(QtCore.QObject):
                 output_shape = self._write_distance_file(data, output_dir,
                                                          output_name,
                                                          encoding,
-                                                         layer.crs())
+                                                         vector_layer.crs())
                 output_files.append(output_shape)
                 self.global_progress += file_save_progress_step
                 self.progress_changed.emit()
@@ -1018,9 +1095,15 @@ class InputsProcessor(QtCore.QObject):
                 distance = dist
         return closest
 
-    def _run_edge_query_fast(self, layer, id_attribute, encoding, use_selected,
-                        analysis_step, output_path=None,
-                        file_save_progress_step=0):
+    def _run_edge_query_fast(
+            self,
+            layer_params: ConeforInputParameters,
+            encoding,
+            use_selected,
+            analysis_step,
+            output_path=None,
+            file_save_progress_step=0
+    ) -> list[str]:
         """
         This method performs a faster edge query.
 
@@ -1038,34 +1121,37 @@ class InputsProcessor(QtCore.QObject):
 
         self.update_info.emit('Running fast edge query', 1)
         data = []
-        if layer.crs().geographicFlag():
+        vector_layer = layer_params.layer
+        if vector_layer.crs().geographicFlag():
             measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(layer)
+            transformer = self._get_transformer(vector_layer)
         else:
-            measurer = self._get_measurer(layer.crs())
+            measurer = self._get_measurer(vector_layer.crs())
             transformer = None
         feature_ids = [f.id() for f in utilities.get_features(
-                       layer, use_selected)]
+                       vector_layer, use_selected)]
         feature_step = analysis_step / float(len(feature_ids))
         i = 0
         j = 0
         while i < len(feature_ids):
             self.update_info.emit(
                 "Processing feature {}/{}".format(i+1, len(feature_ids)), 2)
-            features = utilities.get_features(layer, use_selected, 
+            features = utilities.get_features(vector_layer, use_selected,
                                               feature_ids[i])
             current = iter(features).next()
-            c_id_at = self._get_numeric_attribute(current, id_attribute)
+            c_id_at = self._get_numeric_attribute(
+                current, layer_params.id_attribute_field_name)
             if c_id_at is not None:
                 current_geom = current.geometry()
                 if transformer is not None:
                     current_geom.transform(transformer)
                 j = i + 1
                 while j < len(feature_ids):
-                    features = utilities.get_features(layer, use_selected,
+                    features = utilities.get_features(vector_layer, use_selected,
                                                       feature_ids[j])
                     next_ = iter(features).next()
-                    n_id_at = self._get_numeric_attribute(next_, id_attribute)
+                    n_id_at = self._get_numeric_attribute(
+                        next_, layer_params.id_attribute_field_name)
                     if n_id_at is not None:
                         next_geom = next_.geometry()
                         if transformer is not None:

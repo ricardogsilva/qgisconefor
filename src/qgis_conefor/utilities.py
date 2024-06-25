@@ -5,7 +5,7 @@ from qgis.PyQt import QtCore
 
 def log(message, level=qgis.core.Qgis.Info):
     """Helper function to facilitate using QGIS' logging system."""
-    qgis.utils.QgsMessageLog.logMessage(message, level=level)
+    qgis.utils.QgsMessageLog.logMessage(message, "qgisconefor", level=level)
 
 
 def get_features(layer, use_selected, filter_id=None):

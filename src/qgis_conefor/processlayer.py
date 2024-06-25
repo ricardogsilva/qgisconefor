@@ -1,12 +1,12 @@
 from qgis.PyQt import (
     QtCore,
-    QtGui,
     QtWidgets,
 )
 
 import qgis.core
 
 from . import coneforinputsprocessor
+from .utilities import log
 
 LAYER, ID, ATTRIBUTE, AREA, EDGE, CENTROID = range(6)
 
@@ -39,7 +39,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
     def __init__(
             self,
             *,
-            qgis_layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]],
+            qgis_layers: dict[qgis.core.QgsVectorLayer, list[str]],
             current_layers: list[qgis.core.QgsVectorLayer],
             processor: coneforinputsprocessor.InputsProcessor,
             dialog: QtWidgets.QDialog
@@ -213,11 +213,13 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     def insertRows(self, position, rows=1, index=QtCore.QModelIndex()):
         self.beginInsertRows(QtCore.QModelIndex(), position, position + rows - 1)
-        a_layer = self.data_.keys()[0]
-        unique_fields = self.data_[a_layer]
+        first_layer = next(iter(self.data_.keys()))
+        unique_fields = self.data_[first_layer]
         for row in range(rows):
-            self.layers.insert(position + row, ProcessLayer(a_layer,
-                               self.processor, unique_fields))
+            self.layers.insert(
+                position + row,
+                ProcessLayer(first_layer, self.processor, unique_fields)
+            )
         self.endInsertRows()
         self.dirty = True
         return True
