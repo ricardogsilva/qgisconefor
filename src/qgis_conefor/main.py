@@ -33,7 +33,7 @@ class QgisConefor:
         processing_registry = qgis.core.QgsApplication.processingRegistry()
         # processing_registry.addProvider(self.processing_provider)
         self.action = QAction(
-            QIcon(":plugins/qgisconefor/assets/icon.png"),
+            QIcon(":/plugins/qgisconefor/icon.png"),
             self._action_title,
             self.iface.mainWindow()
         )

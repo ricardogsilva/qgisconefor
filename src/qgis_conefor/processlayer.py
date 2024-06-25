@@ -6,6 +6,8 @@ from qgis.PyQt import (
 
 import qgis.core
 
+from . import coneforinputsprocessor
+
 LAYER, ID, ATTRIBUTE, AREA, EDGE, CENTROID = range(6)
 
 
@@ -34,7 +36,14 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     is_runnable_check = QtCore.pyqtSignal()
 
-    def __init__(self, qgis_layers, current_layers, processor, dialog):
+    def __init__(
+            self,
+            *,
+            qgis_layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]],
+            current_layers: list[qgis.core.QgsVectorLayer],
+            processor: coneforinputsprocessor.InputsProcessor,
+            dialog: QtWidgets.QDialog
+    ):
         self.processor = processor
         self.dialog = dialog
         self._header_labels = list(range(6))
@@ -197,7 +206,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     def _get_qgis_layer(self, layer_name):
         qgis_layer = None
-        for la, unique_fields in self.data_.iteritems():
+        for la, unique_fields in self.data_.items():
             if str(la.name()) == str(layer_name):
                 qgis_layer = la
         return qgis_layer
@@ -236,7 +245,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
 class ProcessLayerDelegate(QtWidgets.QItemDelegate):
 
-    def __init__(self, dialog, parent=None):
+    def __init__(self, *, dialog, parent=None):
         super(ProcessLayerDelegate, self).__init__(parent)
         self.dialog = dialog
 
@@ -245,7 +254,7 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
         row = index.row()
         if column in (LAYER, ID, ATTRIBUTE):
             combo_box = QtWidgets.QComboBox(parent)
-            combo_box.activated[int].conntect(self.commitAndCloseEditor)
+            combo_box.activated[int].connect(self.commitAndCloseEditor)
             result = combo_box
         else:
             result = QtWidgets.QItemDelegate.createEditor(

@@ -91,7 +91,7 @@ def build(
     icon_path = copy_icon(context, output_dir)
     if icon_path is None:
         print("Could not copy icon")
-    compile_resources(context, output_dir)
+    compile_resources(output_dir)
     generate_metadata(context, output_dir)
     return output_dir
 
@@ -127,7 +127,6 @@ def copy_source_files(
 
 @app.command()
 def compile_resources(
-    context: typer.Context,
     output_dir: typing.Optional[Path] = LOCAL_ROOT_DIR / "build/temp",
 ):
     resources_path = LOCAL_ROOT_DIR / "resources" / "resources.qrc"

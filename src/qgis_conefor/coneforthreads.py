@@ -2,58 +2,70 @@ import qgis.core
 from qgis.PyQt import QtCore
 
 
-class LayerAnalyzerThread(QtCore.QThread):
-
-    analyzing_layer = QtCore.pyqtSignal()
-
-    def __init__(self, lock, parent=None):
-        super(LayerAnalyzerThread, self).__init__(parent)
-        self.lock = lock
-        self.mutex = QtCore.QMutex()
-        self.stopped = False
-        self.completed = False
-
-    def initialize(
-            self,
-            loaded_layers: dict[str, qgis.core.QgsMapLayer]
-    ):
-        self.loaded_layers = loaded_layers
-
-    def run(self):
-        usable_layers = self.analyze_layers()
-        self.stop()
-        self.finished.emit(usable_layers)
-
-    def stop(self):
-        with QtCore.QMutexLocker(self.mutex):
-            self.stopped = True
-
-    def is_stopped(self):
-        result = False
-        with QtCore.QMutexLocker(self.mutex):
-            if self.stopped:
-                result = True
-        return result
-
-    def analyze_layers(self):
-        """Returns a dictionary with the usable layers and unique fields."""
-
-        usable_layers = dict()
-        for layer_id, the_layer in self.loaded_layers.iteritems():
-            self.analyzing_layer.emit(the_layer.name())
-            if the_layer.type() == qgis.core.QgsMapLayer.VectorLayer:
-                the_layer: qgis.core.QgsVectorLayer
-                if the_layer.wkbType() in (
-                        qgis.core.QgsWkbTypes.Point,
-                        qgis.core.QgsWkbTypes.Polygon
-                ):
-                    the_fields = []
-                    for f in the_layer.dataProvider().fields():
-                        if f.type() in (QtCore.QVariant.Int, QtCore.QVariant.Double):
-                            the_fields.append(f.name())
-                    if any(the_fields):
-                        usable_layers[the_layer] = the_fields
-        return usable_layers
+# class LayerAnalyzerThread(QtCore.QThread):
+#
+#     loaded_layers: dict[str, qgis.core.QgsMapLayer]
+#
+#     def __init__(
+#             self,
+#             *,
+#             lock,
+#             loaded_layers: dict[str, qgis.core.QgsMapLayer],
+#             parent=None
+#     ):
+#         super(LayerAnalyzerThread, self).__init__(parent)
+#         self.lock = lock
+#         self.mutex = QtCore.QMutex()
+#         self.stopped = False
+#         self.completed = False
+#         self.loaded_layers = loaded_layers
+#
+#     def run(self):
+#         usable_layers = self.analyze_layers()
+#         self.stop()
+#         self.finished.emit(usable_layers)
+#
+#     def stop(self):
+#         with QtCore.QMutexLocker(self.mutex):
+#             self.stopped = True
+#
+#     def is_stopped(self):
+#         result = False
+#         with QtCore.QMutexLocker(self.mutex):
+#             if self.stopped:
+#                 result = True
+#         return result
+#
+#     def analyze_layers(self):
+#         """Returns a dictionary with the usable layers and unique fields."""
+#
+#         usable_layers = {}
+#         relevant_types = (
+#             QtCore.QtMetaType.Int,
+#             QtCore.QtMetaType.Double,
+#             QtCore.QtMetaType.Float,
+#             QtCore.QtMetaType.Short,
+#             QtCore.QtMetaType.Long,
+#             QtCore.QtMetaType.LongLong,
+#             QtCore.QtMetaType.UInt,
+#             QtCore.QtMetaType.ULong,
+#             QtCore.QtMetaType.ULongLong,
+#             QtCore.QtMetaType.UShort,
+#         )
+#         for id_, map_layer in self.loaded_layers.items():
+#             if map_layer.type() == qgis.core.QgsMapLayer.LayerType.Vector:
+#                 the_layer: qgis.core.QgsVectorLayer
+#                 if map_layer.wkbType() in (
+#                         qgis.core.QgsWkbTypes.Point,
+#                         qgis.core.QgsWkbTypes.Polygon,
+#                 ):
+#                     the_fields = []
+#                     for field in map_layer.fields():
+#                         if field.type() in relevant_types:
+#                             the_fields.append(field.name())
+#                     if any(the_fields):
+#                         usable_layers[map_layer] = the_fields
+#         return usable_layers
 
 
 class LayerProcessingThread(QtCore.QThread):

@@ -7,35 +7,42 @@ from qgis.PyQt import (
     QtCore,
     QtGui,
     QtWidgets,
+    QtWebKit,
     uic,
 )
 
-
-from . import utilities
-from .coneforthreads import (
-    LayerAnalyzerThread,
-    LayerProcessingThread,
+from . import (
+    tasks,
+    utilities,
 )
+# from .coneforthreads import (
+#     LayerAnalyzerThread,
+#     LayerProcessingThread,
+# )
 from .processlayer import (
     ProcessLayerTableModel,
     ProcessLayerDelegate,
 )
-
 
 UI_DIR = Path(__file__).parent / "ui"
 FORM_CLASS, _ = uic.loadUiType(str(UI_DIR / "conefor_dlg.ui"))
 
 
 class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
-    _settings_key = "PythonPlugins/qgisconefor"
+    _base_settings_key = "PythonPlugins/qgisconefor"
+
+    _analyzer_task: qgis.core.QgsTask
+    _layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]]
 
     add_row_btn: QtWidgets.QPushButton
-    analyzer_thread: LayerAnalyzerThread
+    # analyzer_thread: LayerAnalyzerThread
     create_distances_files_chb: QtWidgets.QCheckBox
     help_btn: QtWidgets.QPushButton
+    layers_la: QtWidgets.QLabel
     lock_layers_chb: QtWidgets.QCheckBox
     progressBar: QtWidgets.QProgressBar
     progress_la: QtWidgets.QLabel
+    output_la: QtWidgets.QLabel
     output_dir_le: QtWidgets.QLineEdit
     output_dir_btn: QtWidgets.QPushButton
     remove_row_btn: QtWidgets.QPushButton
@@ -49,23 +56,30 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.processor = plugin_obj.processor
         self.iface = plugin_obj.iface
         self.lock = QtCore.QReadWriteLock()
-        self.analyzer_thread = LayerAnalyzerThread(self.lock, self)
-        self.processing_thread = LayerProcessingThread(self.lock,
-                                                       self.processor, self)
-        self.help_btn.released.connect(self.show_help)
-        self.analyzer_thread.finished.connect(self.finished_analyzing_layers)
-        self.analyzer_thread.finished.connect(self.finished_processing_layers)
-        self.analyzer_thread.analyzing_layer.connect(self.analyzing_layer)
-        self.analyzer_thread.initialize(qgis.core.QgsProject.instance().mapLayers())
         self.change_ui_availability(False)
+        self.help_btn.released.connect(self.show_help)
         self.progress_la.setText('Analyzing layers...')
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
-        self.analyzer_thread.start()
+        self._layers = {}
 
-    def analyzing_layer(self, layer_name: str):
-        utilities.log(f"analyzing layer: {layer_name}")
-        self.progress_la.setText(f"Analyzing layers: {layer_name}...")
+        # self.processing_thread = LayerProcessingThread(self.lock, self.processor, self)
+        # self.processing_thread.finished.connect(self.finished_processing_layers)
+
+        # self.analyzer_thread = LayerAnalyzerThread(
+        #     lock=self.lock,
+        #     loaded_layers=qgis.core.QgsProject.instance().mapLayers(),
+        #     parent=self
+        # )
+        # self.analyzer_thread.finished.connect(self.finished_analyzing_layers)
+        # self.analyzer_thread.start()
+        task_manager = qgis.core.QgsApplication.taskManager()
+        self._analyzer_task = tasks.LayerAnalyzer(
+            description="analyze currently loaded layers",
+            layers_to_analyze=qgis.core.QgsProject.instance().mapLayers(),
+        )
+        self._analyzer_task.layers_analyzed.connect(self.finished_analyzing_layers)
+        task_manager.addTask(self._analyzer_task)
 
     def finished_processing_layers(
             self, layers, new_files: Optional[list[str]] = None
@@ -82,25 +96,28 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                     qgis_project = qgis.core.QgsProject.instance()
                     qgis_project.addMapLayer(new_layer)
 
-    def finished_analyzing_layers(self, usable_layers):
-        self.analyzer_thread.wait()
+    def finished_analyzing_layers(
+            self,
+            usable_layers: dict[str, list[qgis.core.QgsField]]
+    ):
+        print(f"inside finished_analyzing_layers {usable_layers=}")
         if any(usable_layers):
-            self.layers = usable_layers
-            current_layers = self.iface.legendInterface().selectedLayers()
-            valid = [la for la in current_layers if la in usable_layers.keys()]
+            self._layers = usable_layers
+            current_layers = self.iface.layerTreeView().selectedLayers()
+            valid = [la for la in current_layers if la in self._layers.keys()]
             if not any(valid):
-                valid.append(self.layers.keys()[0])
-            selected = utilities.exist_selected_features(self.layers.keys())
+                valid.append(self._layers.keys()[0])
+            selected = utilities.exist_selected_features(self._layers.keys())
             self.change_ui_availability(True, selected)
-            if utilities.exist_selected_features(self.layers.keys()):
-                self.use_selected_features_chb.setEnabled(True)
-                self.use_selected_features_chb.setChecked(True)
-            else:
-                self.use_selected_features_chb.setEnabled(False)
-            self.model = ProcessLayerTableModel(self.layers, valid,
-                                                self.processor, self)
+            self.use_selected_features_chb.setChecked(selected)
+            self.model = ProcessLayerTableModel(
+                qgis_layers=self._layers,
+                current_layers=valid,
+                processor=self.processor,
+                dialog=self
+            )
             self.tableView.setModel(self.model)
-            delegate = ProcessLayerDelegate(self, self)
+            delegate = ProcessLayerDelegate(dialog=self, parent=self)
             self.tableView.setItemDelegate(delegate)
             self.add_row_btn.released.connect(self.add_row)
             self.remove_row_btn.released.connect(self.remove_row)
@@ -113,23 +130,19 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             if len(current_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
-            output_dir = self.load_settings(
-                "output_dir", default_to=os.path.expanduser("~"))
-            if str(output_dir) == "":
-                output_dir = os.path.expanduser("~")
+            output_dir = self.load_settings_key("output_dir", default_to=str(Path.home()))
             self.output_dir_le.setText(output_dir)
             self.create_distances_files_chb.setChecked(False)
-            self.reset_progress_bar()
             self.progressBar.setValue(self.processor.global_progress)
             self.update_info("")
         else:
-            self.reset_progress_bar()
             self.change_ui_availability(False)
             self.progress_la.setText(
                 "No suitable layers found. Please consult the plugin\'s Help page.")
             palette = QtGui.QPalette()
             palette.setColor(QtGui.QPalette.Foreground, QtCore.Qt.GlobalColor.red)
             self.progress_la.setPalette(palette)
+        self.reset_progress_bar()
 
     def toggle_lock_layers(self, lock):
         index = self.model.index(0, 0)
@@ -141,9 +154,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.progressBar.setValue(0)
 
     def show_help(self):
-        plugin_dir = os.path.dirname(__file__)
-        url = f"file:///{plugin_dir}/assets/help.html"
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/ricardogsilva/qgisconefor"))
 
     def add_row(self):
         row = self.model.rowCount()
@@ -164,27 +175,27 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.remove_row_btn.setEnabled(False)
 
     def get_output_dir(self):
-        home_dir = os.path.expanduser("~")
-        output_dir = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select output directory", directory=home_dir)
-        if output_dir == "":
-            output_dir = home_dir
-        self.output_dir_le.setText(output_dir)
-        self.save_settings(f"{self._settings_key}/output_dir", output_dir)
+        settings_key = "output_dir"
+        initial_dir = self.load_settings_key(
+            settings_key, default_to=str(Path.home()))
+        chosen_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select output directory", directory=initial_dir)
+        final_dir = chosen_dir or initial_dir
+        self.save_settings_key(
+            "/".join((self._base_settings_key, settings_key)),
+            final_dir
+        )
+        self.output_dir_le.setText(final_dir)
 
-    def save_settings(self, key, value):
-        settings = QtCore.QSettings()
+    def save_settings_key(self, key, value):
+        settings = qgis.core.QgsSettings()
         settings.setValue(key, value)
         settings.sync()
 
-    def load_settings(self, key, type_hint=str, default_to=None):
-        settings = QtCore.QSettings()
-        full_key = f"{self._settings_key}/{key}"
-        try:
-            value = settings.value(full_key, type=type_hint)
-        except TypeError:
-            value = default_to
-        return value
+    def load_settings_key(self, key, type_hint=str, default_to=None):
+        settings = qgis.core.QgsSettings()
+        full_key = "/".join((self._base_settings_key, key))
+        return settings.value(full_key, type=type_hint, defaultValue=default_to)
 
     def run_queries(self):
         self.update_progress()
@@ -303,7 +314,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.run_btn.setEnabled(False)
 
-    def change_ui_availability(self, boolean, selected_features=False):
+    def change_ui_availability(
+            self, enabled: bool, selected_features: bool = False):
         widgets = [
             self.layers_la,
             self.tableView,
@@ -318,8 +330,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.run_btn,
         ]
         for widget in widgets:
-            widget.setEnabled(boolean)
-        if boolean:
+            widget.setEnabled(enabled)
+        if enabled:
             self.use_selected_features_chb.setEnabled(selected_features)
 
 
