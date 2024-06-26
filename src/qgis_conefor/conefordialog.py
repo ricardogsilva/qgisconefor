@@ -12,14 +12,13 @@ from qgis.PyQt import (
     uic,
 )
 
-from . import tasks
-from .processlayer import (
-    ProcessLayer,
-    ProcessLayerTableModel,
-    ProcessLayerDelegate,
+from . import (
+    coneforinputsprocessor,
+    schemas,
+    tablemodel,
+    tasks,
 )
-from .coneforinputsprocessor import InputsProcessor
-from .schemas import ConeforInputParameters
+from .utilities import log
 
 UI_DIR = Path(__file__).parent / "ui"
 FORM_CLASS, _ = uic.loadUiType(str(UI_DIR / "conefor_dlg.ui"))
@@ -36,15 +35,15 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     analyzer_task: qgis.core.QgsTask
     processing_task: Optional[qgis.core.QgsTask]
 
-    _layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]]
+    _layers: dict[qgis.core.QgsVectorLayer, list[str]]
     iface: qgis.gui.QgisInterface
-    model: Optional[ProcessLayerTableModel]
-    processor: InputsProcessor
+    model: Optional[tablemodel.ProcessLayerTableModel]
+    processor: coneforinputsprocessor.InputsProcessor
 
     # UI controls
     add_row_btn: QtWidgets.QPushButton
+    buttonBox: QtWidgets.QDialogButtonBox
     create_distances_files_chb: QtWidgets.QCheckBox
-    help_btn: QtWidgets.QPushButton
     layers_la: QtWidgets.QLabel
     lock_layers_chb: QtWidgets.QCheckBox
     progressBar: QtWidgets.QProgressBar
@@ -53,7 +52,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     output_dir_le: QtWidgets.QLineEdit
     output_dir_btn: QtWidgets.QPushButton
     remove_row_btn: QtWidgets.QPushButton
-    run_btn: QtWidgets.QPushButton
     tableView: QtWidgets.QTableView
     use_selected_features_chb: QtWidgets.QCheckBox
 
@@ -66,7 +64,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.iface = plugin_obj.iface
         self.lock = QtCore.QReadWriteLock()
         self.change_ui_availability(False)
-        self.help_btn.released.connect(self.show_help)
+        self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.progress_la.setText('Analyzing layers...')
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
@@ -110,7 +108,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def finished_analyzing_layers(
             self,
-            usable_layers: dict[qgis.core.QgsVectorLayer, list[qgis.core.QgsField]]
+            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]]
     ):
         if any(usable_layers):
             self._layers = usable_layers
@@ -120,18 +118,18 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                 selected_layers.append(self._layers.keys()[0])
             self.change_ui_availability(True)
             selected_layers: list[qgis.core.QgsVectorLayer]
-            self.model = ProcessLayerTableModel(
+            self.model = tablemodel.ProcessLayerTableModel(
                 qgis_layers=self._layers,
-                current_layers=selected_layers,
+                initial_layers_to_process=selected_layers,
                 processor=self.processor,
                 dialog=self
             )
             self.tableView.setModel(self.model)
-            delegate = ProcessLayerDelegate(dialog=self, parent=self)
+            delegate = tablemodel.ProcessLayerDelegate(dialog=self, parent=self)
             self.tableView.setItemDelegate(delegate)
             self.add_row_btn.released.connect(self.add_conefor_input)
             self.remove_row_btn.released.connect(self.remove_conefor_input)
-            self.run_btn.released.connect(self.run_queries)
+            self.buttonBox.button(self.buttonBox.Ok).released.connect(self.run_queries)
             self.output_dir_btn.released.connect(self.get_output_dir)
             self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
             self.processor.progress_changed.connect(self.update_progress)
@@ -214,62 +212,63 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def get_conefor_input_parameters(
             self,
-            layer_info: ProcessLayer,
+            data_item: schemas.TableModelItem,
             load_to_canvas: bool,
             default_node_identifier_name: Optional[str] = None,
             default_node_attribute_name: Optional[str] = None,
             default_process_area: Optional[bool] = None,
             default_process_centroid_distance: Optional[bool] = None,
             default_process_edge_distance: Optional[bool] = None,
-    ) -> ConeforInputParameters:
+    ) -> schemas.ConeforInputParameters:
         node_identifier_name = (
-                default_node_identifier_name or layer_info.id_field_name)
+                default_node_identifier_name or data_item.id_attribute_field_name)
         if node_identifier_name != "<None>":
             node_attribute_name = (
-                    default_node_attribute_name or layer_info.attribute_field_name)
+                    default_node_attribute_name or data_item.attribute_field_name)
             if node_attribute_name == "<None>":
                 node_attribute_name = None
 
             process_area = (
                 default_process_area if default_process_area is not None
-                else layer_info.process_area
+                else data_item.calculate_area_as_node_attribute
             )
             process_centroid_distance = (
                 default_process_centroid_distance
                 if default_process_centroid_distance is not None
-                else layer_info.process_centroid_distance
+                else data_item.calculate_centroid_distance
             )
             process_edge_distance = (
                 default_process_edge_distance
                 if default_process_edge_distance is not None
-                else layer_info.process_edge_distance
+                else data_item.calculate_edge_distance
             )
-            return ConeforInputParameters(
-                layer=layer_info.qgis_layer,
+            layer_name = data_item.layer.name()
+            return schemas.ConeforInputParameters(
+                layer=data_item.layer,
                 id_attribute_field_name=node_identifier_name,
                 attribute_field_name=node_attribute_name,
                 attribute_file_name=(
-                    f"nodes_{node_attribute_name}_{layer_info.qgis_layer.name()}"
+                    f"nodes_{node_attribute_name}_{layer_name}"
                     if node_attribute_name else None
                 ),
                 area_file_name=(
-                    f"nodes_calculated_area_{layer_info.qgis_layer.name()}"
+                    f"nodes_calculated_area_{layer_name}"
                     if process_area else None
                 ),
                 centroid_file_name=(
-                    f"distances_centroids_{layer_info.qgis_layer.name()}"
+                    f"distances_centroids_{layer_name}"
                     if process_centroid_distance else None
                 ),
                 edge_file_name=(
-                    f"distances_edges_{layer_info.qgis_layer.name()}"
+                    f"distances_edges_{layer_name}"
                     if process_edge_distance else None
                 ),
                 centroid_distance_name=(
-                    f"Centroid_links_{layer_info.qgis_layer.name()}"
+                    f"Centroid_links_{layer_name}"
                     if load_to_canvas else None
                 ),
                 edge_distance_name=(
-                    f"Edge_links_{layer_info.qgis_layer.name()}"
+                    f"Edge_links_{layer_name}"
                     if load_to_canvas else None
                 ),
             )
@@ -284,23 +283,23 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         only_selected_features = self.use_selected_features_chb.isChecked()
 
         kwargs = {}
-        if len(self.model.layers) > 1:
-            first = self.model.layers[0]
+        if len(self.model.layers_to_process) > 1:
+            first = self.model.layers_to_process[0]
             kwargs.update({
-                "default_node_identifier_name": first.id_field_name,
+                "default_node_identifier_name": first.id_attribute_field_name,
                 "default_node_attribute_name": first.attribute_field_name,
-                "default_process_area": first.process_area,
-                "default_process_centroid_distance": first.process_centroid_distance,
-                "default_process_edge_distance": first.process_edge_distance,
+                "default_process_area": first.calculate_area_as_node_attribute,
+                "default_process_centroid_distance": first.calculate_centroid_distance,
+                "default_process_edge_distance": first.calculate_edge_distance,
             })
 
-        for layer_number, la in enumerate(self.model.layers):
-            if layer_number == 0 or not self.lock_layers_chb.isChecked():
+        for idx, data_item in enumerate(self.model.layers_to_process):
+            if idx == 0 or not self.lock_layers_chb.isChecked():
                 input_parameters = self.get_conefor_input_parameters(
-                    la, load_to_canvas)
+                    data_item, load_to_canvas)
             else:
                 input_parameters = self.get_conefor_input_parameters(
-                    la, load_to_canvas, **kwargs)
+                    data_item, load_to_canvas, **kwargs)
             layer_inputs.append(input_parameters)
         self.change_ui_availability(False)
         self.processing_task = tasks.LayerProcessorTask(
@@ -355,21 +354,17 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         Toggle the active state of the run button based on the availability
         of selected layers to process.
         """
-        all_layers_runnable = []
-        for la in self.model.layers:
-            runnable = False
-            if la.id_field_name != "<None>":
-                has_attr = la.attribute_field_name != "<None>"
-                has_area = la.process_area
-                has_cent = la.process_centroid_distance
-                has_edge = la.process_edge_distance
-                if any((has_attr, has_area, has_cent, has_edge)):
-                    runnable = True
-            all_layers_runnable.append(runnable)
-        if any(all_layers_runnable) and all(all_layers_runnable):
-            self.run_btn.setEnabled(True)
-        else:
-            self.run_btn.setEnabled(False)
+        log("inside toggle_run_button")
+        all_layers_runnable = True
+        for data_item in self.model.layers_to_process:
+            has_attr = data_item.attribute_field_name != schemas.NONE_LABEL
+            has_area = data_item.calculate_area_as_node_attribute
+            has_cent = data_item.calculate_centroid_distance
+            has_edge = data_item.calculate_edge_distance
+            if not any((has_attr, has_area, has_cent, has_edge)):
+                all_layers_runnable = False
+                break
+        self.buttonBox.button(self.buttonBox.Ok).setEnabled(all_layers_runnable)
 
     def change_ui_availability(self, enabled: bool):
         widgets = [
@@ -383,7 +378,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.output_dir_le,
             self.output_dir_btn,
             self.progressBar,
-            self.run_btn,
+            self.buttonBox.button(self.buttonBox.Ok),
         ]
         for widget in widgets:
             widget.setEnabled(enabled)

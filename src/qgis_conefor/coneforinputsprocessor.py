@@ -2,12 +2,15 @@ import os
 import sys
 import traceback
 import codecs
+from pathlib import Path
+from typing import Optional
 
 import qgis.core
 from qgis.PyQt import QtCore
 
 from . import utilities
-from .schemas import ConeforInputParameters
+from . import schemas
+from .utilities import log
 
 
 class InvalidFeatureError(Exception):
@@ -20,6 +23,7 @@ class InvalidAttributeError(Exception):
 
 class InputsProcessor(QtCore.QObject):
 
+    global_progress: int
     update_info = QtCore.pyqtSignal(str, int)
     progress_changed = QtCore.pyqtSignal()
 
@@ -30,10 +34,9 @@ class InputsProcessor(QtCore.QObject):
 
     def run_queries(
             self,
-            layers: list[ConeforInputParameters],
+            layers: list[schemas.ConeforInputParameters],
             output_dir: str,
             only_selected_features: bool = True,
-            save_text_files: bool = True
     ):
         """
         Create the Conefor inputs files.
@@ -69,13 +72,12 @@ class InputsProcessor(QtCore.QObject):
                 saved to disk.
         """
 
-        self.update_info.emit('Processing started...', 0)
+        self.update_info.emit("Processing started", 0)
         new_files = []
         layer_progress_step = 100 // len(layers)
         try:
             for index, layer_params in enumerate(layers):
-                vector_layer = layer_params.layer
-                self.update_info.emit(f"layer: {vector_layer.name()}", 0)
+                self.update_info.emit(f"layer: {layer_params.layer.name()}", 0)
                 layer_files = self.process_layer(
                     layer_params,
                     output_dir,
@@ -85,143 +87,28 @@ class InputsProcessor(QtCore.QObject):
                 )
                 new_files += layer_files
             self.progress_changed.emit()
-        except InvalidFeatureError as e:
-            self.update_info.emit('ERROR: {}'.format(e), 0)
-        except InvalidAttributeError as e:
-            self.update_info.emit('ERROR: Selected attributes are not '
-                                  'present in every layer - {}'.format(e), 0)
-        except Exception as e:
+        except InvalidFeatureError as err:
+            self.update_info.emit(f"ERROR: {err}", 0)
+        except InvalidAttributeError as err:
+            self.update_info.emit(
+                f"ERROR: Selected attributes are not present in every layer - {err}",
+                0
+            )
+        except Exception:
             traceback.print_exc()
-            self.update_info.emit('ERROR: %s' % traceback.format_exc(), 0)
+            self.update_info.emit(f"ERROR: {traceback.format_exc()}", 0)
         else:
             self.update_info.emit("Processing finished!", 0)
         finally:
             self.global_progress = 0
         return new_files
 
-    def _get_output_file_name(self, directory, name):
-        """
-        Rename the output name if it is already present in the directory.
-        """
-
-        the_name, extension = os.path.splitext(name)
-        path_already_exists = True
-        index = 1
-        while path_already_exists:
-            if index == 1:
-                tentative_name = '%s%s' % (the_name, extension)
-            else:
-                tentative_name = '%s_%i%s' % (the_name, index, extension)
-            tentative_path = os.path.join(directory, tentative_name)
-            if not os.path.isfile(tentative_path):
-                path_already_exists = False
-            index += 1
-        return tentative_name
-
-    def _write_distance_file(self, data, output_dir, output_name, encoding,
-                             crs, file_type='ESRI Shapefile'):
-        """
-        Write a GIS file with distances to disk.
-
-        Inputs:
-
-            data - a list of dictionaries with key/values:
-                from: A QgsPoint with the coordinates of the
-                    start of a line
-                to: A QgsPoint with the coordinates of the
-                    end of a line
-                distance: The distance between the two QgsPoints,
-                    measured in meters
-                from_attribute - The value of the attribute used
-                    as an identifier for features in the layer
-                to_attribute - The value of the attribute used
-                    as an identifier for features in the layer
-
-            output_dir - The path to the directory where the file will
-                be written to.
-
-            output_name - The name for the file, without extension
-
-            encoding - A string with the encoding to use when writing
-                the attributes
-
-            crs - A QgsCoordinateReferenceSystem object representing the
-                CRS of the output file
-
-            file_type - A string representing the type of file format to use
-        """
-
-        if file_type == 'ESRI Shapefile':
-            if not output_name.endswith('.shp'):
-                output_name = '%s.shp' % output_name
-        output_name = self._get_output_file_name(output_dir, output_name)
-        output_path = os.path.join(output_dir, output_name)
-        if not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
-        fields = qgis.core.QgsFields()
-        fields.append(
-            qgis.core.QgsField(
-                'From_Node', QtCore.QVariant.String, 'From_NodeID', 255)
-        )
-        fields.append(
-            qgis.core.QgsField('To_Node', QtCore.QVariant.String, 'To_NodeID', 255)
-        )
-        fields.append(
-            qgis.core.QgsField('distance', QtCore.QVariant.Double, 'distance', 255, 1))
-        writer = qgis.core.QgsVectorFileWriter(
-            output_path, encoding, fields, qgis.core.QGis.WKBLineString, crs, file_type)
-        if writer.hasError() == qgis.core.QgsVectorFileWriter.NoError:
-            for item in data:
-                feat = qgis.core.QgsFeature()
-                line = [item['from'], item['to']]
-                feat.setGeometry(qgis.core.QgsGeometry.fromPolyline(line))
-                feat.setFields(fields)
-                feat.initAttributes(3)
-                feat.setAttribute('From_Node', item['from_attribute'])
-                feat.setAttribute('To_Node', item['to_attribute'])
-                feat.setAttribute('distance', item['distance'])
-                writer.addFeature(feat)
-        else:
-            print('Error when creating distances lines '
-                  'file: {}'.format(writer.hasError()))
-        del writer
-        return output_path
-
-    def _save_text_file(
-            self,
-            data,
-            log_text,
-            output_dir: str,
-            output_name,
-            encoding: str,
-            progress_step
-    ) -> str:
-        self.update_info.emit(log_text, 1)
-        if not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
-        output_name = self._get_output_file_name(output_dir, output_name)
-        sorted_data = sorted(data, key=lambda tup: tup[0])
-        output_path = os.path.join(output_dir, output_name)
-        with codecs.open(output_path, 'w', encoding) as file_handler:
-            for tup in sorted_data:
-                line = ''
-                for item in tup:
-                    line += '%s\t' % item
-                line = line[:-1] + '\n'
-                file_handler.write(line)
-            # Conefor manual states that files should terminate with a blank
-            # line
-            file_handler.write('\n')
-        self.global_progress += progress_step
-        self.progress_changed.emit()
-        return output_path
-
     def process_layer(
             self,
-            layer_params: ConeforInputParameters,
-            output_dir,
+            layer_params: schemas.ConeforInputParameters,
+            output_dir: str,
             attribute=None,
-            progress_step=0,
+            progress_step: int = 0,
             only_selected_features=True,
             add_vector_layers_out_dir=False
     ):
@@ -296,29 +183,30 @@ class InputsProcessor(QtCore.QObject):
                         (num_queries - 1)
                 )
             else:
-                each_query_step = running_queries_step / num_queries
+                each_query_step = (running_queries_step / num_queries)
         elif num_queries == 1:
             each_query_step = running_queries_step / num_queries
             attribute_query_step = each_query_step
 
         saving_files_step = progress_step - running_queries_step
-        each_save_file_step = saving_files_step / num_files_to_save
+        attribute_query_step = int(attribute_query_step)
+        each_query_step = int(each_query_step)
+        each_save_file_step = int(saving_files_step / num_files_to_save)
         if all(
                 (
                         layer_params.attribute_field_name,
                         layer_params.attribute_file_name
                 )
         ):
-            output_path = os.path.join(output_dir, layer_params.attribute_file_name)
+            output_path = Path(output_dir) / layer_params.attribute_file_name
             attribute_file_path = self._run_attribute_query(
                 layer_params,
-                encoding,
                 only_selected_features,
                 attribute_query_step,
                 output_path,
                 each_save_file_step
             )
-            created_files.append(attribute_file_path)
+            created_files.append(str(attribute_file_path))
         if layer_params.area_file_name is not None:
             output_path = os.path.join(output_dir, layer_params.area_file_name)
             area_file_path = self._run_area_query(
@@ -373,7 +261,7 @@ class InputsProcessor(QtCore.QObject):
 
     def _perform_edge_query(
             self,
-            layer_params: ConeforInputParameters,
+            layer_params: schemas.ConeforInputParameters,
             encoding,
             use_selected,
             analysis_step,
@@ -465,7 +353,7 @@ class InputsProcessor(QtCore.QObject):
                 edge_files = []
         return edge_files
 
-    def _determine_num_queries(self, layer_params: ConeforInputParameters):
+    def _determine_num_queries(self, layer_params: schemas.ConeforInputParameters):
         """
         Return the number of queries that will be processed.
 
@@ -499,13 +387,12 @@ class InputsProcessor(QtCore.QObject):
 
     def _run_attribute_query(
             self,
-            layer_params: ConeforInputParameters,
-            encoding,
+            layer_params: schemas.ConeforInputParameters,
             use_selected,
-            analysis_step,
-            output_path,
-            file_save_progress_step=0
-    ) -> str:
+            analysis_step: int,
+            output_path: Path,
+            file_save_progress_step: int = 0
+    ) -> Path:
         """
         Process the attribute data query.
 
@@ -538,45 +425,55 @@ class InputsProcessor(QtCore.QObject):
 
         self.update_info.emit('Running attribute query', 1)
         data = []
-        features = utilities.get_features(layer_params.layer, use_selected)
-        for feat in features:
-            id_attr = self._get_numeric_attribute(
-                feat, layer_params.id_attribute_field_name)
-            attr = self._get_numeric_attribute(
-                feat, layer_params.attribute_field_name, float)
-            if attr is not None and id_attr is not None:
-                if attr < 0:
-                    raise ValueError("Attribute must be non negative")
+
+        layer = layer_params.layer
+        feature_iterator = (
+            layer.getSelectedFeatures() if use_selected else layer.getFeatures())
+        for feat in feature_iterator:
+            log(f"Processing feature {feat.id()}...")
+            if len(list(feat.geometry().constParts())) > 1:
+                log(
+                    f"Feature {feat.id()} has multiple parts",
+                    level=qgis.core.Qgis.Warning
+                )
+            if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
+                id_ = feat.id()
+            else:
+                id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+            attr = get_numeric_attribute(feat, layer_params.attribute_field_name)
+            if id_ is not None and attr is not None:
+                if attr >= 0:
+                    data.append((id_, attr))
                 else:
-                    data.append((id_attr, attr))
+                    log(
+                        f"Feature with id {id_!r}: Attribute "
+                        f"{layer_params.attribute_field_name!r} "
+                        f"has value: {attr!r} - this is lower than zero. Skipping this "
+                        f"feature...",
+                        level=qgis.core.Qgis.Warning
+                    )
+            else:
+                log(
+                    f"Was not able to retrieve a valid value for id ({id_!r}) and "
+                    f"attribute ({attr!r}), skipping this feature...",
+                    level=qgis.core.Qgis.Warning
+                )
         self.global_progress += analysis_step
         self.progress_changed.emit()
-        output_dir, output_name = os.path.split(output_path)
-        return self._save_text_file(
-            data,
-            "Writing attribute file...",
-            output_dir,
-            output_name,
-            encoding,
-            file_save_progress_step
-        )
-
-    def _get_numeric_attribute(self, feature, attribute_name, type_=int):
-        try:
-            the_attribute = feature.attribute(attribute_name)
-        except KeyError:
-            raise InvalidAttributeError('%s attribute does not exist' \
-                                        % attribute_name)
-        result = None
-        if the_attribute != "NULL":
-            result = type_(the_attribute)
-        return result
+        self.update_info.emit("Writing attribute file...", 1)
+        encoding = layer_params.layer.dataProvider().encoding()
+        if encoding == 'System':
+            encoding = sys.getfilesystemencoding()
+        output_path = save_text_file(data, output_path, encoding)
+        self.global_progress += file_save_progress_step
+        self.progress_changed.emit()
+        return output_path
 
     def _run_area_query(
             self,
-            layer_params: ConeforInputParameters,
+            layer_params: schemas.ConeforInputParameters,
             encoding,
-            use_selected,
+            use_selected: bool,
             analysis_step,
             output_path,
             file_save_progress_step=0
@@ -623,8 +520,11 @@ class InputsProcessor(QtCore.QObject):
         else:
             measurer = self._get_measurer(vector_layer.crs())
             transformer = None
-        features = utilities.get_features(vector_layer, use_selected)
-        for feat in features:
+        feature_iterator = (
+            vector_layer.getSelectedFeatures()
+            if use_selected else vector_layer.getFeatures()
+        )
+        for feat in feature_iterator:
             polygon = feat.geometry().asPolygon()
             new_polygon = []
             for ring in polygon:
@@ -643,7 +543,7 @@ class InputsProcessor(QtCore.QObject):
                     for hole in holes:
                         hole_areas += measurer.measurePolygon(hole)
                 total_feat_area = outer_area - hole_areas
-                id_attr = self._get_numeric_attribute(
+                id_attr = get_numeric_attribute(
                     feat, layer_params.id_attribute_field_name)
                 if id_attr is not None:
                     data.append((id_attr, total_feat_area))
@@ -652,19 +552,15 @@ class InputsProcessor(QtCore.QObject):
         output_file = None
         if any(data):
             output_dir, output_name = os.path.split(output_path)
-            output_file = self._save_text_file(
-                data,
-                "Writing area file...",
-                output_dir,
-                output_name,
-                encoding,
-                file_save_progress_step
-            )
+            self.update_info.emit("Writing area file...", 1)
+            output_file = save_text_file(data, output_dir, output_name, encoding)
+            self.global_progress += file_save_progress_step
+            self.progress_changed.emit()
         return output_file
 
     def _run_centroid_query(
             self,
-            layer_params: ConeforInputParameters,
+            layer_params: schemas.ConeforInputParameters,
             encoding,
             use_selected,
             analysis_step,
@@ -689,12 +585,12 @@ class InputsProcessor(QtCore.QObject):
             features = utilities.get_features(
                 vector_layer, use_selected, feature_ids[i])
             current = iter(features).next()
-            c_id_attr = self._get_numeric_attribute(
+            c_id_attr = get_numeric_attribute(
                 current, layer_params.id_attribute_field_name)
             if c_id_attr is not None:
                 current_geom = current.geometry()
                 orig_curr_centroid = current_geom.centroid().asPoint()
-                trans_curr_centroid = self._transform_point(
+                trans_curr_centroid = transform_point(
                     orig_curr_centroid, transformer)
                 j = i + 1
                 while j < len(feature_ids):
@@ -702,12 +598,12 @@ class InputsProcessor(QtCore.QObject):
                         vector_layer, use_selected, feature_ids[j]
                     )
                     next_ = iter(features).next()
-                    n_id_attr = self._get_numeric_attribute(
+                    n_id_attr = get_numeric_attribute(
                         next_, layer_params.id_attribute_field_name)
                     if n_id_attr is not None:
                         next_geom = next_.geometry()
                         orig_n_centroid = next_geom.centroid().asPoint()
-                        trans_n_centroid = self._transform_point(
+                        trans_n_centroid = transform_point(
                             orig_n_centroid, transformer)
                         distance = measurer.measureLine(trans_curr_centroid,
                                                         trans_n_centroid)
@@ -739,11 +635,11 @@ class InputsProcessor(QtCore.QObject):
                     next_id = c_dict['next']['attribute']
                     distance = c_dict['distance']
                     data_to_write.append((current_id, next_id, distance))
-                output_file = self._save_text_file(data_to_write,
-                                                   'Writing centroids file...',
-                                                   output_dir, output_name, 
-                                                   encoding,
-                                                   file_save_progress_step)
+                self.update_info.emit("Writing centroids file...", 1)
+                output_file = save_text_file(
+                    data_to_write, output_dir, output_name, encoding)
+                self.global_progress += file_save_progress_step
+                self.progress_changed.emit()
                 output_files.append(output_file)
             if shape_file_path is not None:
                 output_dir, output_name = os.path.split(shape_file_path)
@@ -760,7 +656,7 @@ class InputsProcessor(QtCore.QObject):
                         'to_attribute': c_dict['next']['attribute'],
                     }
                     data_to_write.append(the_data)
-                output_shape = self._write_distance_file(
+                output_shape = write_distance_file(
                     data_to_write, output_dir, output_name, encoding,
                     vector_layer.crs()
                 )
@@ -782,7 +678,7 @@ class InputsProcessor(QtCore.QObject):
 
     def _run_edge_query(
             self,
-            layer_params: ConeforInputParameters,
+            layer_params: schemas.ConeforInputParameters,
             encoding,
             use_selected,
             analysis_step,
@@ -815,7 +711,7 @@ class InputsProcessor(QtCore.QObject):
             features = utilities.get_features(vector_layer, use_selected,
                                               feature_ids[i])
             current = iter(features).next()
-            c_id_at = self._get_numeric_attribute(
+            c_id_at = get_numeric_attribute(
                 current, layer_params.id_attribute_field_name)
             if c_id_at is not None:
                 current_geom = current.geometry()
@@ -827,30 +723,30 @@ class InputsProcessor(QtCore.QObject):
                 elif current_geom.isMultipart():
                     raise InvalidFeatureError('Feature %s is multipart. '
                                               'Aborting...' % c_id_at)
-                current_poly = self._get_polygon(current_geom, transformer)
+                current_poly = get_polygon(current_geom, transformer)
                 j = i + 1
                 while j < len(feature_ids):
                     features = utilities.get_features(vector_layer, use_selected,
                                                       feature_ids[j])
                     next_ = iter(features).next()
-                    n_id_at = self._get_numeric_attribute(
+                    n_id_at = get_numeric_attribute(
                         next_, layer_params.id_attribute_field_name)
                     if n_id_at is not None:
                         next_geom = next_.geometry()
-                        next_poly = self._get_polygon(next_geom, transformer)
-                        segments = self.get_closest_segments(current_poly,
+                        next_poly = get_polygon(next_geom, transformer)
+                        segments = get_closest_segments(current_poly,
                                                              next_poly)
                         current_segment, next_segment = segments
                         candidates = []
                         for current_vertex in current_segment:
-                            candidate = self.find_candidate_points(
+                            candidate = find_candidate_points(
                                 current_vertex,
                                 next_segment,
                                 measurer
                             )
                             candidates.append(candidate)
                         for next_vertex in next_segment:
-                            candidate = self.find_candidate_points(
+                            candidate = find_candidate_points(
                                 next_vertex,
                                 current_segment,
                                 measurer
@@ -860,10 +756,10 @@ class InputsProcessor(QtCore.QObject):
                                                     key=lambda c: c[2])
                         winner = ordered_candidates[0]
                         # transform the winner's coordinates back to layer crs
-                        from_restored = self._transform_point(winner[0],
+                        from_restored = transform_point(winner[0],
                                                               transformer,
                                                               reverse=True)
-                        to_restored = self._transform_point(winner[1],
+                        to_restored = transform_point(winner[1],
                                                             transformer,
                                                             reverse=True)
                         feat_result = {
@@ -888,11 +784,11 @@ class InputsProcessor(QtCore.QObject):
                     to_id = e_dict['to_attribute']
                     distance = e_dict['distance']
                     data_to_write.append((from_id, to_id, distance))
-                output_file = self._save_text_file(data_to_write, 'Writing '
-                                                   'edges file...',
-                                                   output_dir, output_name,
-                                                   encoding,
-                                                   file_save_progress_step)
+                self.update_info.emit("Writing edges file...", 1)
+                output_file = save_text_file(
+                    data_to_write, output_dir, output_name, encoding)
+                self.global_progress += file_save_progress_step
+                self.progress_changed.emit()
                 output_files.append(output_file)
             if shape_file_path is not None:
                 output_dir, output_name = os.path.split(shape_file_path)
@@ -900,7 +796,7 @@ class InputsProcessor(QtCore.QObject):
                 if not os.path.isdir(output_dir):
                     os.mkdir(output_dir)
                 self.update_info.emit("edges ...", 2)
-                output_shape = self._write_distance_file(data, output_dir,
+                output_shape = write_distance_file(data, output_dir,
                                                          output_name,
                                                          encoding,
                                                          vector_layer.crs())
@@ -909,195 +805,9 @@ class InputsProcessor(QtCore.QObject):
                 self.progress_changed.emit()
         return output_files
 
-    def find_candidate_points(self, point, line_segment, measurer):
-        projected, distance = self.project_point(line_segment, point,
-                                                 measurer)
-        if self._is_on_the_segment(projected, line_segment):
-            candidate = (point, projected, distance)
-        else:
-            close_vertex = self.get_closest_vertex(projected, line_segment,
-                                                   measurer)
-            distance = measurer.measureLine(point, close_vertex)
-            candidate = (point, close_vertex, distance)
-        return candidate
-
-    def _transform_point(self, point, transformer=None,
-                         reverse=False):
-        """
-        Transform a point from a CRS to another using a transformer.
-
-        Inputs:
-
-            point - A QgsPoint object with the point to transform
-
-            transformer - A QgsCoordinateTransform object configured
-                with the source and destination CRSs. If None (the default),
-                no transformation is needed, and the returned result is
-                the same as the input point
-
-            reverse - A boolean indicating if the reverse transformation
-                is desired. Defaults to False, indicating that a forward
-                transform is to be processed
-
-        Returns a QgsPoint object with the transformed coordinates.
-        """
-
-        if transformer is not None:
-            if reverse:
-                result = transformer.transform(
-                            point,
-                            qgis.core.QgsCoordinateTransform.ReverseTransform
-                         )
-            else:
-                result = transformer.transform(point)
-        else:
-            result = point
-        return result
-
-    def get_closest_segments(self, poly1, poly2):
-        """
-        return the closest line segments between poly1 and poly2.
-
-        Inputs:
-
-            poly1 - A QgsPolygon object
-
-            poly2 - A QgsPolygon object
-
-        Returns a two-element tuple with:
-            - the closest segment in poly1
-            - the closest segment in poly2
-
-        A segment is a two-element list of QgsPoints with the vertices
-        of the segment.
-        """
-
-        segments1 = self._get_segments(poly1[0])
-        segments2 = self._get_segments(poly2[0])
-        closest_segments = []
-        distance = None
-        for seg1 in segments1:
-            for seg2 in segments2:
-                line1 = qgis.core.QgsGeometry.fromPolyline(seg1)
-                line2 = qgis.core.QgsGeometry.fromPolyline(seg2)
-                dist = line1.distance(line2)
-                if distance is None or distance > dist:
-                    distance = dist
-                    closest_segments = (seg1, seg2)
-        return closest_segments
-
-    def _get_polygon(self, geometry, transformer=None):
-        """
-        Convert a geometry to polygon and transform its coordinates.
-
-        Inputs:
-
-            geometry - A QgsGeometry object to be converted
-
-            transformer - A QgsCoordinateTransform object configured
-                with the source and destination CRSs. If None (the default),
-                no transformation is needed, and the returned result is
-                the same as the input
-
-        Returns a QgsPolygon object with the transformed coordinates of the
-        geometry.
-        """
-
-        if transformer is not None:
-            geometry.transform(transformer)
-        return geometry.asPolygon()
-
-    def _get_segments(self, line_string):
-        """
-        Return the line segments that compose input line_string.
-
-        Inputs:
-
-            line_string - A QgsLineString
-
-        Returns a list of two-element lists with QgsPoint objects that
-        represent the segments of the input line_string.
-        """
-
-        segments = []
-        for index, pt1 in enumerate(line_string):
-            if index < (len(line_string) - 1):
-                pt2 = line_string[index+1]
-                segments.append([pt1, pt2])
-        return segments
-
-    def project_point(self, line_segment, point, measurer):
-        """
-        Project a point on a line segment.
-
-        Inputs:
-
-            line_segment - A two-element tuple of QgsPoint objects
-
-            point - A QgsPoint representing the point to project.
-
-            measurer - A QgsDistanceArea object
-
-        Returns a two-element tuple with:
-            - a QgsPoint representing the projection of the input point
-            on the line segment
-            - the distance between the input point and the projected point
-
-        This code is adapted from:
-            http://www.vcskicks.com/code-snippet/point-projection.php
-        """
-
-        pt1, pt2 = line_segment
-        try:
-            m = (pt2.y() - pt1.y()) / (pt2.x() - pt1.x())
-            b = pt1.y() - (m * pt1.x())
-            x = (point.x() + m * point.y() - m * b) / (m * m + 1)
-            y = (m * m * point.y() + m * point.x() + b) / (m * m + 1)
-        except ZeroDivisionError:
-            # line_string is paralel to y axis
-            x = pt1.x()
-            y = point.y()
-        projected = qgis.core.QgsPoint(x, y)
-        distance = measurer.measureLine(point, projected)
-        return projected, distance
-
-    def _is_on_the_segment(self, pt, line):
-        result = False
-        p1, p2 = line
-        min_x, max_x = sorted((p1.x(), p2.x()))
-        min_y, max_y = sorted((p1.y(), p2.y()))
-        if (min_x < pt.x() < max_x) and (min_y < pt.y() < max_y):
-            result = True
-        return result
-
-    def get_closest_vertex(self, pt, line, measurer):
-        """
-        Return the closest vertex to an input point.
-
-        Inputs:
-
-            pt - A QgsPoint representing the point to analyze
-
-            line - A QgsLineString representing the line to analyze.
-
-            measurer - A QgsDistanceArea object used to measure the distance
-
-        Returns a QgsPoint of the vertex of the line that is closest to the
-        input point.
-        """
-
-        distance = None
-        closest = None
-        for vertex in line:
-            dist = measurer.measureLine(pt, vertex)
-            if distance is None or distance > dist:
-                closest = vertex
-                distance = dist
-        return closest
-
     def _run_edge_query_fast(
             self,
-            layer_params: ConeforInputParameters,
+            layer_params: schemas.ConeforInputParameters,
             encoding,
             use_selected,
             analysis_step,
@@ -1139,7 +849,7 @@ class InputsProcessor(QtCore.QObject):
             features = utilities.get_features(vector_layer, use_selected,
                                               feature_ids[i])
             current = iter(features).next()
-            c_id_at = self._get_numeric_attribute(
+            c_id_at = get_numeric_attribute(
                 current, layer_params.id_attribute_field_name)
             if c_id_at is not None:
                 current_geom = current.geometry()
@@ -1150,7 +860,7 @@ class InputsProcessor(QtCore.QObject):
                     features = utilities.get_features(vector_layer, use_selected,
                                                       feature_ids[j])
                     next_ = iter(features).next()
-                    n_id_at = self._get_numeric_attribute(
+                    n_id_at = get_numeric_attribute(
                         next_, layer_params.id_attribute_field_name)
                     if n_id_at is not None:
                         next_geom = next_.geometry()
@@ -1179,11 +889,334 @@ class InputsProcessor(QtCore.QObject):
                     to_id = e_dict['to_attribute']
                     distance = e_dict['distance']
                     data_to_write.append((from_id, to_id, distance))
-                output_file = self._save_text_file(data_to_write, 'Writing '
-                                                   'edges file...',
-                                                   output_dir, output_name,
-                                                   encoding,
-                                                   file_save_progress_step)
+                self.update_info.emit("Writing edges file...", 1)
+                output_file = save_text_file(
+                    data_to_write, output_dir, output_name, encoding)
+                self.global_progress += file_save_progress_step
+                self.progress_changed.emit()
                 output_files.append(output_file)
                 self.progress_changed.emit()
         return output_files
+
+
+def get_numeric_attribute(
+        feature: qgis.core.QgsFeature,
+        attribute_name: str,
+) -> Optional[int]:
+    try:
+        value = feature[attribute_name]
+        if type(value) is QtCore.QVariant:  # pyqt was not able to convert this
+            result = None
+        else:
+            result = int(value)
+        return result
+    except KeyError:
+        raise InvalidAttributeError(
+            f"attribute {attribute_name!r} does not exist")
+
+
+def get_output_path(tentative_path: Path) -> Path:
+    """
+    Rename the output name if it is already present in the directory.
+    """
+
+    index = 1
+    while True:
+        if index == 1:
+            to_check = tentative_path
+        else:
+            original_file_name = tentative_path.stem
+            suffix = tentative_path.suffix
+            new_name = f"{original_file_name}_{index}{suffix}"
+            to_check = tentative_path.parent / new_name
+        if not to_check.exists():
+            return to_check
+        else:
+            index += 1
+
+
+def write_distance_file(
+        data,
+        output_dir,
+        output_name,
+        encoding,
+        crs,
+        file_type="ESRI Shapefile"
+):
+    """
+    Write a GIS file with distances to disk.
+
+    Inputs:
+
+        data - a list of dictionaries with key/values:
+            from: A QgsPoint with the coordinates of the
+                start of a line
+            to: A QgsPoint with the coordinates of the
+                end of a line
+            distance: The distance between the two QgsPoints,
+                measured in meters
+            from_attribute - The value of the attribute used
+                as an identifier for features in the layer
+            to_attribute - The value of the attribute used
+                as an identifier for features in the layer
+
+        output_dir - The path to the directory where the file will
+            be written to.
+
+        output_name - The name for the file, without extension
+
+        encoding - A string with the encoding to use when writing
+            the attributes
+
+        crs - A QgsCoordinateReferenceSystem object representing the
+            CRS of the output file
+
+        file_type - A string representing the type of file format to use
+    """
+
+    if file_type == 'ESRI Shapefile':
+        if not output_name.endswith('.shp'):
+            output_name = '%s.shp' % output_name
+    output_name = get_output_file_name(output_dir, output_name)
+    output_path = os.path.join(output_dir, output_name)
+    if not os.path.isdir(output_dir):
+        os.mkdir(output_dir)
+    fields = qgis.core.QgsFields()
+    fields.append(
+        qgis.core.QgsField(
+            'From_Node', QtCore.QVariant.String, 'From_NodeID', 255)
+    )
+    fields.append(
+        qgis.core.QgsField('To_Node', QtCore.QVariant.String, 'To_NodeID', 255)
+    )
+    fields.append(
+        qgis.core.QgsField('distance', QtCore.QVariant.Double, 'distance', 255, 1))
+    writer = qgis.core.QgsVectorFileWriter(
+        output_path, encoding, fields, qgis.core.QGis.WKBLineString, crs, file_type)
+    if writer.hasError() == qgis.core.QgsVectorFileWriter.NoError:
+        for item in data:
+            feat = qgis.core.QgsFeature()
+            line = [item['from'], item['to']]
+            feat.setGeometry(qgis.core.QgsGeometry.fromPolyline(line))
+            feat.setFields(fields)
+            feat.initAttributes(3)
+            feat.setAttribute('From_Node', item['from_attribute'])
+            feat.setAttribute('To_Node', item['to_attribute'])
+            feat.setAttribute('distance', item['distance'])
+            writer.addFeature(feat)
+    else:
+        print('Error when creating distances lines '
+              'file: {}'.format(writer.hasError()))
+    del writer
+    return output_path
+
+
+def get_closest_vertex(pt, line, measurer):
+    """
+    Return the closest vertex to an input point.
+
+    Inputs:
+
+        pt - A QgsPoint representing the point to analyze
+
+        line - A QgsLineString representing the line to analyze.
+
+        measurer - A QgsDistanceArea object used to measure the distance
+
+    Returns a QgsPoint of the vertex of the line that is closest to the
+    input point.
+    """
+
+    distance = None
+    closest = None
+    for vertex in line:
+        dist = measurer.measureLine(pt, vertex)
+        if distance is None or distance > dist:
+            closest = vertex
+            distance = dist
+    return closest
+
+
+def is_on_the_segment(pt, line):
+    result = False
+    p1, p2 = line
+    min_x, max_x = sorted((p1.x(), p2.x()))
+    min_y, max_y = sorted((p1.y(), p2.y()))
+    if (min_x < pt.x() < max_x) and (min_y < pt.y() < max_y):
+        result = True
+    return result
+
+
+def project_point(line_segment, point, measurer):
+    """
+    Project a point on a line segment.
+
+    Inputs:
+
+        line_segment - A two-element tuple of QgsPoint objects
+
+        point - A QgsPoint representing the point to project.
+
+        measurer - A QgsDistanceArea object
+
+    Returns a two-element tuple with:
+        - a QgsPoint representing the projection of the input point
+        on the line segment
+        - the distance between the input point and the projected point
+
+    This code is adapted from:
+        http://www.vcskicks.com/code-snippet/point-projection.php
+    """
+
+    pt1, pt2 = line_segment
+    try:
+        m = (pt2.y() - pt1.y()) / (pt2.x() - pt1.x())
+        b = pt1.y() - (m * pt1.x())
+        x = (point.x() + m * point.y() - m * b) / (m * m + 1)
+        y = (m * m * point.y() + m * point.x() + b) / (m * m + 1)
+    except ZeroDivisionError:
+        # line_string is paralel to y axis
+        x = pt1.x()
+        y = point.y()
+    projected = qgis.core.QgsPoint(x, y)
+    distance = measurer.measureLine(point, projected)
+    return projected, distance
+
+def transform_point(
+        point,
+        transformer=None,
+        reverse=False
+):
+    """
+    Transform a point from a CRS to another using a transformer.
+
+    Inputs:
+
+        point - A QgsPoint object with the point to transform
+
+        transformer - A QgsCoordinateTransform object configured
+            with the source and destination CRSs. If None (the default),
+            no transformation is needed, and the returned result is
+            the same as the input point
+
+        reverse - A boolean indicating if the reverse transformation
+            is desired. Defaults to False, indicating that a forward
+            transform is to be processed
+
+    Returns a QgsPoint object with the transformed coordinates.
+    """
+
+    if transformer is not None:
+        if reverse:
+            result = transformer.transform(
+                point,
+                qgis.core.QgsCoordinateTransform.ReverseTransform
+            )
+        else:
+            result = transformer.transform(point)
+    else:
+        result = point
+    return result
+
+
+def find_candidate_points(point, line_segment, measurer):
+    projected, distance = project_point(line_segment, point,
+                                        measurer)
+    if is_on_the_segment(projected, line_segment):
+        candidate = (point, projected, distance)
+    else:
+        close_vertex = get_closest_vertex(projected, line_segment,
+                                          measurer)
+        distance = measurer.measureLine(point, close_vertex)
+        candidate = (point, close_vertex, distance)
+    return candidate
+
+def get_segments(line_string):
+    """
+    Return the line segments that compose input line_string.
+
+    Inputs:
+
+        line_string - A QgsLineString
+
+    Returns a list of two-element lists with QgsPoint objects that
+    represent the segments of the input line_string.
+    """
+
+    segments = []
+    for index, pt1 in enumerate(line_string):
+        if index < (len(line_string) - 1):
+            pt2 = line_string[index+1]
+            segments.append([pt1, pt2])
+    return segments
+
+def get_closest_segments(poly1, poly2):
+    """
+    return the closest line segments between poly1 and poly2.
+
+    Inputs:
+
+        poly1 - A QgsPolygon object
+
+        poly2 - A QgsPolygon object
+
+    Returns a two-element tuple with:
+        - the closest segment in poly1
+        - the closest segment in poly2
+
+    A segment is a two-element list of QgsPoints with the vertices
+    of the segment.
+    """
+
+    segments1 = get_segments(poly1[0])
+    segments2 = get_segments(poly2[0])
+    closest_segments = []
+    distance = None
+    for seg1 in segments1:
+        for seg2 in segments2:
+            line1 = qgis.core.QgsGeometry.fromPolyline(seg1)
+            line2 = qgis.core.QgsGeometry.fromPolyline(seg2)
+            dist = line1.distance(line2)
+            if distance is None or distance > dist:
+                distance = dist
+                closest_segments = (seg1, seg2)
+    return closest_segments
+
+def get_polygon(geometry, transformer=None):
+    """
+    Convert a geometry to polygon and transform its coordinates.
+
+    Inputs:
+
+        geometry - A QgsGeometry object to be converted
+
+        transformer - A QgsCoordinateTransform object configured
+            with the source and destination CRSs. If None (the default),
+            no transformation is needed, and the returned result is
+            the same as the input
+
+    Returns a QgsPolygon object with the transformed coordinates of the
+    geometry.
+    """
+
+    if transformer is not None:
+        geometry.transform(transformer)
+    return geometry.asPolygon()
+
+
+def save_text_file(
+        data,
+        tentative_output_path: Path,
+        encoding: str,
+) -> Path:
+    tentative_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_path = get_output_path(tentative_output_path)
+    sorted_data = sorted(data, key=lambda tup: tup[0])
+    with output_path.open(encoding=encoding, mode="w") as fh:
+        for tup in sorted_data:
+            line = "\t".join(str(i) for i in tup)
+            fh.write(f"{line}\n")
+        # Conefor manual states that files should terminate with a blank line
+        fh.write("\n")
+    return output_path

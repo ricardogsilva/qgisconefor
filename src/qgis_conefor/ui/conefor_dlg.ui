@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>640</width>
-    <height>598</height>
+    <width>647</width>
+    <height>659</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Conefor Inputs</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_7">
      <item>
       <widget class="QCheckBox" name="lock_layers_chb">
@@ -38,7 +38,7 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="1" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
       <widget class="QLabel" name="layers_la">
@@ -62,7 +62,7 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="2" column="0">
     <widget class="QTableView" name="tableView">
      <property name="editTriggers">
       <set>QAbstractItemView::AllEditTriggers</set>
@@ -87,7 +87,7 @@
      </attribute>
     </widget>
    </item>
-   <item>
+   <item row="3" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_4">
      <item>
       <spacer name="horizontalSpacer">
@@ -118,7 +118,7 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="4" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_6">
      <item>
       <widget class="QCheckBox" name="use_selected_features_chb">
@@ -142,7 +142,7 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="5" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QCheckBox" name="create_distances_files_chb">
@@ -166,7 +166,7 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="6" column="0">
     <widget class="QLabel" name="output_la">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Output directory&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -176,7 +176,7 @@
      </property>
     </widget>
    </item>
-   <item>
+   <item row="7" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
       <widget class="QLineEdit" name="output_dir_le"/>
@@ -190,14 +190,14 @@
      </item>
     </layout>
    </item>
-   <item>
+   <item row="8" column="0">
     <widget class="Line" name="line">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item>
+   <item row="9" column="0">
     <widget class="QLabel" name="progress_la">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -210,43 +210,19 @@
      </property>
     </widget>
    </item>
-   <item>
+   <item row="10" column="0">
     <widget class="QProgressBar" name="progressBar">
      <property name="value">
       <number>24</number>
      </property>
     </widget>
    </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_5">
-     <item>
-      <widget class="QPushButton" name="help_btn">
-       <property name="text">
-        <string>Help</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="run_btn">
-       <property name="text">
-        <string>Run</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+   <item row="11" column="0">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Help|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
@@ -256,8 +232,6 @@
   <tabstop>create_distances_files_chb</tabstop>
   <tabstop>output_dir_btn</tabstop>
   <tabstop>output_dir_le</tabstop>
-  <tabstop>run_btn</tabstop>
-  <tabstop>help_btn</tabstop>
  </tabstops>
  <resources/>
  <connections/>
