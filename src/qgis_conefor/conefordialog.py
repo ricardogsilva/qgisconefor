@@ -18,15 +18,14 @@ from . import (
     tablemodel,
     tasks,
 )
-from .utilities import log
+from .utilities import (
+    load_settings_key,
+    log,
+    save_settings_key,
+)
 
 UI_DIR = Path(__file__).parent / "ui"
 FORM_CLASS, _ = uic.loadUiType(str(UI_DIR / "conefor_dlg.ui"))
-
-
-class QgisConeforSettingsKey(enum.Enum):
-    OUTPUT_DIR = "PythonPlugins/qgisconefor/output_dir"
-    USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
 
 
 class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
@@ -69,8 +68,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.progressBar.setMinimum(0)
         self.progressBar.setMaximum(0)
         self.use_selected_features_chb.setChecked(
-            self.load_settings_key(
-                QgisConeforSettingsKey.USE_SELECTED,
+            load_settings_key(
+                schemas.QgisConeforSettingsKey.USE_SELECTED,
                 as_boolean=True,
                 default_to=False
             )
@@ -88,8 +87,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         task_manager.addTask(self.analyzer_task)
 
     def use_selected_features_toggled(self, state: int):
-        self.save_settings_key(
-            QgisConeforSettingsKey.USE_SELECTED,
+        save_settings_key(
+            schemas.QgisConeforSettingsKey.USE_SELECTED,
             True if state == QtCore.Qt.CheckState.Checked else False
         )
 
@@ -139,8 +138,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             if len(selected_layers) < 2:
                 self.remove_row_btn.setEnabled(False)
             self.toggle_run_button()
-            output_dir = self.load_settings_key(
-                QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
+            output_dir = load_settings_key(
+                schemas.QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
             self.output_dir_le.setText(output_dir)
             self.create_distances_files_chb.setChecked(False)
             self.progressBar.setValue(self.processor.global_progress)
@@ -188,36 +187,15 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.remove_row_btn.setEnabled(False)
 
     def get_output_dir(self):
-        initial_dir = self.load_settings_key(
-            QgisConeforSettingsKey.OUTPUT_DIR,
+        initial_dir = load_settings_key(
+            schemas.QgisConeforSettingsKey.OUTPUT_DIR,
             default_to=str(Path.home())
         )
         chosen_dir = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select output directory", directory=initial_dir)
         final_dir = chosen_dir or initial_dir
-        self.save_settings_key(QgisConeforSettingsKey.OUTPUT_DIR, final_dir)
+        save_settings_key(schemas.QgisConeforSettingsKey.OUTPUT_DIR, final_dir)
         self.output_dir_le.setText(final_dir)
-
-    def save_settings_key(self, key: QgisConeforSettingsKey, value):
-        settings = qgis.core.QgsSettings()
-        settings.setValue(key.value, value)
-        settings.sync()
-
-    def load_settings_key(
-            self,
-            key: QgisConeforSettingsKey,
-            as_boolean: bool = False,
-            default_to=None
-    ):
-        settings = qgis.core.QgsSettings()
-        value = settings.value(key.value, defaultValue=default_to)
-        if as_boolean:
-            result = True
-            if value.lower() in ("false", "no", "0"):
-                result = False
-        else:
-            result = value
-        return result
 
     def get_conefor_input_parameters(
             self,

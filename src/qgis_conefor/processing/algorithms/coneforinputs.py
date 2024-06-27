@@ -1,5 +1,6 @@
 import os
-from functools import partial
+import functools
+from pathlib import Path
 
 import qgis.core
 from qgis.PyQt import (
@@ -10,7 +11,12 @@ from qgis.PyQt import (
 from qgis.utils import iface
 
 from ...coneforinputsprocessor import InputsProcessor
-from ...schemas import ICON_RESOURCE_PATH
+from ...schemas import (
+    ICON_RESOURCE_PATH,
+    QgisConeforSettingsKey,
+    ConeforInputParameters,
+)
+from ...utilities import load_settings_key
 
 
 class Base(qgis.core.QgsProcessingAlgorithm):
@@ -27,50 +33,123 @@ class Base(qgis.core.QgsProcessingAlgorithm):
     def icon(self):
         return QtGui.QIcon(ICON_RESOURCE_PATH)
 
+    @staticmethod
+    def _update_progress(feedback_obj, processor):
+        feedback_obj.setPercentage(processor.global_progress)
 
-class ConeforInputsBase(Base):
-    INPUT_VECTOR_LAYER = "Vector layer"
-    INPUT_UNIQUE_ATTRIBUTE_NAME = "Node identifier"
+    @staticmethod
+    def _update_info(feedback_obj, info, section=0):
+        feedback_obj.setInfo(info)
+
+
+class ConeforInputsPolygonAttribute(Base):
+    INPUT_POLYGON_LAYER = ("vector_layer", "Polygon layer",)
+    INPUT_IDENTIFIER_ATTRIBUTE_NAME = ("node_identifier", "Node identifier attribute")
+    INPUT_CONNECTIONS_ATTRIBUTE_NAME = ("node_connections", "Node connections attribute")
+    OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
+
+    def createInstance(self):
+        return ConeforInputsPolygonAttribute()
+
+    def group(self):
+        return self.tr("Prepare inputs from vector polygons")
+
+    def groupId(self):
+        return "coneforpolygons"
+
+    def name(self):
+        return "polygonattribute"
+
+    def displayName(self):
+        return "Use pre-existing attribute"
 
     def initAlgorithm(self, configuration=None):
         self.addParameter(
             qgis.core.QgsProcessingParameterFeatureSource(
-                name=self.INPUT_VECTOR_LAYER,
-                description=self.tr("Input layer"),
+                name=self.INPUT_POLYGON_LAYER[0],
+                description=self.tr(self.INPUT_POLYGON_LAYER[1]),
                 types=[
-                    qgis.core.QgsProcessing.TypeVectorPoint,
                     qgis.core.QgsProcessing.TypeVectorPolygon,
                 ]
             )
         )
         self.addParameter(
             qgis.core.QgsProcessingParameterField(
-                name=self.INPUT_UNIQUE_ATTRIBUTE_NAME,
-                description=self.tr(
-                    "Unique attribute that can be used to identify each feature"),
-                parentLayerParameterName=self.INPUT_VECTOR_LAYER,
+                name=self.INPUT_IDENTIFIER_ATTRIBUTE_NAME[0],
+                description=self.tr(self.INPUT_IDENTIFIER_ATTRIBUTE_NAME[1]),
+                parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
                 type=qgis.core.QgsProcessingParameterField.Numeric,
             )
         )
+        self.addParameter(
+            qgis.core.QgsProcessingParameterField(
+                name=self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[0],
+                description=self.tr(self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[1]),
+                parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
+                type=qgis.core.QgsProcessingParameterField.Numeric,
+            )
+        )
+        self.addParameter(
+            qgis.core.QgsProcessingParameterFolderDestination(
+                name=self.OUTPUT_DIRECTORY[0],
+                description=self.OUTPUT_DIRECTORY[1],
+                defaultValue=load_settings_key(
+                    QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
+            )
+        )
 
-
-class ConeforInputsAttribute(ConeforInputsBase):
-
-    def name(self):
-        return "attribute"
-
-    def displayName(self):
-        return self.tr("Generate inputs with an attribute query")
-
-    def shortHelpString(self):
-        return self.tr("Generates the Conefor input files")
-
-    def createInstance(self):
-        return ConeforInputsAttribute()
-
-    def initAlgorithm(self, configuration=None):
-        super().initAlgorithm()
-
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsVectorLayer(
+            parameters,
+            self.INPUT_POLYGON_LAYER[0],
+            context
+        )
+        id_field_name = self.parameterAsFields(
+            parameters,
+            self.INPUT_UNIQUE_ATTRIBUTE_NAME[0],
+            context
+        )[0]
+        attribute_field_name = self.parameterAsFields(
+            parameters,
+            self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[0],
+            context
+        )[0]
+        output_dir = self.parameterAsFile(
+            parameters,
+            self.OUTPUT_DIRECTORY[0],
+            context
+        )
+        feedback.pushInfo(f"{layer=}")
+        feedback.pushInfo(f"{id_field_name=}")
+        feedback.pushInfo(f"{output_dir=}")
+        feedback.setProgress(100)
+        processor = InputsProcessor(project_crs=None)
+        progress_updater = functools.partial(
+            self._update_progress, feedback, processor)
+        info_updater = functools.partial(
+            self._update_info, feedback, processor)
+        processor.progress_changed.connect(progress_updater)
+        processor.update_info.connect(progress_updater)
+        try:
+            input_params = [
+                ConeforInputParameters(
+                    layer=layer,
+                    id_attribute_field_name=id_field_name,
+                    attribute_field_name=attribute_field_name,
+                    attribute_file_name=f"nodes_{attribute_field_name}_{layer.name()}",
+                    area_file_name=None,
+                    centroid_file_name=None,
+                    edge_file_name=None,
+                    centroid_distance_name=None,
+                    edge_distance_name=None,
+                )
+            ]
+            result = None
+        except Exception as err:
+            raise qgis.core.QgsProcessingException(str(err))
+        return {
+            self.OUTPUT_DIRECTORY[0]: output_dir
+        }
 
 
 # class ConeforInputsBase(GeoAlgorithm):

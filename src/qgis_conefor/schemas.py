@@ -8,7 +8,6 @@ import qgis.core
 
 ICON_RESOURCE_PATH = ":/plugins/qgisconefor/icon.png"
 
-
 AUTOGENERATE_NODE_ID_LABEL = "<AUTOGENERATE>"
 NONE_LABEL = "<NONE>"
 
@@ -24,6 +23,11 @@ RELEVANT_FIELD_TYPES = (
     QtCore.QMetaType.ULongLong,
     QtCore.QMetaType.UShort,
 )
+
+
+class QgisConeforSettingsKey(enum.Enum):
+    OUTPUT_DIR = "PythonPlugins/qgisconefor/output_dir"
+    USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
 
 
 @dataclasses.dataclass
