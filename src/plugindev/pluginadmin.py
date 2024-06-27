@@ -164,28 +164,53 @@ def install_qgis_into_venv(
     qgis_dir: Path = os.getenv(
         "QGIS_PYTHON_DIR_PATH", "/usr/lib/python3/dist-packages/qgis"
     ),
+    processing_plugin_dir: Path = os.getenv(
+        "QGIS_PROCESSING_PLUGIN_DIR_PATH", "/usr/share/qgis/python/plugins/processing")
 ):
     venv_dir = _get_virtualenv_site_packages_dir()
     print(f"venv_dir: {venv_dir}")
     print(f"pyqt5_dir: {pyqt5_dir}")
     print(f"sip_dir: {sip_dir}")
     print(f"qgis_dir: {qgis_dir}")
-    suitable, relevant_paths = _check_suitable_system(pyqt5_dir, sip_dir, qgis_dir)
+    print(f"processing_plugin_dir: {processing_plugin_dir}")
+    suitable, relevant_paths = _check_suitable_system(
+        pyqt5_dir, sip_dir, qgis_dir, processing_plugin_dir)
     if suitable:
         target_pyqt5_dir_path = venv_dir / "PyQt5"
         print(f"Symlinking {relevant_paths['pyqt5']} to {target_pyqt5_dir_path}...")
-        target_pyqt5_dir_path.symlink_to(
-            relevant_paths["pyqt5"], target_is_directory=True
-        )
+        try:
+            target_pyqt5_dir_path.symlink_to(
+                relevant_paths["pyqt5"], target_is_directory=True
+            )
+        except FileExistsError as err:
+            print(err)
+
         for sip_file in relevant_paths["sip"]:
             target = venv_dir / sip_file.name
             print(f"Symlinking {sip_file} to {target}...")
-            target.symlink_to(sip_file)
+            try:
+                target.symlink_to(sip_file)
+            except FileExistsError as err:
+                print(err)
         target_qgis_dir_path = venv_dir / "qgis"
         print(f"Symlinking {relevant_paths['qgis']} to {target_qgis_dir_path}...")
-        target_qgis_dir_path.symlink_to(
-            relevant_paths["qgis"], target_is_directory=True
+        try:
+            target_qgis_dir_path.symlink_to(
+                relevant_paths["qgis"], target_is_directory=True
+            )
+        except FileExistsError as err:
+            print(err)
+        target_processing_plugin_dir_path = venv_dir / "processing"
+        print(
+            f"Symlinking {relevant_paths['processing_plugin']} to "
+            f"{target_processing_plugin_dir_path}..."
         )
+        try:
+            target_processing_plugin_dir_path.symlink_to(
+                relevant_paths["processing_plugin"], target_is_directory=True
+            )
+        except FileExistsError as err:
+            print(err)
         final_message = "Done!"
     else:
         final_message = f"Could not find all relevant paths: {relevant_paths}"
@@ -250,7 +275,10 @@ def generate_plugin_repo_xml(
 
 
 def _check_suitable_system(
-    pyqt5_dir: Path, sip_dir: Path, qgis_dir: Path
+        pyqt5_dir: Path,
+        sip_dir: Path,
+        qgis_dir: Path,
+        processing_plugin_dir: Path,
 ) -> typing.Tuple[bool, typing.Dict]:
     pyqt5_found = pyqt5_dir.is_dir()
     try:
@@ -259,13 +287,15 @@ def _check_suitable_system(
         sip_files = []
     sip_found = len(sip_files) > 0
     qgis_found = qgis_dir.is_dir()
-    suitable = pyqt5_found and sip_found and qgis_found
+    processing_plugin_found = processing_plugin_dir.is_dir()
+    suitable = pyqt5_found and sip_found and qgis_found and processing_plugin_found
     return (
         suitable,
         {
             "pyqt5": pyqt5_dir,
             "sip": sip_files,
             "qgis": qgis_dir,
+            "processing_plugin": processing_plugin_dir,
         },
     )
 

@@ -71,6 +71,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.use_selected_features_chb.setChecked(
             self.load_settings_key(
                 QgisConeforSettingsKey.USE_SELECTED,
+                as_boolean=True,
                 default_to=False
             )
         )
@@ -205,10 +206,18 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     def load_settings_key(
             self,
             key: QgisConeforSettingsKey,
+            as_boolean: bool = False,
             default_to=None
     ):
         settings = qgis.core.QgsSettings()
-        return settings.value(key.value, defaultValue=default_to)
+        value = settings.value(key.value, defaultValue=default_to)
+        if as_boolean:
+            result = True
+            if value.lower() in ("false", "no", "0"):
+                result = False
+        else:
+            result = value
+        return result
 
     def get_conefor_input_parameters(
             self,

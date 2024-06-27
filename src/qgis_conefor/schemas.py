@@ -1,9 +1,13 @@
 import dataclasses
+import enum
 from typing import Optional
 
 from qgis.PyQt import QtCore
 
 import qgis.core
+
+ICON_RESOURCE_PATH = ":/plugins/qgisconefor/icon.png"
+
 
 AUTOGENERATE_NODE_ID_LABEL = "<AUTOGENERATE>"
 NONE_LABEL = "<NONE>"
