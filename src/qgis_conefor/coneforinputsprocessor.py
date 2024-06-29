@@ -1,9 +1,13 @@
+import functools
 import os
 import sys
 import traceback
 import codecs
 from pathlib import Path
-from typing import Optional
+from typing import (
+    Callable,
+    Optional,
+)
 
 import qgis.core
 from qgis.PyQt import QtCore
@@ -388,282 +392,60 @@ class InputsProcessor(QtCore.QObject):
     def _run_attribute_query(
             self,
             layer_params: schemas.ConeforInputParameters,
-            use_selected,
+            use_selected: bool,
             analysis_step: int,
             output_path: Path,
             file_save_progress_step: int = 0
     ) -> Path:
-        """
-        Process the attribute data query.
-
-        Inputs:
-
-            layer - A QgsVectorLayer object
-
-            id_attribute - The name of the attribute that uniquely identifies
-                each feature in the layer
-
-            attribute - The name of the attribute to use in the processing
-                query
-
-            encoding - The encoding to use when processing the attributes and
-                saving the results to disk
-
-            use_selected - A boolean indicating if the processing is to be
-                performed only on the selected features or on all features
-
-            analysis_step - A number indicating the ammount of overall
-                progress is to be added after this processing is done
-
-            output_path - The full path to the text file where the results
-                are to be saved.
-
-            file_save_progress_step - A number indicating the ammount of 
-                overall progress to be added after saving the text file with
-                the results
-        """
-
         self.update_info.emit('Running attribute query', 1)
-        data = []
-
-        layer = layer_params.layer
-        feature_iterator = (
-            layer.getSelectedFeatures() if use_selected else layer.getFeatures())
-        for feat in feature_iterator:
-            log(f"Processing feature {feat.id()}...")
-            if len(list(feat.geometry().constParts())) > 1:
-                log(
-                    f"Feature {feat.id()} has multiple parts",
-                    level=qgis.core.Qgis.Warning
-                )
-            if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
-                id_ = feat.id()
-            else:
-                id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
-            attr = get_numeric_attribute(feat, layer_params.attribute_field_name)
-            if id_ is not None and attr is not None:
-                if attr >= 0:
-                    data.append((id_, attr))
-                else:
-                    log(
-                        f"Feature with id {id_!r}: Attribute "
-                        f"{layer_params.attribute_field_name!r} "
-                        f"has value: {attr!r} - this is lower than zero. Skipping this "
-                        f"feature...",
-                        level=qgis.core.Qgis.Warning
-                    )
-            else:
-                log(
-                    f"Was not able to retrieve a valid value for id ({id_!r}) and "
-                    f"attribute ({attr!r}), skipping this feature...",
-                    level=qgis.core.Qgis.Warning
-                )
-        self.global_progress += analysis_step
-        self.progress_changed.emit()
-        self.update_info.emit("Writing attribute file...", 1)
-        encoding = layer_params.layer.dataProvider().encoding()
-        if encoding == 'System':
-            encoding = sys.getfilesystemencoding()
-        output_path = save_text_file(data, output_path, encoding)
-        self.global_progress += file_save_progress_step
+        output_path = run_attribute_query(
+            layer_params,
+            use_selected,
+            output_path,
+            info_callback=self.update_info.emit
+        )
+        self.global_progress += analysis_step + file_save_progress_step
         self.progress_changed.emit()
         return output_path
 
     def _run_area_query(
             self,
             layer_params: schemas.ConeforInputParameters,
-            encoding,
             use_selected: bool,
-            analysis_step,
-            output_path,
-            file_save_progress_step=0
-    ) -> str:
-        """
-        Process the area data query.
-
-        Inputs:
-
-            layer - A QgsVectorLayer object
-
-            id_attribute - The name of the attribute that uniquely identifies
-                each feature in the layer
-
-            encoding - The encoding to use when processing the attributes and
-                saving the results to disk
-
-            use_selected - A boolean indicating if the processing is to be
-                performed only on the selected features or on all features
-
-            analysis_step - A number indicating the ammount of overall
-                progress is to be added after this processing is done
-
-            output_path - The full path to the text file where the results
-                are to be saved.
-
-            file_save_progress_step - A number indicating the ammount of 
-                overall progress to be added after saving the text file with
-                the results
-        """
-
+            analysis_step: int,
+            output_path: Path,
+            file_save_progress_step: int=0
+    ) -> Path:
         self.update_info.emit('Running area query...', 1)
-        data = []
-        vector_layer = layer_params.layer
-        if vector_layer.crs().geographicFlag():
-            if self.project_crs.geographicFlag():
-                print(
-                    'Neither the layer nor the project\'s coordinate ' \
-                    'system is projected. The area calculation will not ' \
-                    'be acurate.'
-                )
-            measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(vector_layer)
-        else:
-            measurer = self._get_measurer(vector_layer.crs())
-            transformer = None
-        feature_iterator = (
-            vector_layer.getSelectedFeatures()
-            if use_selected else vector_layer.getFeatures()
+        output_path = run_area_query(
+            layer_params,
+            use_selected,
+            output_path,
+            info_callback=self.update_info.emit
         )
-        for feat in feature_iterator:
-            polygon = feat.geometry().asPolygon()
-            new_polygon = []
-            for ring in polygon:
-                new_ring = []
-                for point in ring:
-                    if transformer is None:
-                        new_ring.append(point)
-                    else:
-                        new_ring.append(transformer.transform(point))
-                new_polygon.append(new_ring)
-            if any(new_polygon):
-                outer_area = measurer.measurePolygon(new_polygon[0])
-                hole_areas = 0
-                if len(new_polygon) > 1:
-                    holes = new_polygon[1:]
-                    for hole in holes:
-                        hole_areas += measurer.measurePolygon(hole)
-                total_feat_area = outer_area - hole_areas
-                id_attr = get_numeric_attribute(
-                    feat, layer_params.id_attribute_field_name)
-                if id_attr is not None:
-                    data.append((id_attr, total_feat_area))
-        self.global_progress += analysis_step
+        self.global_progress += analysis_step + file_save_progress_step
         self.progress_changed.emit()
-        output_file = None
-        if any(data):
-            output_dir, output_name = os.path.split(output_path)
-            self.update_info.emit("Writing area file...", 1)
-            output_file = save_text_file(data, output_dir, output_name, encoding)
-            self.global_progress += file_save_progress_step
-            self.progress_changed.emit()
-        return output_file
+        return output_path
 
     def _run_centroid_query(
             self,
             layer_params: schemas.ConeforInputParameters,
-            encoding,
             use_selected,
             analysis_step,
-            output_path=None,
+            output_path,
             file_save_progress_step=0,
             shape_file_path=None
-    ):
+    ) -> list[Path]:
         self.update_info.emit('Running centroid query...', 1)
-        data = []
-        vector_layer = layer_params.layer
-        if vector_layer.crs().geographicFlag():
-            measurer = self._get_measurer(self.project_crs)
-            transformer = self._get_transformer(vector_layer)
-        else:
-            measurer = self._get_measurer(vector_layer.crs())
-            transformer = None
-        feature_ids = [
-            f.id() for f in utilities.get_features(vector_layer, use_selected)]
-        i = 0
-        j = 0
-        while i < len(feature_ids):
-            features = utilities.get_features(
-                vector_layer, use_selected, feature_ids[i])
-            current = iter(features).next()
-            c_id_attr = get_numeric_attribute(
-                current, layer_params.id_attribute_field_name)
-            if c_id_attr is not None:
-                current_geom = current.geometry()
-                orig_curr_centroid = current_geom.centroid().asPoint()
-                trans_curr_centroid = transform_point(
-                    orig_curr_centroid, transformer)
-                j = i + 1
-                while j < len(feature_ids):
-                    features = utilities.get_features(
-                        vector_layer, use_selected, feature_ids[j]
-                    )
-                    next_ = iter(features).next()
-                    n_id_attr = get_numeric_attribute(
-                        next_, layer_params.id_attribute_field_name)
-                    if n_id_attr is not None:
-                        next_geom = next_.geometry()
-                        orig_n_centroid = next_geom.centroid().asPoint()
-                        trans_n_centroid = transform_point(
-                            orig_n_centroid, transformer)
-                        distance = measurer.measureLine(trans_curr_centroid,
-                                                        trans_n_centroid)
-                        feat_result = {
-                            'current': {
-                                'attribute': c_id_attr,
-                                'centroid': orig_curr_centroid,
-                                'feature_geometry': current_geom,
-                            },
-                            'next': {
-                                'attribute': n_id_attr,
-                                'centroid': orig_n_centroid,
-                                'feature_geometry': next_geom,
-                            },
-                            'distance': distance,
-                        }
-                        data.append(feat_result)
-                    j += 1
-            i += 1
-        self.global_progress += analysis_step
+        output_path = run_centroid_query(
+            layer_params,
+            use_selected,
+            output_path,
+            info_callback=self.update_info.emit
+        )
+        self.global_progress += analysis_step + file_save_progress_step
         self.progress_changed.emit()
-        output_files = []
-        if any(data):
-            if output_path is not None:
-                output_dir, output_name = os.path.split(output_path)
-                data_to_write = []
-                for c_dict in data:
-                    current_id = c_dict['current']['attribute']
-                    next_id = c_dict['next']['attribute']
-                    distance = c_dict['distance']
-                    data_to_write.append((current_id, next_id, distance))
-                self.update_info.emit("Writing centroids file...", 1)
-                output_file = save_text_file(
-                    data_to_write, output_dir, output_name, encoding)
-                self.global_progress += file_save_progress_step
-                self.progress_changed.emit()
-                output_files.append(output_file)
-            if shape_file_path is not None:
-                output_dir, output_name = os.path.split(shape_file_path)
-                self.update_info.emit('Creating centroid distance file', 1)
-                if not os.path.isdir(output_dir):
-                    os.mkdir(output_dir)
-                data_to_write = []
-                for c_dict in data:
-                    the_data = {
-                        'from': c_dict['current']['centroid'],
-                        'to': c_dict['next']['centroid'],
-                        'distance': c_dict['distance'],
-                        'from_attribute': c_dict['current']['attribute'],
-                        'to_attribute': c_dict['next']['attribute'],
-                    }
-                    data_to_write.append(the_data)
-                output_shape = write_distance_file(
-                    data_to_write, output_dir, output_name, encoding,
-                    vector_layer.crs()
-                )
-                output_files.append(output_shape)
-                self.global_progress += file_save_progress_step
-                self.progress_changed.emit()
-        return output_files
+        return [output_path]
 
     def _get_measurer(self, source_crs):
         measurer = qgis.core.QgsDistanceArea()
@@ -1220,3 +1002,155 @@ def save_text_file(
         # Conefor manual states that files should terminate with a blank line
         fh.write("\n")
     return output_path
+
+
+def run_attribute_query(
+    layer_params: schemas.ConeforInputParameters,
+    use_selected: bool,
+    output_path: Path,
+    info_callback: Optional[Callable[[str], None]] = log,
+
+) -> Path:
+    """Process the attribute data query."""
+
+    data = []
+    layer = layer_params.layer
+    feature_iterator = (
+        layer.getSelectedFeatures() if use_selected else layer.getFeatures())
+    for feat in feature_iterator:
+        info_callback(f"Processing feature {feat.id()}...")
+        if len(list(feat.geometry().constParts())) > 1:
+            log(
+                f"Feature {feat.id()} has multiple parts",
+                level=qgis.core.Qgis.Warning
+            )
+        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
+            id_ = feat.id()
+        else:
+            id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+        attr = get_numeric_attribute(feat, layer_params.attribute_field_name)
+        if id_ is not None and attr is not None:
+            if attr >= 0:
+                data.append((id_, attr))
+            else:
+                log(
+                    f"Feature with id {id_!r}: Attribute "
+                    f"{layer_params.attribute_field_name!r} "
+                    f"has value: {attr!r} - this is lower than zero. Skipping this "
+                    f"feature...",
+                    level=qgis.core.Qgis.Warning
+                )
+        else:
+            log(
+                f"Was not able to retrieve a valid value for id ({id_!r}) and "
+                f"attribute ({attr!r}), skipping this feature...",
+                level=qgis.core.Qgis.Warning
+            )
+    info_callback("Writing attribute file...")
+    encoding = layer_params.layer.dataProvider().encoding()
+    if encoding == 'System':
+        encoding = sys.getfilesystemencoding()
+    return save_text_file(data, output_path, encoding)
+
+
+def run_area_query(
+        layer_params: schemas.ConeforInputParameters,
+        use_selected: bool,
+        output_path: Path,
+        info_callback: Optional[Callable[[str], None]] = log,
+) -> Path:
+    """
+    Process the area data query.
+
+    Inputs:
+
+        layer - A QgsVectorLayer object
+
+        id_attribute - The name of the attribute that uniquely identifies
+            each feature in the layer
+
+        encoding - The encoding to use when processing the attributes and
+            saving the results to disk
+
+        use_selected - A boolean indicating if the processing is to be
+            performed only on the selected features or on all features
+
+        analysis_step - A number indicating the ammount of overall
+            progress is to be added after this processing is done
+
+        output_path - The full path to the text file where the results
+            are to be saved.
+
+        file_save_progress_step - A number indicating the ammount of
+            overall progress to be added after saving the text file with
+            the results
+    """
+
+    data = []
+    vector_layer = layer_params.layer
+    area_measurer = get_measurer(vector_layer)
+    feature_iterator = (
+        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+    for feat in feature_iterator:
+        info_callback(f"Processing feature {feat.id()}...")
+        geom = feat.geometry()
+        feat_area = area_measurer.measureArea(geom)
+        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
+            id_ = feat.id()
+        else:
+            id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+        data.append((id_, feat_area))
+    info_callback("Writing area file...")
+    encoding = layer_params.layer.dataProvider().encoding()
+    if encoding == 'System':
+        encoding = sys.getfilesystemencoding()
+    return save_text_file(data, output_path, encoding)
+
+
+def get_measurer(layer: qgis.core.QgsVectorLayer) -> qgis.core.QgsDistanceArea:
+    measurer = qgis.core.QgsDistanceArea()
+    qgis_project = qgis.core.QgsProject.instance()
+    measurer.setEllipsoid(qgis_project.ellipsoid())
+    measurer.setSourceCrs(
+        layer.crs(), qgis_project.transformContext())
+    return measurer
+
+
+def run_centroid_query(
+        layer_params: schemas.ConeforInputParameters,
+        use_selected,
+        output_path: Path,
+        progress_callback: Optional[Callable[[int], None]],
+        info_callback: Optional[Callable[[str], None]] = log,
+) -> Path:
+    data = []
+    vector_layer = layer_params.layer
+    measurer = get_measurer(vector_layer)
+    feature_iterator = (
+        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+
+    for feat in feature_iterator:
+        info_callback(f"Processing feature {feat.id()}...")
+        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
+            feat_id_ = feat.id()
+        else:
+            feat_id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+        feat_centroid = feat.geometry().centroid().asPoint()
+        pair_iterator = (
+            vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+        for pair_feat in pair_iterator:
+            if feat.id() != pair_feat.id():
+                if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
+                    pair_feat_id_ = feat.id()
+                else:
+                    pair_feat_id_ = get_numeric_attribute(
+                        feat, layer_params.id_attribute_field_name)
+                pair_centroid = pair_feat.geometry().centroid().asPoint()
+                centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
+                data.append((feat_id_, pair_feat_id_, centroid_distance))
+
+    info_callback("Writing centroids file...")
+    encoding = layer_params.layer.dataProvider().encoding()
+    if encoding == 'System':
+        encoding = sys.getfilesystemencoding()
+    return save_text_file(data, output_path, encoding)
