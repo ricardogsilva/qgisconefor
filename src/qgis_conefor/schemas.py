@@ -25,6 +25,11 @@ RELEVANT_FIELD_TYPES = (
 )
 
 
+class NodeConnectionType(enum.Enum):
+    CENTROID_DISTANCE = "centroid distance"
+    EDGE_DISTANCE = "edge distance"
+
+
 class QgisConeforSettingsKey(enum.Enum):
     OUTPUT_DIR = "PythonPlugins/qgisconefor/output_dir"
     USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
@@ -34,13 +39,13 @@ class QgisConeforSettingsKey(enum.Enum):
 class ConeforInputParameters:
     layer: qgis.core.QgsVectorLayer
     id_attribute_field_name: str
-    attribute_field_name: Optional[str]
-    attribute_file_name: Optional[str]
-    area_file_name: Optional[str]
-    centroid_file_name: Optional[str]
-    edge_file_name: Optional[str]
-    centroid_distance_name: Optional[str]
-    edge_distance_name: Optional[str]
+    attribute_field_name: Optional[str] = None
+    attribute_file_name: Optional[str] = None
+    area_file_name: Optional[str] = None
+    centroid_file_name: Optional[str] = None
+    edge_file_name: Optional[str] = None
+    centroid_distance_name: Optional[str] = None
+    edge_distance_name: Optional[str] = None
 
 
 # This will replace processlayer.ProcessLayer

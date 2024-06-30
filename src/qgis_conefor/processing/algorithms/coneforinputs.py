@@ -1,6 +1,7 @@
 import os
 import functools
 from pathlib import Path
+from typing import Optional
 
 import qgis.core
 from qgis.PyQt import (
@@ -10,9 +11,12 @@ from qgis.PyQt import (
 
 from qgis.utils import iface
 
+from ... import coneforinputsprocessor
 from ...coneforinputsprocessor import InputsProcessor
 from ...schemas import (
+    AUTOGENERATE_NODE_ID_LABEL,
     ICON_RESOURCE_PATH,
+    NodeConnectionType,
     QgisConeforSettingsKey,
     ConeforInputParameters,
 )
@@ -44,15 +48,19 @@ class Base(qgis.core.QgsProcessingAlgorithm):
 
 class ConeforInputsPolygonAttribute(Base):
     INPUT_POLYGON_LAYER = ("vector_layer", "Polygon layer",)
-    INPUT_IDENTIFIER_ATTRIBUTE_NAME = ("node_identifier", "Node identifier attribute")
-    INPUT_CONNECTIONS_ATTRIBUTE_NAME = ("node_connections", "Node connections attribute")
-    OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
+    INPUT_NODE_IDENTIFIER_NAME = (
+        "node_identifier", "Node identifier (will autogenerate if not set)")
+    INPUT_NODE_ATTRIBUTE_NAME = ("node_attribute", "Node attribute (will calculate area if not set)")
+    INPUT_NODE_CONNECTION_NAME = ("node_connection", "Node connection links (will calculate centroid distance and use as probability if not set)")
+    INPUT_OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
+    OUTPUT_CONEFOR_NODES_FILE_PATH = ("output_path", "Conefor nodes file")
+    OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH = ("output_connections_path", "Conefor connections file")
 
     def createInstance(self):
         return ConeforInputsPolygonAttribute()
 
     def group(self):
-        return self.tr("Prepare inputs from vector polygons")
+        return self.tr("Prepare inputs from polygons")
 
     def groupId(self):
         return "coneforpolygons"
@@ -61,7 +69,7 @@ class ConeforInputsPolygonAttribute(Base):
         return "polygonattribute"
 
     def displayName(self):
-        return "Use pre-existing attribute"
+        return "Connections as links or as distances between features"
 
     def initAlgorithm(self, configuration=None):
         self.addParameter(
@@ -75,82 +83,142 @@ class ConeforInputsPolygonAttribute(Base):
         )
         self.addParameter(
             qgis.core.QgsProcessingParameterField(
-                name=self.INPUT_IDENTIFIER_ATTRIBUTE_NAME[0],
-                description=self.tr(self.INPUT_IDENTIFIER_ATTRIBUTE_NAME[1]),
+                name=self.INPUT_NODE_IDENTIFIER_NAME[0],
+                description=self.tr(self.INPUT_NODE_IDENTIFIER_NAME[1]),
                 parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
                 type=qgis.core.QgsProcessingParameterField.Numeric,
+                optional=True,
             )
         )
         self.addParameter(
             qgis.core.QgsProcessingParameterField(
-                name=self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[0],
-                description=self.tr(self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[1]),
+                name=self.INPUT_NODE_ATTRIBUTE_NAME[0],
+                description=self.tr(self.INPUT_NODE_ATTRIBUTE_NAME[1]),
                 parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
                 type=qgis.core.QgsProcessingParameterField.Numeric,
+                optional=True,
+            )
+        )
+        self.addParameter(
+            qgis.core.QgsProcessingParameterField(
+                name=self.INPUT_NODE_CONNECTION_NAME[0],
+                description=self.tr(self.INPUT_NODE_CONNECTION_NAME[1]),
+                parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
+                type=qgis.core.QgsProcessingParameterField.Numeric,
+                optional=True,
             )
         )
         self.addParameter(
             qgis.core.QgsProcessingParameterFolderDestination(
-                name=self.OUTPUT_DIRECTORY[0],
-                description=self.OUTPUT_DIRECTORY[1],
+                name=self.INPUT_OUTPUT_DIRECTORY[0],
+                description=self.INPUT_OUTPUT_DIRECTORY[1],
                 defaultValue=load_settings_key(
                     QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
             )
         )
+        self.addOutput(
+            qgis.core.QgsProcessingOutputFile(
+                name=self.OUTPUT_CONEFOR_NODES_FILE_PATH[0],
+                description=self.OUTPUT_CONEFOR_NODES_FILE_PATH[1],
+            )
+        )
+        self.addOutput(
+            qgis.core.QgsProcessingOutputFile(
+                name=self.OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH[0],
+                description=self.OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH[1],
+            )
+        )
 
     def processAlgorithm(self, parameters, context, feedback):
-        layer = self.parameterAsVectorLayer(
+        source = self.parameterAsSource(
             parameters,
             self.INPUT_POLYGON_LAYER[0],
             context
         )
-        id_field_name = self.parameterAsFields(
+        node_id_field_names = self.parameterAsStrings(
             parameters,
-            self.INPUT_UNIQUE_ATTRIBUTE_NAME[0],
-            context
-        )[0]
-        attribute_field_name = self.parameterAsFields(
-            parameters,
-            self.INPUT_CONNECTIONS_ATTRIBUTE_NAME[0],
-            context
-        )[0]
-        output_dir = self.parameterAsFile(
-            parameters,
-            self.OUTPUT_DIRECTORY[0],
+            self.INPUT_NODE_IDENTIFIER_NAME[0],
             context
         )
-        feedback.pushInfo(f"{layer=}")
-        feedback.pushInfo(f"{id_field_name=}")
+        node_id_field_name = (
+            None if len(node_id_field_names) == 0 else node_id_field_names[0]
+        )
+
+        output_dir = Path(
+            self.parameterAsFile(
+                parameters,
+                self.INPUT_OUTPUT_DIRECTORY[0],
+                context
+            )
+        )
+        node_attribute_field_names = self.parameterAsFields(
+            parameters,
+            self.INPUT_NODE_ATTRIBUTE_NAME[0],
+            context
+        )
+        feedback.pushInfo(f"{source=}")
+        feedback.pushInfo(f"{node_id_field_name=}")
         feedback.pushInfo(f"{output_dir=}")
-        feedback.setProgress(100)
-        processor = InputsProcessor(project_crs=None)
-        progress_updater = functools.partial(
-            self._update_progress, feedback, processor)
-        info_updater = functools.partial(
-            self._update_info, feedback, processor)
-        processor.progress_changed.connect(progress_updater)
-        processor.update_info.connect(progress_updater)
-        try:
-            input_params = [
-                ConeforInputParameters(
-                    layer=layer,
-                    id_attribute_field_name=id_field_name,
-                    attribute_field_name=attribute_field_name,
-                    attribute_file_name=f"nodes_{attribute_field_name}_{layer.name()}",
-                    area_file_name=None,
-                    centroid_file_name=None,
-                    edge_file_name=None,
-                    centroid_distance_name=None,
-                    edge_distance_name=None,
+
+        if len(node_attribute_field_names) == 0:  # use area as the attribute
+            try:
+                node_file_output_path = self._generate_node_file_by_area(
+                    node_id_field_name, source, output_dir, feedback)
+            except Exception as err:
+                raise qgis.core.QgsProcessingException(str(err))
+        else:
+            try:
+                node_file_output_path = (
+                    self._generate_node_file_by_attribute(
+                        node_id_field_name, node_attribute_field_names[0], source,
+                        output_dir, feedback,
+                    )
                 )
-            ]
-            result = None
-        except Exception as err:
-            raise qgis.core.QgsProcessingException(str(err))
+            except Exception as err:
+                raise qgis.core.QgsProcessingException(str(err))
+        connections_file_output_path = None
         return {
-            self.OUTPUT_DIRECTORY[0]: output_dir
+            self.OUTPUT_CONEFOR_NODES_FILE_PATH[0]: node_file_output_path,
+            self.OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH[0]: connections_file_output_path
         }
 
+    def _generate_node_file_by_attribute(
+        self,
+        node_id_field: Optional[str],
+        node_attribute_field: str,
+        source,
+        output_dir: Path,
+        feedback
+    ) -> Path:
+        return coneforinputsprocessor.generate_node_file_by_attribute(
+            node_id_field_name=node_id_field,
+            node_attribute_field_name=node_attribute_field,
+            feature_iterator=source.getFeatures(),
+            num_features=source.featureCount(),
+            output_path=(
+                output_dir / f"nodes_{node_attribute_field}_{source.sourceName()}.txt"
+            ),
+            progress_callback=feedback.setProgress,
+            info_callback=feedback.pushInfo,
+        )
+
+    def _generate_node_file_by_area(
+        self,
+        node_id_field: Optional[str],
+        source,
+        output_dir: Path,
+        feedback
+    ) -> Path:
+        return coneforinputsprocessor.generate_node_file_by_area(
+            node_id_field_name=node_id_field,
+            crs=source.sourceCrs(),
+            feature_iterator=source.getFeatures(),
+            num_features=source.featureCount(),
+            output_path=(
+                output_dir / f"nodes_calculated-area_{source.sourceName()}.txt"),
+            progress_callback=feedback.setProgress,
+            info_callback=feedback.pushInfo,
+        )
 
 # class ConeforInputsBase(GeoAlgorithm):
 #

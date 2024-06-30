@@ -989,10 +989,9 @@ def get_polygon(geometry, transformer=None):
 def save_text_file(
         data,
         tentative_output_path: Path,
-        encoding: str,
+        encoding: Optional[str] = "utf-8",
 ) -> Path:
     tentative_output_path.parent.mkdir(parents=True, exist_ok=True)
-
     output_path = get_output_path(tentative_output_path)
     sorted_data = sorted(data, key=lambda tup: tup[0])
     with output_path.open(encoding=encoding, mode="w") as fh:
@@ -1004,19 +1003,30 @@ def save_text_file(
     return output_path
 
 
-def run_attribute_query(
-    layer_params: schemas.ConeforInputParameters,
-    use_selected: bool,
+def get_measurer(
+    source_crs: qgis.core.QgsCoordinateReferenceSystem
+) -> qgis.core.QgsDistanceArea:
+    measurer = qgis.core.QgsDistanceArea()
+    qgis_project = qgis.core.QgsProject.instance()
+    measurer.setEllipsoid(qgis_project.ellipsoid())
+    measurer.setSourceCrs(source_crs, qgis_project.transformContext())
+    return measurer
+
+
+def generate_node_file_by_attribute(
+    node_id_field_name: Optional[str],
+    node_attribute_field_name: str,
+    feature_iterator,
+    num_features: int,
     output_path: Path,
+    progress_callback: Optional[Callable[[int], None]],
     info_callback: Optional[Callable[[str], None]] = log,
 
 ) -> Path:
-    """Process the attribute data query."""
+    """Generate Conefor node file using each feature's attribute as the node attribute."""
 
     data = []
-    layer = layer_params.layer
-    feature_iterator = (
-        layer.getSelectedFeatures() if use_selected else layer.getFeatures())
+    current_progress = 0
     for feat in feature_iterator:
         info_callback(f"Processing feature {feat.id()}...")
         if len(list(feat.geometry().constParts())) > 1:
@@ -1024,18 +1034,20 @@ def run_attribute_query(
                 f"Feature {feat.id()} has multiple parts",
                 level=qgis.core.Qgis.Warning
             )
-        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
-            id_ = feat.id()
-        else:
-            id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
-        attr = get_numeric_attribute(feat, layer_params.attribute_field_name)
+        id_ = (
+            feat.id() if node_id_field_name is None
+            else get_numeric_attribute(feat, node_id_field_name)
+        )
+
+        attr = get_numeric_attribute(feat, node_attribute_field_name)
+        info_callback(f"{id_=} - {attr=}")
         if id_ is not None and attr is not None:
             if attr >= 0:
                 data.append((id_, attr))
             else:
                 log(
                     f"Feature with id {id_!r}: Attribute "
-                    f"{layer_params.attribute_field_name!r} "
+                    f"{node_attribute_field_name!r} "
                     f"has value: {attr!r} - this is lower than zero. Skipping this "
                     f"feature...",
                     level=qgis.core.Qgis.Warning
@@ -1046,77 +1058,57 @@ def run_attribute_query(
                 f"attribute ({attr!r}), skipping this feature...",
                 level=qgis.core.Qgis.Warning
             )
+        current_progress += 1/num_features
+        progress_callback(current_progress)
     info_callback("Writing attribute file...")
-    encoding = layer_params.layer.dataProvider().encoding()
-    if encoding == 'System':
-        encoding = sys.getfilesystemencoding()
-    return save_text_file(data, output_path, encoding)
+    return save_text_file(data, output_path)
 
 
-def run_area_query(
-        layer_params: schemas.ConeforInputParameters,
-        use_selected: bool,
-        output_path: Path,
-        info_callback: Optional[Callable[[str], None]] = log,
+def generate_node_file_by_area(
+    node_id_field_name: Optional[str],
+    crs: qgis.core.QgsCoordinateReferenceSystem,
+    feature_iterator,
+    num_features: int,
+    output_path: Path,
+    progress_callback: Optional[Callable[[int], None]],
+    info_callback: Optional[Callable[[str], None]] = log,
 ) -> Path:
-    """
-    Process the area data query.
-
-    Inputs:
-
-        layer - A QgsVectorLayer object
-
-        id_attribute - The name of the attribute that uniquely identifies
-            each feature in the layer
-
-        encoding - The encoding to use when processing the attributes and
-            saving the results to disk
-
-        use_selected - A boolean indicating if the processing is to be
-            performed only on the selected features or on all features
-
-        analysis_step - A number indicating the ammount of overall
-            progress is to be added after this processing is done
-
-        output_path - The full path to the text file where the results
-            are to be saved.
-
-        file_save_progress_step - A number indicating the ammount of
-            overall progress to be added after saving the text file with
-            the results
-    """
-
+    """Generate Conefor node file using each feature's area as the node attribute."""
     data = []
-    vector_layer = layer_params.layer
-    area_measurer = get_measurer(vector_layer)
-    feature_iterator = (
-        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+    area_measurer = get_measurer(crs)
+    current_progress = 0
     for feat in feature_iterator:
         info_callback(f"Processing feature {feat.id()}...")
         geom = feat.geometry()
         feat_area = area_measurer.measureArea(geom)
-        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
-            id_ = feat.id()
-        else:
-            id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+        id_ = (
+            feat.id() if node_id_field_name is None
+            else get_numeric_attribute(feat, node_id_field_name)
+        )
         data.append((id_, feat_area))
+        current_progress += 1 / num_features
+        progress_callback(current_progress)
     info_callback("Writing area file...")
-    encoding = layer_params.layer.dataProvider().encoding()
-    if encoding == 'System':
-        encoding = sys.getfilesystemencoding()
-    return save_text_file(data, output_path, encoding)
+    return save_text_file(data, output_path)
 
 
-def get_measurer(layer: qgis.core.QgsVectorLayer) -> qgis.core.QgsDistanceArea:
-    measurer = qgis.core.QgsDistanceArea()
-    qgis_project = qgis.core.QgsProject.instance()
-    measurer.setEllipsoid(qgis_project.ellipsoid())
-    measurer.setSourceCrs(
-        layer.crs(), qgis_project.transformContext())
-    return measurer
+def generate_connection_file_with_attribute() -> Path:
+    """
+    Generate conefor node connections file using feature attribute as connection info.
+
+    Attribute can represent either:
+
+    - binary link between pairs of features
+    - the probability of connectedness
+    - the distance between features
+
+    In any case, this information is coming directly from the feature's relevant field
+    """
+    ...
 
 
-def run_centroid_query(
+
+def generate_connection_file_with_centroid_distances(
         layer_params: schemas.ConeforInputParameters,
         use_selected,
         output_path: Path,
@@ -1128,28 +1120,71 @@ def run_centroid_query(
     measurer = get_measurer(vector_layer)
     feature_iterator = (
         vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
-
     for feat in feature_iterator:
         info_callback(f"Processing feature {feat.id()}...")
-        if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
-            feat_id_ = feat.id()
-        else:
-            feat_id_ = get_numeric_attribute(feat, layer_params.id_attribute_field_name)
+        feat_id = get_feature_id(layer_params, feat)
         feat_centroid = feat.geometry().centroid().asPoint()
         pair_iterator = (
             vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
         for pair_feat in pair_iterator:
             if feat.id() != pair_feat.id():
-                if layer_params.id_attribute_field_name == schemas.AUTOGENERATE_NODE_ID_LABEL:
-                    pair_feat_id_ = feat.id()
-                else:
-                    pair_feat_id_ = get_numeric_attribute(
-                        feat, layer_params.id_attribute_field_name)
+                pair_feat_id = get_feature_id(layer_params, pair_feat)
                 pair_centroid = pair_feat.geometry().centroid().asPoint()
                 centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
-                data.append((feat_id_, pair_feat_id_, centroid_distance))
+                data.append((feat_id, pair_feat_id, centroid_distance))
 
     info_callback("Writing centroids file...")
+    encoding = layer_params.layer.dataProvider().encoding()
+    if encoding == 'System':
+        encoding = sys.getfilesystemencoding()
+    return save_text_file(data, output_path, encoding)
+
+
+def get_feature_id(
+    node_id_field_name: Optional[str],
+    feature: qgis.core.QgsFeature
+) -> int:
+    if node_id_field_name is None:
+        feat_id = feature.id()
+    else:
+        feat_id = get_numeric_attribute(feature, node_id_field_name)
+    return feat_id
+
+
+def run_edge_query(
+    layer_params: schemas.ConeforInputParameters,
+    use_selected: bool,
+    output_path: Path,
+    progress_callback: Optional[Callable[[int], None]],
+    info_callback: Optional[Callable[[str], None]] = log,
+) -> Path:
+    data = []
+    vector_layer = layer_params.layer
+    if vector_layer.crs().isGeographic():
+        qgis_project = qgis.core.QgsProject.instance()
+        destination_crs = qgis.core.QgsCoordinateReferenceSystem(qgis_project.crs())
+        transformer = qgis.core.QgsCoordinateTransform(vector_layer.crs(), destination_crs, qgis_project.transformContext())
+    else:
+        transformer = None
+    feature_iterator = (
+        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+    for feat in feature_iterator:
+        info_callback(f"Processing feature {feat.id()}...")
+        feat_id = get_feature_id(layer_params, feat)
+        feat_geom = feat.geometry()
+        if transformer is not None:
+            feat_geom.transform(transformer)
+        pair_iterator = (
+            vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+        for pair_feat in pair_iterator:
+            if feat.id() != pair_feat.id():
+                pair_feat_id = get_feature_id(layer_params, pair_feat)
+                pair_feat_geom = pair_feat.geometry()
+                if transformer is not None:
+                    pair_feat_geom.transform(transformer)
+                edge_distance = feat_geom.distance(pair_feat_geom)
+                data.append(feat_id, pair_feat_id, edge_distance)
+    info_callback("Writing edges file...")
     encoding = layer_params.layer.dataProvider().encoding()
     if encoding == 'System':
         encoding = sys.getfilesystemencoding()

@@ -91,7 +91,7 @@ def load_settings_key(
 ):
     settings = qgis.core.QgsSettings()
     value = settings.value(key.value, defaultValue=default_to)
-    if as_boolean:
+    if as_boolean and type(value) is not bool:
         result = True
         if value.lower() in ("false", "no", "0"):
             result = False
