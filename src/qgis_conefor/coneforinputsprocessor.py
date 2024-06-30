@@ -1016,18 +1016,19 @@ def get_measurer(
 def generate_node_file_by_attribute(
     node_id_field_name: Optional[str],
     node_attribute_field_name: str,
-    feature_iterator: qgis.core.QgsFeatureIterator,
+    feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
     info_callback: Optional[Callable[[str], None]] = log,
 
-) -> Path:
+) -> Optional[Path]:
     """Generate Conefor node file using each feature's attribute as the node attribute."""
 
     data = []
     current_progress = 0
-    for feat in feature_iterator:
+    seen_ids = set()
+    for feat in feature_iterator_factory():
         info_callback(f"Processing feature {feat.id()}...")
         if len(list(feat.geometry().constParts())) > 1:
             log(
@@ -1038,46 +1039,55 @@ def generate_node_file_by_attribute(
             feat.id() if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
-
         attr = get_numeric_attribute(feat, node_attribute_field_name)
         info_callback(f"{id_=} - {attr=}")
         if id_ is not None and attr is not None:
-            if attr >= 0:
-                data.append((id_, attr))
+            if id_ not in seen_ids:
+                if attr >= 0:
+                    data.append((id_, attr))
+                    seen_ids.add(id_)
+                else:
+                    info_callback(
+                        f"Feature with id {id_!r}: Attribute "
+                        f"{node_attribute_field_name!r} "
+                        f"has value: {attr!r} - this is lower than zero. Skipping this "
+                        f"feature...",
+                    )
             else:
-                log(
-                    f"Feature with id {id_!r}: Attribute "
-                    f"{node_attribute_field_name!r} "
-                    f"has value: {attr!r} - this is lower than zero. Skipping this "
-                    f"feature...",
-                    level=qgis.core.Qgis.Warning
+                raise qgis.core.QgsProcessingException(
+                    f"node id {id_!r} is not unique. Conefor node identifiers must be "
+                    f"unique - Please select another layer field."
                 )
         else:
-            log(
+            info_callback(
                 f"Was not able to retrieve a valid value for id ({id_!r}) and "
                 f"attribute ({attr!r}), skipping this feature...",
-                level=qgis.core.Qgis.Warning
             )
         current_progress += 1/num_features
         progress_callback(current_progress)
     info_callback("Writing attribute file...")
-    return save_text_file(data, output_path)
+    if len(data) > 0:
+        return save_text_file(data, output_path)
+    else:
+        info_callback("Was not able to extract any data")
+        return None
 
 
 def generate_node_file_by_area(
     node_id_field_name: Optional[str],
     crs: qgis.core.QgsCoordinateReferenceSystem,
-    feature_iterator: qgis.core.QgsFeatureIterator,
+    feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
     info_callback: Optional[Callable[[str], None]] = log,
-) -> Path:
+) -> Optional[Path]:
     """Generate Conefor node file using each feature's area as the node attribute."""
     data = []
     area_measurer = get_measurer(crs)
     current_progress = 0
-    for feat in feature_iterator:
+    seen_ids = set()
+    for feat in feature_iterator_factory():
         info_callback(f"Processing feature {feat.id()}...")
         geom = feat.geometry()
         feat_area = area_measurer.measureArea(geom)
@@ -1085,48 +1095,91 @@ def generate_node_file_by_area(
             feat.id() if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
-        data.append((id_, feat_area))
+        if id_ is not None:
+            if id_ not in seen_ids:
+                data.append((id_, feat_area))
+                seen_ids.add(id_)
+            else:
+                raise qgis.core.QgsProcessingException(
+                    f"node id {id_!r} is not unique. Conefor node identifiers must be "
+                    f"unique - Please select another layer field."
+                )
+        else:
+            info_callback(
+                f"Was not able to retrieve a valid value for id ({id_!r}), skipping "
+                f"this feature...",
+            )
         current_progress += 1 / num_features
         progress_callback(current_progress)
     info_callback("Writing area file...")
-    return save_text_file(data, output_path)
+    if len(data) > 0:
+        return save_text_file(data, output_path)
+    else:
+        info_callback("Was not able to extract any data")
+        return None
 
 
 def generate_connection_file_with_centroid_distances(
     node_id_field_name: Optional[str],
     crs: qgis.core.QgsCoordinateReferenceSystem,
-    feature_iterator: qgis.core.QgsFeatureIterator,
+    feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
     info_callback: Optional[Callable[[str], None]] = log,
-    distance_threshold: Optional[float] = None,
-) -> Path:
+    distance_threshold: Optional[int] = None,
+) -> Optional[Path]:
     data = []
     measurer = get_measurer(crs)
     current_progress = 0
-    for feat in feature_iterator:
+    seen_ids = set()
+    for feat in feature_iterator_factory():
         feat_id = (
             feat.id() if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
-        info_callback(f"Processing feature {feat_id}...")
-        feat_centroid = feat.geometry().centroid().asPoint()
-        pair_iterator = qgis.core.QgsFeatureIterator(feature_iterator)
-        for pair_feat in pair_iterator:
-            if feat.id() != pair_feat.id():
-                pair_feat_id = (
-                    pair_feat.id() if node_id_field_name is None
-                    else get_numeric_attribute(pair_feat, node_id_field_name)
+        if feat_id is not None:
+            if feat_id not in seen_ids:
+                seen_ids.add(feat_id)
+                info_callback(f"Processing feature {feat_id}...")
+                feat_centroid = feat.geometry().centroid().asPoint()
+                for pair_feat in feature_iterator_factory():
+                    if pair_feat.id() > feat.id():
+                        pair_feat_id = (
+                            pair_feat.id() if node_id_field_name is None
+                            else get_numeric_attribute(pair_feat, node_id_field_name)
+                        )
+                        if pair_feat_id is not None:
+                            info_callback(f"Processing pair feature {pair_feat_id}...")
+                            pair_centroid = pair_feat.geometry().centroid().asPoint()
+                            centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
+                            info_callback(f"{centroid_distance=}")
+                            if distance_threshold is None or centroid_distance <= distance_threshold:
+                                data.append((feat_id, pair_feat_id, centroid_distance))
+                        else:
+                            info_callback(
+                                f"Was not able to retrieve a valid value for feature pair "
+                                f"id ({pair_feat_id!r}), skipping this feature...",
+                            )
+            else:
+                raise qgis.core.QgsProcessingException(
+                    f"node id {feat_id!r} is not unique. Conefor node identifiers must be "
+                    f"unique - Please select another layer field."
                 )
-                pair_centroid = pair_feat.geometry().centroid().asPoint()
-                centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
-                if distance_threshold is not None and (centroid_distance <= distance_threshold):
-                    data.append((feat_id, pair_feat_id, centroid_distance))
+        else:
+            info_callback(
+                f"Was not able to retrieve a valid value for feature id ({feat_id!r}), "
+                f"skipping this feature...",
+            )
         current_progress += 1 / num_features
         progress_callback(current_progress)
     info_callback("Writing connections file...")
-    return save_text_file(data, output_path)
+    info_callback(f"{data=}")
+    if len(data) > 0:
+        return save_text_file(data, output_path)
+    else:
+        info_callback("Was not able to extract any data")
+        return None
 
 
 def get_feature_id(
@@ -1140,41 +1193,73 @@ def get_feature_id(
     return feat_id
 
 
-def run_edge_query(
-    layer_params: schemas.ConeforInputParameters,
-    use_selected: bool,
+def generate_connection_file_with_edge_distances(
+    node_id_field_name: Optional[str],
+    crs: qgis.core.QgsCoordinateReferenceSystem,
+    feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
+    num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
     info_callback: Optional[Callable[[str], None]] = log,
-) -> Path:
+    distance_threshold: Optional[int] = None,
+) -> Optional[Path]:
     data = []
-    vector_layer = layer_params.layer
-    if vector_layer.crs().isGeographic():
+    if crs.isGeographic():
         qgis_project = qgis.core.QgsProject.instance()
         destination_crs = qgis.core.QgsCoordinateReferenceSystem(qgis_project.crs())
-        transformer = qgis.core.QgsCoordinateTransform(vector_layer.crs(), destination_crs, qgis_project.transformContext())
+        transformer = qgis.core.QgsCoordinateTransform(
+            crs, destination_crs, qgis_project.transformContext())
     else:
         transformer = None
-    feature_iterator = (
-        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
-    for feat in feature_iterator:
-        info_callback(f"Processing feature {feat.id()}...")
-        feat_id = get_feature_id(layer_params, feat)
-        feat_geom = feat.geometry()
-        if transformer is not None:
-            feat_geom.transform(transformer)
-        pair_iterator = (
-            vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
-        for pair_feat in pair_iterator:
-            if feat.id() != pair_feat.id():
-                pair_feat_id = get_feature_id(layer_params, pair_feat)
-                pair_feat_geom = pair_feat.geometry()
+    current_progress = 0
+    seen_ids = set()
+    for feat in feature_iterator_factory():
+        feat_id = (
+            feat.id() if node_id_field_name is None
+            else get_numeric_attribute(feat, node_id_field_name)
+        )
+        if feat_id is not None:
+            if feat_id not in seen_ids:
+                seen_ids.add(feat_id)
+                info_callback(f"Processing feature {feat_id}...")
+                feat_geom = feat.geometry()
                 if transformer is not None:
-                    pair_feat_geom.transform(transformer)
-                edge_distance = feat_geom.distance(pair_feat_geom)
-                data.append(feat_id, pair_feat_id, edge_distance)
+                    feat_geom.transform(transformer)
+                for pair_feat in feature_iterator_factory():
+                    if pair_feat.id() > feat.id():
+                        pair_feat_id = (
+                            pair_feat.id() if node_id_field_name is None
+                            else get_numeric_attribute(pair_feat, node_id_field_name)
+                        )
+                        if pair_feat_id is not None:
+                            info_callback(f"Processing pair feature {pair_feat_id}...")
+                            pair_feat_geom = pair_feat.geometry()
+                            if transformer is not None:
+                                pair_feat_geom.transform(transformer)
+                            edge_distance = feat_geom.distance(pair_feat_geom)
+                            info_callback(f"{edge_distance=}")
+                            if distance_threshold is None or edge_distance <= distance_threshold:
+                                data.append((feat_id, pair_feat_id, edge_distance))
+                        else:
+                            info_callback(
+                                f"Was not able to retrieve a valid value for feature pair "
+                                f"id ({pair_feat_id!r}), skipping this feature...",
+                            )
+            else:
+                raise qgis.core.QgsProcessingException(
+                    f"node id {feat_id!r} is not unique. Conefor node identifiers must be "
+                    f"unique - Please select another layer field."
+                )
+        else:
+            info_callback(
+                f"Was not able to retrieve a valid value for feature id ({feat_id!r}), "
+                f"skipping this feature...",
+            )
+        current_progress += 1 / num_features
+        progress_callback(current_progress)
     info_callback("Writing edges file...")
-    encoding = layer_params.layer.dataProvider().encoding()
-    if encoding == 'System':
-        encoding = sys.getfilesystemencoding()
-    return save_text_file(data, output_path, encoding)
+    if len(data) > 0:
+        return save_text_file(data, output_path)
+    else:
+        info_callback("Was not able to extract any data")
+        return None
