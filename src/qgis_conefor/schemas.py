@@ -26,8 +26,8 @@ RELEVANT_FIELD_TYPES = (
 
 
 class NodeConnectionType(enum.Enum):
-    CENTROID_DISTANCE = "centroid distance"
     EDGE_DISTANCE = "edge distance"
+    CENTROID_DISTANCE = "centroid distance"
 
 
 class QgisConeforSettingsKey(enum.Enum):

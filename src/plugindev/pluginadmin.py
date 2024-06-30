@@ -214,7 +214,7 @@ def install_qgis_into_venv(
         final_message = "Done!"
     else:
         final_message = f"Could not find all relevant paths: {relevant_paths}"
-    return final_message
+    print(final_message)
 
 
 @app.command()

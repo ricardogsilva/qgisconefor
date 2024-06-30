@@ -51,7 +51,8 @@ class ConeforInputsPolygonAttribute(Base):
     INPUT_NODE_IDENTIFIER_NAME = (
         "node_identifier", "Node identifier (will autogenerate if not set)")
     INPUT_NODE_ATTRIBUTE_NAME = ("node_attribute", "Node attribute (will calculate area if not set)")
-    INPUT_NODE_CONNECTION_NAME = ("node_connection", "Node connection links (will calculate centroid distance and use as probability if not set)")
+    INPUT_NODE_CONNECTION_DISTANCE_METHOD = ("node_connection", "Node connection distance method")
+    INPUT_DISTANCE_THRESHOLD = ("distance_threshold", "Distance threshold")
     INPUT_OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
     OUTPUT_CONEFOR_NODES_FILE_PATH = ("output_path", "Conefor nodes file")
     OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH = ("output_connections_path", "Conefor connections file")
@@ -100,18 +101,30 @@ class ConeforInputsPolygonAttribute(Base):
             )
         )
         self.addParameter(
-            qgis.core.QgsProcessingParameterField(
-                name=self.INPUT_NODE_CONNECTION_NAME[0],
-                description=self.tr(self.INPUT_NODE_CONNECTION_NAME[1]),
-                parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
-                type=qgis.core.QgsProcessingParameterField.Numeric,
+            qgis.core.QgsProcessingParameterEnum(
+                name=self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0],
+                description=self.tr(
+                    self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[1]),
+                options=[
+                    NodeConnectionType.EDGE_DISTANCE.value,
+                    NodeConnectionType.CENTROID_DISTANCE.value
+                ],
+                defaultValue=NodeConnectionType.EDGE_DISTANCE.value
+            )
+        )
+        self.addParameter(
+            qgis.core.QgsProcessingParameterNumber(
+                name=self.INPUT_DISTANCE_THRESHOLD[0],
+                description=self.tr(self.INPUT_DISTANCE_THRESHOLD[1]),
+                type=qgis.core.QgsProcessingParameterNumber.Integer,
                 optional=True,
+                minValue=0,
             )
         )
         self.addParameter(
             qgis.core.QgsProcessingParameterFolderDestination(
                 name=self.INPUT_OUTPUT_DIRECTORY[0],
-                description=self.INPUT_OUTPUT_DIRECTORY[1],
+                description=self.tr(self.INPUT_OUTPUT_DIRECTORY[1]),
                 defaultValue=load_settings_key(
                     QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
             )
@@ -135,15 +148,24 @@ class ConeforInputsPolygonAttribute(Base):
             self.INPUT_POLYGON_LAYER[0],
             context
         )
-        node_id_field_names = self.parameterAsStrings(
-            parameters,
-            self.INPUT_NODE_IDENTIFIER_NAME[0],
-            context
-        )
-        node_id_field_name = (
-            None if len(node_id_field_names) == 0 else node_id_field_names[0]
+        try:
+            node_id_field_name = (
+                self.parameterAsStrings(
+                    parameters, self.INPUT_NODE_ATTRIBUTE_NAME[0], context)
+            )[0]
+        except IndexError:
+            node_id_field_name = None
+        raw_connections_distance_method = self.parameterAsEnumString(
+            parameters, self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0], context)
+        feedback.pushInfo(f"{raw_connections_distance_method=}")
+        connections_distance_method = NodeConnectionType(
+            self.parameterAsEnumString(
+                parameters, self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0], context)
         )
 
+
+        connections_distance_threshold = self.parameterAsInt(
+                parameters, self.INPUT_DISTANCE_THRESHOLD[0], context)
         output_dir = Path(
             self.parameterAsFile(
                 parameters,
@@ -156,8 +178,10 @@ class ConeforInputsPolygonAttribute(Base):
             self.INPUT_NODE_ATTRIBUTE_NAME[0],
             context
         )
+
         feedback.pushInfo(f"{source=}")
         feedback.pushInfo(f"{node_id_field_name=}")
+        feedback.pushInfo(f"{connections_distance_method=}")
         feedback.pushInfo(f"{output_dir=}")
 
         if len(node_attribute_field_names) == 0:  # use area as the attribute
@@ -176,11 +200,32 @@ class ConeforInputsPolygonAttribute(Base):
                 )
             except Exception as err:
                 raise qgis.core.QgsProcessingException(str(err))
-        connections_file_output_path = None
+        if connections_distance_method == NodeConnectionType.EDGE_DISTANCE:
+            raise NotImplementedError
+        elif connections_distance_method == NodeConnectionType.CENTROID_DISTANCE:
+            connections_file_output_path = (
+                coneforinputsprocessor.generate_connection_file_with_centroid_distances(
+                    node_id_field_name=node_id_field_name,
+                    crs=source.sourceCrs(),
+                    feature_iterator=source.getFeatures(),
+                    num_features=source.featureCount(),
+                    output_path=(
+                            output_dir / f"connections_centroid-distance_{source.sourceName()}.txt"
+                    ),
+                    progress_callback=feedback.setProgress,
+                    info_callback=feedback.pushInfo,
+                    distance_threshold=connections_distance_threshold,
+                )
+            )
+        else:
+            raise NotImplementedError
         return {
             self.OUTPUT_CONEFOR_NODES_FILE_PATH[0]: node_file_output_path,
             self.OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH[0]: connections_file_output_path
         }
+
+    def _generate_connections_file(self):
+        ...
 
     def _generate_node_file_by_attribute(
         self,

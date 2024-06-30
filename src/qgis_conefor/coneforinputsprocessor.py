@@ -1016,7 +1016,7 @@ def get_measurer(
 def generate_node_file_by_attribute(
     node_id_field_name: Optional[str],
     node_attribute_field_name: str,
-    feature_iterator,
+    feature_iterator: qgis.core.QgsFeatureIterator,
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
@@ -1067,7 +1067,7 @@ def generate_node_file_by_attribute(
 def generate_node_file_by_area(
     node_id_field_name: Optional[str],
     crs: qgis.core.QgsCoordinateReferenceSystem,
-    feature_iterator,
+    feature_iterator: qgis.core.QgsFeatureIterator,
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
@@ -1092,52 +1092,41 @@ def generate_node_file_by_area(
     return save_text_file(data, output_path)
 
 
-def generate_connection_file_with_attribute() -> Path:
-    """
-    Generate conefor node connections file using feature attribute as connection info.
-
-    Attribute can represent either:
-
-    - binary link between pairs of features
-    - the probability of connectedness
-    - the distance between features
-
-    In any case, this information is coming directly from the feature's relevant field
-    """
-    ...
-
-
-
 def generate_connection_file_with_centroid_distances(
-        layer_params: schemas.ConeforInputParameters,
-        use_selected,
-        output_path: Path,
-        progress_callback: Optional[Callable[[int], None]],
-        info_callback: Optional[Callable[[str], None]] = log,
+    node_id_field_name: Optional[str],
+    crs: qgis.core.QgsCoordinateReferenceSystem,
+    feature_iterator: qgis.core.QgsFeatureIterator,
+    num_features: int,
+    output_path: Path,
+    progress_callback: Optional[Callable[[int], None]],
+    info_callback: Optional[Callable[[str], None]] = log,
+    distance_threshold: Optional[float] = None,
 ) -> Path:
     data = []
-    vector_layer = layer_params.layer
-    measurer = get_measurer(vector_layer)
-    feature_iterator = (
-        vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+    measurer = get_measurer(crs)
+    current_progress = 0
     for feat in feature_iterator:
-        info_callback(f"Processing feature {feat.id()}...")
-        feat_id = get_feature_id(layer_params, feat)
+        feat_id = (
+            feat.id() if node_id_field_name is None
+            else get_numeric_attribute(feat, node_id_field_name)
+        )
+        info_callback(f"Processing feature {feat_id}...")
         feat_centroid = feat.geometry().centroid().asPoint()
-        pair_iterator = (
-            vector_layer.getSelectedFeatures() if use_selected else vector_layer.getFeatures())
+        pair_iterator = qgis.core.QgsFeatureIterator(feature_iterator)
         for pair_feat in pair_iterator:
             if feat.id() != pair_feat.id():
-                pair_feat_id = get_feature_id(layer_params, pair_feat)
+                pair_feat_id = (
+                    pair_feat.id() if node_id_field_name is None
+                    else get_numeric_attribute(pair_feat, node_id_field_name)
+                )
                 pair_centroid = pair_feat.geometry().centroid().asPoint()
                 centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
-                data.append((feat_id, pair_feat_id, centroid_distance))
-
-    info_callback("Writing centroids file...")
-    encoding = layer_params.layer.dataProvider().encoding()
-    if encoding == 'System':
-        encoding = sys.getfilesystemencoding()
-    return save_text_file(data, output_path, encoding)
+                if distance_threshold is not None and (centroid_distance <= distance_threshold):
+                    data.append((feat_id, pair_feat_id, centroid_distance))
+        current_progress += 1 / num_features
+        progress_callback(current_progress)
+    info_callback("Writing connections file...")
+    return save_text_file(data, output_path)
 
 
 def get_feature_id(
