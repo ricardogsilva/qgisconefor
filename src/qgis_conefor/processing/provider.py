@@ -1,5 +1,4 @@
-import enum
-import os
+from pathlib import Path
 
 from qgis.PyQt import (
     QtCore,
@@ -11,19 +10,17 @@ from processing.core.ProcessingConfig import (
     Setting as ProcessingSetting,
 )
 
-from ..schemas import ICON_RESOURCE_PATH
+from ..schemas import (
+    ICON_RESOURCE_PATH,
+    ConeforProcessingSetting
+)
 from .algorithms import coneforinputs
-
-
-class ConeforProcessingSetting(enum.Enum):
-    CONEFOR_CLI_PATH = "conefor executable path"
 
 
 class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
 
     DESCRIPTION = 'Conefor (Habitat patches and landscape connectivity analysis)'
     NAME = 'Conefor'
-    CONEFOR_EXECUTABLE_PATH = 'CONEFOR_EXECUTABLE_PATH'
 
     def id(self) -> str:
         return "conefor"
@@ -46,8 +43,29 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
         )
         return super().load()
 
+    def _load_models(self) -> list[qgis.core.QgsProcessingModelAlgorithm]:
+        centroid_distance_model_path = Path(__file__).parent / "models/centroid_distances.model3"
+        centroid_distance_algorithm = qgis.core.QgsProcessingModelAlgorithm(
+            name="Create centroid distances file",
+        )
+        centroid_distance_algorithm.fromFile(str(centroid_distance_model_path))
+
+        edge_distance_model_path = Path(__file__).parent / "models/edge_distances.model3"
+        edge_distance_algorithm = qgis.core.QgsProcessingModelAlgorithm(
+            name="Create edge distances file",
+        )
+        edge_distance_algorithm.fromFile(str(edge_distance_model_path))
+
+        return [
+            centroid_distance_algorithm,
+            edge_distance_algorithm,
+        ]
+
     def loadAlgorithms(self):
-        self.addAlgorithm(coneforinputs.ConeforInputsPolygonAttribute())
+        self.addAlgorithm(coneforinputs.ConeforInputsPolygon())
+        model_algorithms = self._load_models()
+        for model_algorithm in model_algorithms:
+            self.addAlgorithm(model_algorithm)
 
         # self.addAlgorithm(processingconeforinputs.ConeforInputsPointAttribute())
         # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonAttribute())

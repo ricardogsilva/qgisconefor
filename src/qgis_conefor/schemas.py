@@ -30,6 +30,10 @@ class NodeConnectionType(enum.Enum):
     CENTROID_DISTANCE = "centroid distance"
 
 
+class ConeforProcessingSetting(enum.Enum):
+    CONEFOR_CLI_PATH = "conefor executable path"
+
+
 class QgisConeforSettingsKey(enum.Enum):
     OUTPUT_DIR = "PythonPlugins/qgisconefor/output_dir"
     USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"

@@ -21,32 +21,10 @@ from ...schemas import (
     ConeforInputParameters,
 )
 from ...utilities import load_settings_key
+from . import base
 
 
-class Base(qgis.core.QgsProcessingAlgorithm):
-
-    def group(self):
-        return None
-
-    def groupId(self):
-        return None
-
-    def tr(self, string: str):
-        return QtCore.QCoreApplication.translate("Processing", string)
-
-    def icon(self):
-        return QtGui.QIcon(ICON_RESOURCE_PATH)
-
-    @staticmethod
-    def _update_progress(feedback_obj, processor):
-        feedback_obj.setPercentage(processor.global_progress)
-
-    @staticmethod
-    def _update_info(feedback_obj, info, section=0):
-        feedback_obj.setInfo(info)
-
-
-class ConeforInputsPolygonAttribute(Base):
+class ConeforInputsPolygon(base.Base):
     INPUT_POLYGON_LAYER = ("vector_layer", "Polygon layer",)
     INPUT_NODE_IDENTIFIER_NAME = (
         "node_identifier", "Node identifier (will autogenerate if not set)")
@@ -62,7 +40,8 @@ class ConeforInputsPolygonAttribute(Base):
     ]
 
     def createInstance(self):
-        return ConeforInputsPolygonAttribute()
+        return type(self)()
+        # return ConeforInputsPolygon()
 
     def group(self):
         return None
