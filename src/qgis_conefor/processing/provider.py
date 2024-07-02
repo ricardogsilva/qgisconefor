@@ -62,6 +62,7 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
         ]
 
     def loadAlgorithms(self):
+        self.addAlgorithm(coneforinputs.ConeforInputsPoint())
         self.addAlgorithm(coneforinputs.ConeforInputsPolygon())
         model_algorithms = self._load_models()
         for model_algorithm in model_algorithms:

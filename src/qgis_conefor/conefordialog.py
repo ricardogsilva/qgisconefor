@@ -209,11 +209,9 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     ) -> schemas.ConeforInputParameters:
         node_identifier_name = (
                 default_node_identifier_name or data_item.id_attribute_field_name)
-        if node_identifier_name != "<None>":
+        if node_identifier_name != schemas.NONE_LABEL:
             node_attribute_name = (
                     default_node_attribute_name or data_item.attribute_field_name)
-            if node_attribute_name == "<None>":
-                node_attribute_name = None
 
             process_area = (
                 default_process_area if default_process_area is not None
@@ -232,32 +230,43 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             layer_name = data_item.layer.name()
             return schemas.ConeforInputParameters(
                 layer=data_item.layer,
-                id_attribute_field_name=node_identifier_name,
-                attribute_field_name=node_attribute_name,
-                attribute_file_name=(
-                    f"nodes_{node_attribute_name}_{layer_name}"
-                    if node_attribute_name else None
+                id_attribute_field_name=(
+                    node_identifier_name
+                    if node_identifier_name != schemas.AUTOGENERATE_NODE_ID_LABEL
+                    else None
                 ),
-                area_file_name=(
-                    f"nodes_calculated_area_{layer_name}"
-                    if process_area else None
+                attribute_field_name=(
+                    node_attribute_name if node_attribute_name != schemas.NONE_LABEL
+                    else None
                 ),
-                centroid_file_name=(
-                    f"distances_centroids_{layer_name}"
-                    if process_centroid_distance else None
-                ),
-                edge_file_name=(
-                    f"distances_edges_{layer_name}"
-                    if process_edge_distance else None
-                ),
-                centroid_distance_name=(
-                    f"Centroid_links_{layer_name}"
-                    if load_to_canvas else None
-                ),
-                edge_distance_name=(
-                    f"Edge_links_{layer_name}"
-                    if load_to_canvas else None
-                ),
+                connections_method=(
+                    schemas.NodeConnectionType.EDGE_DISTANCE if process_edge_distance
+                    else schemas.NodeConnectionType.CENTROID_DISTANCE
+                )
+                # attribute_file_name=(
+                #     f"nodes_{node_attribute_name}_{layer_name}"
+                #     if node_attribute_name else None
+                # ),
+                # area_file_name=(
+                #     f"nodes_calculated_area_{layer_name}"
+                #     if process_area else None
+                # ),
+                # centroid_file_name=(
+                #     f"distances_centroids_{layer_name}"
+                #     if process_centroid_distance else None
+                # ),
+                # edge_file_name=(
+                #     f"distances_edges_{layer_name}"
+                #     if process_edge_distance else None
+                # ),
+                # centroid_distance_name=(
+                #     f"Centroid_links_{layer_name}"
+                #     if load_to_canvas else None
+                # ),
+                # edge_distance_name=(
+                #     f"Edge_links_{layer_name}"
+                #     if load_to_canvas else None
+                # ),
             )
         else:
             raise NoUniqueFieldError
@@ -291,7 +300,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.change_ui_availability(False)
         self.processing_task = tasks.LayerProcessorTask(
             description="Generate Conefor input files",
-            conefor_processor=self.processor,
             layers_data=layer_inputs,
             output_dir=output_dir,
             use_selected_features=only_selected_features

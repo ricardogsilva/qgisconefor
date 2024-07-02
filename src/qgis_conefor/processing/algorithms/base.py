@@ -21,6 +21,9 @@ class Base(qgis.core.QgsProcessingAlgorithm):
     def icon(self):
         return QtGui.QIcon(ICON_RESOURCE_PATH)
 
+    def createInstance(self):
+        return type(self)()
+
     @staticmethod
     def _update_progress(feedback_obj, processor):
         feedback_obj.setPercentage(processor.global_progress)

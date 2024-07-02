@@ -42,14 +42,15 @@ class QgisConeforSettingsKey(enum.Enum):
 @dataclasses.dataclass
 class ConeforInputParameters:
     layer: qgis.core.QgsVectorLayer
-    id_attribute_field_name: str
-    attribute_field_name: Optional[str] = None
-    attribute_file_name: Optional[str] = None
-    area_file_name: Optional[str] = None
-    centroid_file_name: Optional[str] = None
-    edge_file_name: Optional[str] = None
-    centroid_distance_name: Optional[str] = None
-    edge_distance_name: Optional[str] = None
+    id_attribute_field_name: Optional[str] = None  # None means autogenerate a node id
+    attribute_field_name: Optional[str] = None  # None means use area as the attribute
+    connections_method: NodeConnectionType = NodeConnectionType.EDGE_DISTANCE
+    # attribute_file_name: Optional[str] = None
+    # area_file_name: Optional[str] = None
+    # centroid_file_name: Optional[str] = None
+    # edge_file_name: Optional[str] = None
+    # centroid_distance_name: Optional[str] = None
+    # edge_distance_name: Optional[str] = None
 
 
 # This will replace processlayer.ProcessLayer
