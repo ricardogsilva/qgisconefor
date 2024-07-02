@@ -1,61 +1,55 @@
 import os
 import shutil
+from pathlib import Path
 from subprocess import Popen, PIPE, STDOUT
 
-from PyQt4.QtGui import QIcon
+import qgis.core
+from qgis.PyQt import QtGui
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.GeoAlgorithmExecutionException import \
-    GeoAlgorithmExecutionException
 from processing.core.ProcessingResults import ProcessingResults
-try:
-    from processing.core.parameters import ParameterFile, \
-            ParameterBoolean, ParameterNumber, ParameterSelection
-except ImportError:  # QGIS version < 2.8.1
-    from processing.parameters.ParameterFile import ParameterFile
-    from processing.parameters.ParameterBoolean import ParameterBoolean
-    from processing.parameters.ParameterNumber import ParameterNumber
-    from processing.parameters.ParameterSelection import ParameterSelection
 
-from .. import utilities
+from ... import utilities
+from ...schemas import (
+    ConeforProcessingSetting,
+    ICON_RESOURCE_PATH,
+    QgisConeforSettingsKey,
+)
+from . import base
 
-class ConeforProcessorBase(GeoAlgorithm):
-    '''
-    Base class for Conefor processing.
+class ConeforProcessorBase(base.Base):
+    """Base class for Conefor processing (don't instantiate it directly)."""
 
-    this class should not be instatiated directly.
-    '''
+    _connection_types = ["dist", "prob"]  # links is not supported atm
+    _precision = "double"
 
-    _connection_types = ['dist', 'prob'] # links is not supported atm
-    _precision = 'double'
+    NAME = ""
+    GROUP = ""
 
-    NAME = ''
-    GROUP = ''
-
-    INPUT_NODES_FILE = 'INPUT_NODES_FILE'
-    INPUT_CONNECTIONS_FILE = 'INPUT_CONNECTIONS_FILE'
-    INPUT_CONNECTION_TYPE = 'INPUT_CONNECTION_TYPE'
-    NUMBER_OF_CONNECTIONS = 'NUMBER_OF_CONNECTIONS'
-    THRESHOLD_DIRECT_LINKS = 'THRESHOLD_DIRECT_LINKS'
-    DISTANCE_PROB = 'DISTANCE_PROB'
-    PROBABILITY_PROB = 'PROBABILITY_PROB'
-    CREATE_NODE_IMPORTANCES = 'CREATE_NODE_IMPORTANCES'
-    REMOVAL = 'REMOVAL'
-    REMOVAL_DISTANCE = 'REMOVAL_DISTANCE'
-    IMPROVEMENT = 'IMPROVEMENT'
-    IMPROVEMENT_DISTANCE = 'IMPROVEMENT_DISTANCE'
-    WRITE_COMPONENT_FILE = 'WRITE_COMPONENT_FILE'
-    WRITE_LINKS_FILE = 'WRITE_LINKS_FILE'
-    WRITE_PROB_DIR = 'WRITE_PROB_DIR'
-    WRITE_PROB_MAX = 'WRITE_PROB_MAX'
-    OUTPUT_DIR = 'OUTPUT_DIR'
+    INPUT_NODES_FILE_PATH = ("nodes_file_path", "Conefor nodes file path")
+    INPUT_CONNECTIONS_FILE_PATH = ("connections_file_path", "Conefor connections file path")
+    INPUT_CONNECTION_TYPE = "INPUT_CONNECTION_TYPE"
+    INPUT_NUMBER_OF_CONNECTIONS = ("number_of_connections", "Whether all nodes are connected")
+    THRESHOLD_DIRECT_LINKS = "THRESHOLD_DIRECT_LINKS"
+    DISTANCE_PROB = "DISTANCE_PROB"
+    PROBABILITY_PROB = "PROBABILITY_PROB"
+    CREATE_NODE_IMPORTANCES = "CREATE_NODE_IMPORTANCES"
+    REMOVAL = "REMOVAL"
+    REMOVAL_DISTANCE = "REMOVAL_DISTANCE"
+    IMPROVEMENT = "IMPROVEMENT"
+    IMPROVEMENT_DISTANCE = "IMPROVEMENT_DISTANCE"
+    WRITE_COMPONENT_FILE = "WRITE_COMPONENT_FILE"
+    WRITE_LINKS_FILE = "WRITE_LINKS_FILE"
+    WRITE_PROB_DIR = "WRITE_PROB_DIR"
+    WRITE_PROB_MAX = "WRITE_PROB_MAX"
+    INPUT_OUTPUT_DIRECTORY = (
+        "output_directory", "Output directory for generated Conefor analysis files")
 
     _parameter_order = [
-        INPUT_NODES_FILE,
-        INPUT_CONNECTIONS_FILE,
+        INPUT_NODES_FILE_PATH[0],
+        INPUT_CONNECTIONS_FILE_PATH[0],
         INPUT_CONNECTION_TYPE,
-        NUMBER_OF_CONNECTIONS,
+        INPUT_NUMBER_OF_CONNECTIONS[0],
         # -* option is not used by this plugin
         THRESHOLD_DIRECT_LINKS,
         # binary_indices are not selectable in the GUI
@@ -78,25 +72,34 @@ class ConeforProcessorBase(GeoAlgorithm):
         WRITE_PROB_MAX,
         # -landArea is not implemented, yet
         # prefix is not exposed in the GUI
-        OUTPUT_DIR,
+        INPUT_OUTPUT_DIRECTORY[0],
     ]
 
-    def defineCharacteristics(self):
-        self.name = self.NAME
-        self.group = self.GROUP
-
-    def _create_parameters(self):
-        parameters = [
-            ParameterFile(self.OUTPUT_DIR, 'output directory for placing '
-                          'the results', isFolder=True, optional=False),
-            ParameterFile(self.INPUT_NODES_FILE, 'Nodes file', optional=False),
-            ParameterFile(self.INPUT_CONNECTIONS_FILE, 'Connections file',
-                          optional=False),
-            ParameterBoolean(self.NUMBER_OF_CONNECTIONS, 'All the pairs of '
-                             'nodes are llisted in the connection file',
-                             default=True),
+    def _create_parameters(self) -> list[qgis.core.QgsProcessingParameterDefinition]:
+        return [
+            qgis.core.QgsProcessingParameterFolderDestination(
+                name=self.INPUT_OUTPUT_DIRECTORY[0],
+                description=self.tr(self.INPUT_OUTPUT_DIRECTORY[1]),
+                defaultValue=utilities.load_settings_key(
+                    QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home())
+                )
+            ),
+            qgis.core.QgsProcessingParameterFile(
+                name=self.INPUT_NODES_FILE_PATH[0],
+                description=self.tr(self.INPUT_NODES_FILE_PATH[1]),
+                extension=".txt"
+            ),
+            qgis.core.QgsProcessingParameterFile(
+                name=self.INPUT_CONNECTIONS_FILE_PATH[0],
+                description=self.tr(self.INPUT_CONNECTIONS_FILE_PATH[1]),
+                extension=".txt"
+            ),
+            qgis.core.QgsProcessingParameterBoolean(
+                self.INPUT_NUMBER_OF_CONNECTIONS[0],
+                self.tr(self.INPUT_NUMBER_OF_CONNECTIONS[1]),
+                defaultValue=True
+            ),
         ]
-        return parameters
 
     def checkBeforeOpeningParametersDialog(self):
         return self._problems_to_run()
@@ -104,30 +107,36 @@ class ConeforProcessorBase(GeoAlgorithm):
     def processAlgorithm(self, progress):
         problems = self._problems_to_run()
         if problems is None:
-            conefor_path = ProcessingConfig.getSetting(
-                self.provider.CONEFOR_EXECUTABLE_PATH)
-            conefor_dir = os.path.dirname(conefor_path)
+            conefor_path = Path(
+                ProcessingConfig.getSetting(ConeforProcessingSetting.CONEFOR_CLI_PATH))
+            conefor_dir = conefor_path.parent
             before = os.listdir(conefor_dir)
-            nodes = self.getParameterValue(self.INPUT_NODES_FILE)
-            connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE)
-            all_conn = self.getParameterValue(self.NUMBER_OF_CONNECTIONS)
+            nodes = self.getParameterValue(self.INPUT_NODES_FILE_PATH[0])
+            connections = self.getParameterValue(self.INPUT_CONNECTIONS_FILE_PATH[0])
+            all_conn = self.getParameterValue(self.INPUT_NUMBER_OF_CONNECTIONS[0])
             prefix = os.path.splitext(os.path.basename(nodes))[0]
-            rc, stdout, stderr = self._run_the_algorithm(conefor_path,
-                    nodes, connections, all_conn, prefix, progress)
+            rc, stdout, stderr = self._run_the_algorithm(
+                conefor_path,
+                nodes,
+                connections,
+                all_conn,
+                prefix,
+                progress
+            )
             after = os.listdir(conefor_dir)
             new_files = [os.path.join(conefor_dir, f) for f in after if \
                             f not in before]
-            output_dir = self.getParameterValue(self.OUTPUT_DIR)
+            output_dir = self.getParameterValue(self.INPUT_OUTPUT_DIRECTORY)
             result_files = self._merge_results(output_dir, new_files)
             for new_file in result_files:
                 name = os.path.basename(new_file)
                 ProcessingResults.addResult(name, new_file)
             progress.setPercentage(100)
         else:
-            raise GeoAlgorithmExecutionException(problems)
+            raise qgis.core.QgsProcessingException(problems)
 
-    def getIcon(self):
-        return QIcon(':/plugins/qgisconefor/assets/icon.png')
+    def icon(self):
+        return QtGui.QIcon(ICON_RESOURCE_PATH)
 
     def help(self):
         return False, 'http://hub.qgis.org/projects/qgisconefor'
@@ -217,20 +226,32 @@ class ConeforProcessorBase(GeoAlgorithm):
         shutil.move(file_path, intended_output_dir)
         return os.path.join(intended_output_dir, f_name)
 
-    def _run_conefor(self, progress, conefor_path, nodes_file_path,
-                     connections_file_path, connection_type,
-                     all_pairs_connected,
-                     threshold_direct_links=0,
-                     binary_indexes=[], decay_distance=0, decay_probability=0,
-                     probability_indexes=[], only_overall=False,
-                     removal=False, removal_threshold=None,
-                     improvement=False, improvement_threshold=None,
-                     write_component_file=False, write_links_file=False,
-                     write_dispersal_probabilities_file=False,
-                     write_maximum_probabilities_file=False,
-                     land_area=None, prefix=None):
-        '''
-        Run Conefor and return the output
+    def _run_conefor(
+        self,
+        progress,
+        conefor_path: Path,
+        nodes_file_path,
+        connections_file_path,
+        connection_type,
+        all_pairs_connected,
+        threshold_direct_links=0,
+        binary_indexes=[],
+        decay_distance=0,
+        decay_probability=0,
+        probability_indexes=[],
+        only_overall=False,
+        removal=False,
+        removal_threshold=None,
+        improvement=False,
+        improvement_threshold=None,
+        write_component_file=False,
+        write_links_file=False,
+        write_dispersal_probabilities_file=False,
+        write_maximum_probabilities_file=False,
+        land_area=None,
+        prefix=None
+    ):
+        """Run Conefor and return the output.
 
         In order to successfuly run the conefor CLI executable, the following
         constraints must be taken into consideration:
@@ -239,7 +260,7 @@ class ConeforProcessorBase(GeoAlgorithm):
               from the same directory where the executable is located
             - conefor will save output files in the same directory
               as the executable.
-        '''
+        """
 
         conefor_dir, conefor_file_name = os.path.split(conefor_path)
         command_list = []
@@ -309,18 +330,25 @@ class ConeforProcessorBase(GeoAlgorithm):
                 break
         return process.returncode, None, None  # change this
 
-    def _run_the_algorithm(self, conefor_path, nodes_file_path,
-                           connections_file_path, all_connections, prefix,
-                           progress):
+    def _run_the_algorithm(
+        self,
+        conefor_path,
+        nodes_file_path,
+        connections_file_path,
+        all_connections, prefix,
+        progress
+    ):
         raise NotImplementedError
 
     def _problems_to_run(self):
         result = None
         conefor_path = ProcessingConfig.getSetting(
-            self.provider.CONEFOR_EXECUTABLE_PATH)
-        if not os.path.isfile(conefor_path):
-            result = ("Couldn't find the Conefor executable. Set its correct "
-                      "path in Processing options and configuration.")
+            ConeforProcessingSetting.CONEFOR_CLI_PATH.name)
+        if not Path(conefor_path).exists():
+            result = (
+                "Couldn't find the Conefor executable. Set its correct path in "
+                "QGIS settings -> Processing -> Providers -> Conefor"
+            )
         return result
 
 

@@ -1,62 +1,80 @@
-from PyQt4.QtCore import *
-
-from qgis.core import *
-
-
-class LayerAnalyzerThread(QThread):
-
-    def __init__(self, lock, parent=None):
-        super(LayerAnalyzerThread, self).__init__(parent)
-        self.lock = lock
-        self.mutex = QMutex()
-        self.stopped = False
-        self.completed = False
-
-    def initialize(self, loaded_layers):
-        self.loaded_layers = loaded_layers
-
-    def run(self):
-        usable_layers = self.analyze_layers()
-        self.stop()
-        self.emit(SIGNAL('finished'), usable_layers)
-
-    def stop(self):
-        with QMutexLocker(self.mutex):
-            self.stopped = True
-
-    def is_stopped(self):
-        result = False
-        with QMutexLocker(self.mutex):
-            if self.stopped:
-                result = True
-        return result
-
-    def analyze_layers(self):
-        '''
-        Returns a dictionary with the usable layers and unique fields.
-        '''
-
-        usable_layers = dict()
-        for layer_id, the_layer in self.loaded_layers.iteritems():
-            self.emit(SIGNAL('analyzing_layer'), the_layer.name())
-            if the_layer.type() == QgsMapLayer.VectorLayer:
-                if the_layer.geometryType() in (QGis.Point, QGis.Polygon):
-                    the_fields = []
-                    for f in the_layer.dataProvider().fields():
-                        if f.type() in (QVariant.Int, QVariant.Double):
-                            the_fields.append(f.name())
-                    if any(the_fields):
-                        usable_layers[the_layer] = the_fields
-        return usable_layers
+import qgis.core
+from qgis.PyQt import QtCore
 
 
-class LayerProcessingThread(QThread):
+# class LayerAnalyzerThread(QtCore.QThread):
+#
+#     loaded_layers: dict[str, qgis.core.QgsMapLayer]
+#
+#     def __init__(
+#             self,
+#             *,
+#             lock,
+#             loaded_layers: dict[str, qgis.core.QgsMapLayer],
+#             parent=None
+#     ):
+#         super(LayerAnalyzerThread, self).__init__(parent)
+#         self.lock = lock
+#         self.mutex = QtCore.QMutex()
+#         self.stopped = False
+#         self.completed = False
+#         self.loaded_layers = loaded_layers
+#
+#     def run(self):
+#         usable_layers = self.analyze_layers()
+#         self.stop()
+#         self.finished.emit(usable_layers)
+#
+#     def stop(self):
+#         with QtCore.QMutexLocker(self.mutex):
+#             self.stopped = True
+#
+#     def is_stopped(self):
+#         result = False
+#         with QtCore.QMutexLocker(self.mutex):
+#             if self.stopped:
+#                 result = True
+#         return result
+#
+#     def analyze_layers(self):
+#         """Returns a dictionary with the usable layers and unique fields."""
+#
+#         usable_layers = {}
+#         relevant_types = (
+#             QtCore.QtMetaType.Int,
+#             QtCore.QtMetaType.Double,
+#             QtCore.QtMetaType.Float,
+#             QtCore.QtMetaType.Short,
+#             QtCore.QtMetaType.Long,
+#             QtCore.QtMetaType.LongLong,
+#             QtCore.QtMetaType.UInt,
+#             QtCore.QtMetaType.ULong,
+#             QtCore.QtMetaType.ULongLong,
+#             QtCore.QtMetaType.UShort,
+#         )
+#         for id_, map_layer in self.loaded_layers.items():
+#             if map_layer.type() == qgis.core.QgsMapLayer.LayerType.Vector:
+#                 the_layer: qgis.core.QgsVectorLayer
+#                 if map_layer.wkbType() in (
+#                         qgis.core.QgsWkbTypes.Point,
+#                         qgis.core.QgsWkbTypes.Polygon,
+#                 ):
+#                     the_fields = []
+#                     for field in map_layer.fields():
+#                         if field.type() in relevant_types:
+#                             the_fields.append(field.name())
+#                     if any(the_fields):
+#                         usable_layers[map_layer] = the_fields
+#         return usable_layers
+
+
+class LayerProcessingThread(QtCore.QThread):
 
     def __init__(self, lock, processor, parent=None):
         super(LayerProcessingThread, self).__init__(parent)
         self.lock = lock
         self.processor = processor
-        self.mutex = QMutex()
+        self.mutex = QtCore.QMutex()
         self.stopped = False
         self.completed = False
 
@@ -73,15 +91,15 @@ class LayerProcessingThread(QThread):
         )
         self.stop()
         layers = [d['layer'] for d in self.layers_data]
-        self.emit(SIGNAL('finished'), layers, new_files)
+        self.finished.emit(layers, new_files)
 
     def stop(self):
-        with QMutexLocker(self.mutex):
+        with QtCore.QMutexLocker(self.mutex):
             self.stopped = True
 
     def is_stopped(self):
         result = False
-        with QMutexLocker(self.mutex):
+        with QtCore.QMutexLocker(self.mutex):
             if self.stopped:
                 result = True
         return result
