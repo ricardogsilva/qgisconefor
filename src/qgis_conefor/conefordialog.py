@@ -3,6 +3,7 @@ import os
 from typing import Optional
 from pathlib import Path
 
+from processing.tools.dataobjects import createContext
 import qgis.core
 import qgis.gui
 from qgis.PyQt import (
@@ -12,6 +13,7 @@ from qgis.PyQt import (
     uic,
 )
 
+from .processing.algorithms import coneforinputs
 from . import (
     coneforinputsprocessor,
     schemas,
@@ -33,6 +35,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     # tasks
     analyzer_task: qgis.core.QgsTask
     processing_task: Optional[qgis.core.QgsTask]
+    processing_tasks: list[qgis.core.QgsTask]
 
     _layers: dict[qgis.core.QgsVectorLayer, list[str]]
     iface: qgis.gui.QgisInterface
@@ -78,6 +81,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.use_selected_features_toggled)
         self._layers = {}
         self.processing_task = None
+        self.processing_tasks = []
         task_manager = qgis.core.QgsApplication.taskManager()
         self.analyzer_task = tasks.LayerAnalyzerTask(
             description="analyze currently loaded layers",
@@ -298,14 +302,52 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                     data_item, load_to_canvas, **kwargs)
             layer_inputs.append(input_parameters)
         self.change_ui_availability(False)
-        self.processing_task = tasks.LayerProcessorTask(
-            description="Generate Conefor input files",
-            layers_data=layer_inputs,
-            output_dir=output_dir,
-            use_selected_features=only_selected_features
-        )
+        # self.processing_task = tasks.LayerProcessorTask(
+        #     description="Generate Conefor input files",
+        #     layers_data=layer_inputs,
+        #     output_dir=Path(output_dir),
+        #     use_selected_features=only_selected_features
+        # )
+        processing_registry = qgis.core.QgsApplication.processingRegistry()
         task_manager = qgis.core.QgsApplication.taskManager()
-        task_manager.addTask(self.processing_task)
+        for layer_to_process in layer_inputs:
+            processing_context = createContext()
+            common_params = {
+                coneforinputs.ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME: layer_to_process.id_attribute_field_name or "",
+                coneforinputs.ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME: layer_to_process.attribute_field_name or "",
+                coneforinputs.ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD: None,
+                coneforinputs.ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY: str(output_dir),
+            }
+            if layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
+                task = qgis.core.QgsProcessingAlgRunnerTask(
+                    algorithm=processing_registry.createAlgorithmById(
+                        "conefor:inputsfrompolygon"),
+                    parameters={
+                        coneforinputs.ConeforInputsPolygon.INPUT_POLYGON_LAYER: layer_to_process.layer,
+                        **common_params
+                    },
+                    context=processing_context
+                )
+            elif layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
+                task = qgis.core.QgsProcessingAlgRunnerTask(
+                    algorithm=processing_registry.createAlgorithmById(
+                        "conefor:inputsfrompoint"),
+                    parameters={
+                        coneforinputs.ConeforInputsPoint.INPUT_POINT_LAYER: (
+                            layer_to_process.layer),
+                        coneforinputs.ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD: (
+                            layer_to_process.connections_method.value),
+                        **common_params
+                    },
+                    context=processing_context
+                )
+            else:
+                raise RuntimeError(
+                    f"layer: {layer_to_process.layer.name()!r} has invalid "
+                    f"geometry type: {layer_to_process.layer.geometryType()!r}"
+                )
+            self.processing_tasks.append(task)
+            task_manager.addTask(task)
 
     def update_progress(self):
         self.progressBar.setValue(self.processor.global_progress)

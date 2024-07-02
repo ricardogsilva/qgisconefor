@@ -108,7 +108,7 @@ class ConeforInputsPoint(ConeforInputsBase):
         return "inputsfrompoint"
 
     def displayName(self):
-        return "Generate Conefor inputs from  layer"
+        return "Generate Conefor inputs from point layer"
 
     def initAlgorithm(self, configuration=None):
         self.addParameter(

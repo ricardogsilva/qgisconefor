@@ -8,6 +8,7 @@ import qgis.core
 
 from . import coneforinputsprocessor
 from . import schemas
+from .utilities import log
 
 
 class ModelLabel(enum.Enum):
@@ -60,7 +61,6 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             self.layers_to_process.append(
                 schemas.TableModelItem(
                     layer=la,
-                    # id_attribute_field_name=qgis_layers[la][0],
                     calculate_centroid_distance=la.geometryType() == qgis.core.Qgis.GeometryType.Point,
                     calculate_edge_distance=la.geometryType() == qgis.core.Qgis.GeometryType.Polygon,
                 )
@@ -292,8 +292,12 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
         model = index.model()
         model: ProcessLayerTableModel
         data_item = model.layers_to_process[row]
+        log(f"{data_item.layer.name()=}")
+        log(f"{data_item.id_attribute_field_name=}")
         selected_layer_name = data_item.layer.name()
         selected_id_field_name = data_item.id_attribute_field_name
+        log(f"{selected_layer_name=}")
+        log(f"{selected_id_field_name=}")
         selected_attribute_field_name = data_item.attribute_field_name
         if column == ModelLabel.LAYER:
             layer_names = [la.name() for la in model.data_.keys()]
@@ -301,9 +305,13 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ModelLabel.ID:
-            unique_field_names = model.data_.get(data_item.layer)
+            unique_field_names = (
+                    [schemas.AUTOGENERATE_NODE_ID_LABEL] +
+                    model.data_.get(data_item.layer)
+            )
             editor.addItems(unique_field_names)
-            cmb_index = editor.findText(selected_id_field_name)
+            cmb_index = editor.findText(
+                selected_id_field_name or schemas.AUTOGENERATE_NODE_ID_LABEL)
             editor.setCurrentIndex(cmb_index)
         elif column == ModelLabel.ATTRIBUTE:
             field_names = model.get_field_names(selected_layer_name)
@@ -320,7 +328,7 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
             model.setData(index, editor.currentText())
             selected_layer_name = str(editor.currentText())
             layer = model.get_qgis_layer(selected_layer_name)
-            unique_field_names = model.data_.get(layer)
+            unique_field_names = [schemas.AUTOGENERATE_NODE_ID_LABEL] + model.data_.get(layer)
             id_index = model.index(row, ModelLabel.ID.value)
             attr_index = model.index(row, ModelLabel.ATTRIBUTE.value)
             model.setData(id_index, unique_field_names[0])
