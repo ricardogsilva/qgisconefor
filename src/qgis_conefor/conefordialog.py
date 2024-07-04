@@ -32,6 +32,11 @@ FORM_CLASS, _ = uic.loadUiType(str(UI_DIR / "conefor_dlg.ui"))
 
 class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
+    # processing algorithms
+    inputs_from_points_algorithm: qgis.core.QgsProcessingAlgorithm
+    inputs_from_polygons_algorithm: qgis.core.QgsProcessingAlgorithm
+    processing_context: qgis.core.QgsProcessingContext
+
     # tasks
     analyzer_task: qgis.core.QgsTask
     processing_task: Optional[qgis.core.QgsTask]
@@ -45,7 +50,9 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     # UI controls
     add_row_btn: QtWidgets.QPushButton
     buttonBox: QtWidgets.QDialogButtonBox
+    centroid_distance_rb: QtWidgets.QRadioButton
     create_distances_files_chb: QtWidgets.QCheckBox
+    edge_distance_rb: QtWidgets.QRadioButton
     layers_la: QtWidgets.QLabel
     lock_layers_chb: QtWidgets.QCheckBox
     progressBar: QtWidgets.QProgressBar
@@ -61,6 +68,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, plugin_obj, parent=None):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
+        self.edge_distance_rb.setChecked(True)
         self.processor = plugin_obj.processor
         self.model = None
         self.iface = plugin_obj.iface
@@ -81,6 +89,12 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self.use_selected_features_toggled)
         self._layers = {}
         self.processing_task = None
+        processing_registry = qgis.core.QgsApplication.processingRegistry()
+        self.inputs_from_points_algorithm = processing_registry.createAlgorithmById(
+            "conefor:inputsfrompoint")
+        self.inputs_from_polygons_algorithm = processing_registry.createAlgorithmById(
+            "conefor:inputsfrompolygon")
+        self.processing_context = createContext()
         self.processing_tasks = []
         task_manager = qgis.core.QgsApplication.taskManager()
         self.analyzer_task = tasks.LayerAnalyzerTask(
@@ -207,30 +221,15 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             load_to_canvas: bool,
             default_node_identifier_name: Optional[str] = None,
             default_node_attribute_name: Optional[str] = None,
-            default_process_area: Optional[bool] = None,
-            default_process_centroid_distance: Optional[bool] = None,
-            default_process_edge_distance: Optional[bool] = None,
+            # default_process_centroid_distance: Optional[bool] = None,
+            # default_process_edge_distance: Optional[bool] = None,
     ) -> schemas.ConeforInputParameters:
         node_identifier_name = (
                 default_node_identifier_name or data_item.id_attribute_field_name)
         if node_identifier_name != schemas.NONE_LABEL:
             node_attribute_name = (
                     default_node_attribute_name or data_item.attribute_field_name)
-
-            process_area = (
-                default_process_area if default_process_area is not None
-                else data_item.calculate_area_as_node_attribute
-            )
-            process_centroid_distance = (
-                default_process_centroid_distance
-                if default_process_centroid_distance is not None
-                else data_item.calculate_centroid_distance
-            )
-            process_edge_distance = (
-                default_process_edge_distance
-                if default_process_edge_distance is not None
-                else data_item.calculate_edge_distance
-            )
+            process_edge_distance = self.edge_distance_rb.isChecked()
             layer_name = data_item.layer.name()
             return schemas.ConeforInputParameters(
                 layer=data_item.layer,
@@ -240,7 +239,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                     else None
                 ),
                 attribute_field_name=(
-                    node_attribute_name if node_attribute_name != schemas.NONE_LABEL
+                    node_attribute_name if node_attribute_name != schemas.GENERATE_FROM_AREA_LABEL
                     else None
                 ),
                 connections_method=(
@@ -288,9 +287,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             kwargs.update({
                 "default_node_identifier_name": first.id_attribute_field_name,
                 "default_node_attribute_name": first.attribute_field_name,
-                "default_process_area": first.calculate_area_as_node_attribute,
-                "default_process_centroid_distance": first.calculate_centroid_distance,
-                "default_process_edge_distance": first.calculate_edge_distance,
+                # "default_process_centroid_distance": first.calculate_centroid_distance,
+                # "default_process_edge_distance": first.calculate_edge_distance,
             })
 
         for idx, data_item in enumerate(self.model.layers_to_process):
@@ -308,38 +306,39 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         #     output_dir=Path(output_dir),
         #     use_selected_features=only_selected_features
         # )
-        processing_registry = qgis.core.QgsApplication.processingRegistry()
         task_manager = qgis.core.QgsApplication.taskManager()
         for layer_to_process in layer_inputs:
-            processing_context = createContext()
             common_params = {
-                coneforinputs.ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME: layer_to_process.id_attribute_field_name or "",
-                coneforinputs.ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME: layer_to_process.attribute_field_name or "",
-                coneforinputs.ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD: None,
-                coneforinputs.ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY: str(output_dir),
+                coneforinputs.ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
+                    layer_to_process.id_attribute_field_name or ""),
+                coneforinputs.ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME[0]: (
+                    layer_to_process.attribute_field_name or ""),
+                coneforinputs.ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
+                coneforinputs.ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: str(output_dir),
             }
+            log(f"{common_params=}")
             if layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
+                log(f"Creating the conefor:inputsfrompolygon runner task")
                 task = qgis.core.QgsProcessingAlgRunnerTask(
-                    algorithm=processing_registry.createAlgorithmById(
-                        "conefor:inputsfrompolygon"),
+                    algorithm=self.inputs_from_polygons_algorithm,
                     parameters={
-                        coneforinputs.ConeforInputsPolygon.INPUT_POLYGON_LAYER: layer_to_process.layer,
-                        **common_params
-                    },
-                    context=processing_context
-                )
-            elif layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
-                task = qgis.core.QgsProcessingAlgRunnerTask(
-                    algorithm=processing_registry.createAlgorithmById(
-                        "conefor:inputsfrompoint"),
-                    parameters={
-                        coneforinputs.ConeforInputsPoint.INPUT_POINT_LAYER: (
+                        coneforinputs.ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
                             layer_to_process.layer),
-                        coneforinputs.ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD: (
+                        coneforinputs.ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0]: (
                             layer_to_process.connections_method.value),
                         **common_params
                     },
-                    context=processing_context
+                    context=self.processing_context
+                )
+            elif layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Point:
+                task = qgis.core.QgsProcessingAlgRunnerTask(
+                    algorithm=self.inputs_from_points_algorithm,
+                    parameters={
+                        coneforinputs.ConeforInputsPoint.INPUT_POINT_LAYER[0]: (
+                            layer_to_process.layer),
+                        **common_params
+                    },
+                    context=self.processing_context
                 )
             else:
                 raise RuntimeError(
@@ -347,6 +346,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"geometry type: {layer_to_process.layer.geometryType()!r}"
                 )
             self.processing_tasks.append(task)
+            log(f"{self.processing_tasks=}")
             task_manager.addTask(task)
 
     def update_progress(self):
@@ -393,14 +393,14 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         """
         log("inside toggle_run_button")
         all_layers_runnable = True
-        for data_item in self.model.layers_to_process:
-            has_attr = data_item.attribute_field_name != schemas.NONE_LABEL
-            has_area = data_item.calculate_area_as_node_attribute
-            has_cent = data_item.calculate_centroid_distance
-            has_edge = data_item.calculate_edge_distance
-            if not any((has_attr, has_area, has_cent, has_edge)):
-                all_layers_runnable = False
-                break
+        # for data_item in self.model.layers_to_process:
+        #     has_attr = data_item.attribute_field_name != schemas.NONE_LABEL
+        #     # has_area = data_item.calculate_area_as_node_attribute
+        #     has_cent = data_item.calculate_centroid_distance
+        #     has_edge = data_item.calculate_edge_distance
+        #     if not any((has_attr, has_cent, has_edge)):
+        #         all_layers_runnable = False
+        #         break
         self.buttonBox.button(self.buttonBox.Ok).setEnabled(all_layers_runnable)
 
     def change_ui_availability(self, enabled: bool):

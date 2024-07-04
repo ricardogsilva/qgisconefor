@@ -331,6 +331,7 @@ class ConeforInputsPolygon(ConeforInputsBase):
             node_id_field_name = None
         else:
             node_id_field_name = raw_node_id_field_name
+        feedback.pushInfo(f"{self.parameterAsEnum(parameters, self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0], context)=} ")
         connections_distance_method = NodeConnectionType(
             self._NODE_DISTANCE_CHOICES[
                 self.parameterAsEnum(

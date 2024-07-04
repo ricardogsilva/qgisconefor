@@ -10,6 +10,7 @@ ICON_RESOURCE_PATH = ":/plugins/qgisconefor/icon.png"
 
 AUTOGENERATE_NODE_ID_LABEL = "<AUTOGENERATE>"
 NONE_LABEL = "<NONE>"
+GENERATE_FROM_AREA_LABEL = "<GENERATE_FROM_AREA>"
 
 RELEVANT_FIELD_TYPES = (
     QtCore.QMetaType.Int,
@@ -57,8 +58,8 @@ class ConeforInputParameters:
 @dataclasses.dataclass
 class TableModelItem:
     layer: qgis.core.QgsVectorLayer
-    calculate_centroid_distance: bool
-    calculate_edge_distance: bool
+    # calculate_centroid_distance: bool
+    # calculate_edge_distance: bool
     id_attribute_field_name: str = AUTOGENERATE_NODE_ID_LABEL
-    attribute_field_name: str = NONE_LABEL
-    calculate_area_as_node_attribute: bool = False
+    attribute_field_name: str = GENERATE_FROM_AREA_LABEL
+    # calculate_area_as_node_attribute: bool = False
