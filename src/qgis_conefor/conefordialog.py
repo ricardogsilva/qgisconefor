@@ -29,7 +29,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     _layers: dict[qgis.core.QgsVectorLayer, list[str]]
     iface: qgis.gui.QgisInterface
-    model: Optional[tablemodel.ProcessLayerTableModel]
+    model: tablemodel.ProcessLayerTableModel
 
     # UI controls
     add_row_btn: QtWidgets.QPushButton
@@ -48,17 +48,27 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     use_selected_features_chb: QtWidgets.QCheckBox
 
 
-    def __init__(self, plugin_obj, parent=None):
+    def __init__(
+            self,
+            plugin_obj,
+            model: tablemodel.ProcessLayerTableModel,
+            parent=None
+    ):
         super(ConeforDialog, self).__init__(parent)
         self.setupUi(self)
         self.edge_distance_rb.setChecked(True)
-        self.model = None
+        self.model = model
+        self.tableView.setModel(self.model)
         self.iface = plugin_obj.iface
         self.lock = QtCore.QReadWriteLock()
-        self.change_ui_availability(False)
+        # self.change_ui_availability(False)
+        self.change_ui_availability(True)
         self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.buttonBox.button(self.buttonBox.Cancel).released.connect(self.reject)
         self.buttonBox.button(self.buttonBox.Ok).released.connect(self.accept)
+        self.add_row_btn.released.connect(self.add_conefor_input)
+        self.remove_row_btn.released.connect(self.remove_conefor_input)
+
         self.progress_la.setText('Analyzing layers...')
         self.use_selected_features_chb.setChecked(
             load_settings_key(
@@ -93,7 +103,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def finished_analyzing_layers(
             self,
-            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]]
+            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]],
+            usable_layer_ids: dict[str, list[str]]
     ):
         if any(usable_layers):
             self._layers = usable_layers

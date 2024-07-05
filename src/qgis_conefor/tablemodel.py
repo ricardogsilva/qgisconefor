@@ -38,6 +38,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     is_runnable_check = QtCore.pyqtSignal()
 
+    lock_layers: bool
     data_: dict[qgis.core.QgsVectorLayer, list[str]]
     dialog: QtWidgets.QDialog
     dirty: bool
@@ -49,12 +50,14 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             *,
             qgis_layers: dict[qgis.core.QgsVectorLayer, list[str]],
             initial_layers_to_process: list[qgis.core.QgsVectorLayer],
-            dialog: QtWidgets.QDialog
+            dialog: QtWidgets.QDialog,
+            lock_layers: bool = False,
     ):
         self.dialog = dialog
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
         self.data_ = qgis_layers
+        self.lock_layers = lock_layers
         self.layers_to_process = []
         for la in initial_layers_to_process:
             self.layers_to_process.append(
@@ -80,7 +83,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             column = ModelLabel(index.column())
             row = index.row()
             layer_geom = data_item.layer.geometryType()
-            if row != 0 and self.dialog.lock_layers_chb.isChecked():
+            if row != 0 and self.lock_layers:
                 data_item = locked_data_item
             if role == QtCore.Qt.DisplayRole:
                 if column == ModelLabel.LAYER:
@@ -156,7 +159,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             # ModelLabel.EDGE,
         # )
         checkable_column_labels = []
-        if self.dialog.lock_layers_chb.isChecked():
+        if self.lock_layers:
             column = ModelLabel(index.column())
             if index.row() == 0:
                 if column in checkable_column_labels:

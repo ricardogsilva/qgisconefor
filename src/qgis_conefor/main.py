@@ -18,6 +18,7 @@ from .resources import *  # noqa
 
 from . import (
     schemas,
+    tablemodel,
     tasks,
 )
 from .coneforinputsprocessor import InputsProcessor
@@ -39,16 +40,25 @@ class QgisConefor:
     processing_provider: ProcessingConeforProvider
     inputs_from_points_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     inputs_from_polygons_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
+    model: Optional[tablemodel.ProcessLayerTableModel]
+    layers: dict[str, list[str]]
     processing_context: Optional[qgis.core.QgsProcessingContext]
     processing_tasks: dict[
         schemas.ConeforInputParameters, qgis.core.QgsProcessingAlgRunnerTask]
 
-    analyzer_task: tasks.LayerAnalyzerTask
+    analyzer_task: Optional[tasks.LayerAnalyzerTask]
 
     def __init__(self, iface: qgis.gui.QgisInterface):
         self.iface = iface
         self.dialog = None
         project_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
+        self.layers = {}
+        self.model = tablemodel.ProcessLayerTableModel(
+            qgis_layers={},
+            initial_layers_to_process=[],
+            lock_layers=False,
+            dialog=None
+        )
         self.processor = InputsProcessor(project_crs)
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
@@ -68,7 +78,7 @@ class QgisConefor:
         self.inputs_from_polygons_algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
         self.analyzer_task = None
-        self.dialog = ConeforDialog(self)
+        self.dialog = ConeforDialog(self, model=self.model)
         self.dialog.setModal(True)
         self.dialog.finished.connect(self.handle_dialog_closed)
         self.dialog.accepted.connect(self.prepare_conefor_inputs)
@@ -80,6 +90,9 @@ class QgisConefor:
         self.action.triggered.connect(self.run)
         self.iface.addPluginToVectorMenu(f"&{self._action_title}", self.action)
         self.iface.addVectorToolBarIcon(self.action)
+        qgis_project = qgis.core.QgsProject.instance()
+        qgis_project.legendLayersAdded.connect(self.check_for_new_layers)
+        qgis_project.layersRemoved.connect(self.check_for_removed_layers)
 
     def unload(self):
         processing_registry = qgis.core.QgsApplication.processingRegistry()
@@ -87,15 +100,47 @@ class QgisConefor:
         self.iface.removePluginVectorMenu(f"&{self._action_title}", self.action)
         self.iface.removeVectorToolBarIcon(self.action)
 
-    def run(self):
+    def start_analyzing_layers(self, disregard_ids: Optional[list[str]] = None) -> None:
+        current_layers = qgis.core.QgsProject.instance().mapLayers()
+        to_disregard = disregard_ids or []
+        relevant_layers = {
+            id_: la for id_, la in current_layers.items() if id_ not in to_disregard}
         self.analyzer_task = tasks.LayerAnalyzerTask(
             description="analyze currently loaded layers",
-            layers_to_analyze=qgis.core.QgsProject.instance().mapLayers(),
+            layers_to_analyze=relevant_layers,
         )
-        self.analyzer_task.layers_analyzed.connect(self.dialog.finished_analyzing_layers)
+        self.analyzer_task.layers_analyzed.connect(self.finished_analyzing_layers)
         task_manager = qgis.core.QgsApplication.taskManager()
         task_manager.addTask(self.analyzer_task)
+
+    def run(self):
+        # self.analyzer_task = tasks.LayerAnalyzerTask(
+        #     description="analyze currently loaded layers",
+        #     layers_to_analyze=qgis.core.QgsProject.instance().mapLayers(),
+        # )
+        # self.analyzer_task.layers_analyzed.connect(self.dialog.finished_analyzing_layers)
+        # task_manager = qgis.core.QgsApplication.taskManager()
+        # task_manager.addTask(self.analyzer_task)
+
+        self.model.data_ = self.layers
+        num_rows = self.model.rowCount()
+        self.model.removeRows(num_rows)
+
+
         self.dialog.show()
+
+    def finished_analyzing_layers(
+            self,
+            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]],
+            usable_layer_ids: dict[str, list[str]],
+    ):
+        log(f"{usable_layer_ids=}")
+        self.layers = usable_layers
+
+        if any(self.layers):
+            self.action.setEnabled(True)
+        else:
+            self.action.setEnabled(False)
 
     def handle_dialog_closed(self, result: int):
         log(f"Dialog has been closed with result {result!r}")
@@ -208,6 +253,14 @@ class QgisConefor:
     def finalize_task_execution(
         self, layer_params: schemas.ConeforInputParameters, *args, **kwargs):
         log(f"Finalizing task execution for layer params {layer_params=} {args=} {kwargs=}")
+
+    def check_for_new_layers(self, new_layers: list[qgis.core.QgsMapLayer]):
+        log("inside check_for_new_layers")
+        self.start_analyzing_layers()
+
+    def check_for_removed_layers(self, removed_layer_ids: list[str]):
+        log("inside check_for_removed_layers")
+        self.start_analyzing_layers(disregard_ids=removed_layer_ids)
 
 
 
