@@ -40,7 +40,7 @@ class QgisConeforSettingsKey(enum.Enum):
     USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ConeforInputParameters:
     layer: qgis.core.QgsVectorLayer
     id_attribute_field_name: Optional[str] = None  # None means autogenerate a node id
@@ -52,6 +52,16 @@ class ConeforInputParameters:
     # edge_file_name: Optional[str] = None
     # centroid_distance_name: Optional[str] = None
     # edge_distance_name: Optional[str] = None
+
+    def __hash__(self):
+        return hash(
+            "".join((
+                self.layer.name(),
+                self.id_attribute_field_name or AUTOGENERATE_NODE_ID_LABEL,
+                self.attribute_field_name or GENERATE_FROM_AREA_LABEL,
+                self.connections_method.value
+            ))
+        )
 
 
 # This will replace processlayer.ProcessLayer

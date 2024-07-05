@@ -42,7 +42,6 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
     dialog: QtWidgets.QDialog
     dirty: bool
     layers_to_process: list[schemas.TableModelItem]
-    processor: coneforinputsprocessor.InputsProcessor
 
 
     def __init__(
@@ -50,10 +49,8 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             *,
             qgis_layers: dict[qgis.core.QgsVectorLayer, list[str]],
             initial_layers_to_process: list[qgis.core.QgsVectorLayer],
-            processor: coneforinputsprocessor.InputsProcessor,
             dialog: QtWidgets.QDialog
     ):
-        self.processor = processor
         self.dialog = dialog
         super(ProcessLayerTableModel, self).__init__()
         self.dirty = False
