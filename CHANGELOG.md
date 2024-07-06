@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved to src layout
 - Converted README to markdown
 - Manage dev workflows with pluginadmin
+- Move business logic outside of the plugin dialog
 - Use QgsTask and QgsTaskManager instead of QThreads with locks
 - Use QgsDistanceArea for area and distance calculations
+- Use QgsMessageBar for communication instead of a custom QLabel
 
 
 ## [1.2.1] - 2015-06-13

@@ -47,7 +47,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     tableView: QtWidgets.QTableView
     use_selected_features_chb: QtWidgets.QCheckBox
 
-
     def __init__(
             self,
             plugin_obj,
@@ -59,17 +58,22 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.edge_distance_rb.setChecked(True)
         self.model = model
         self.tableView.setModel(self.model)
+        self.tableView.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
         self.iface = plugin_obj.iface
         self.lock = QtCore.QReadWriteLock()
-        # self.change_ui_availability(False)
-        self.change_ui_availability(True)
         self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.buttonBox.button(self.buttonBox.Cancel).released.connect(self.reject)
         self.buttonBox.button(self.buttonBox.Ok).released.connect(self.accept)
         self.add_row_btn.released.connect(self.add_conefor_input)
         self.remove_row_btn.released.connect(self.remove_conefor_input)
+        self.output_dir_btn.released.connect(self.get_output_dir)
+        self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
+        output_dir = load_settings_key(
+            schemas.QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
+        self.output_dir_le.setText(output_dir)
+        self.create_distances_files_chb.setChecked(False)
 
-        self.progress_la.setText('Analyzing layers...')
+        self.progress_la.setText('<REMOVE ME>')
         self.use_selected_features_chb.setChecked(
             load_settings_key(
                 schemas.QgisConeforSettingsKey.USE_SELECTED,
@@ -79,6 +83,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         )
         self.use_selected_features_chb.stateChanged.connect(
             self.use_selected_features_toggled)
+        self.remove_row_btn.setEnabled(self.model.rowCount() > 1)
         self._layers = {}
 
     def use_selected_features_toggled(self, state: int):
@@ -91,7 +96,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self, new_files: Optional[list[str]] = None
     ):
         self.processing_thread.wait()
-        self.change_ui_availability(True)
         if self.create_distances_files_chb.isChecked():
             for new_layer_path in new_files or []:
                 if new_layer_path.endswith(".shp"):
@@ -100,50 +104,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
                         new_layer_path, layer_name,"ogr")
                     qgis_project = qgis.core.QgsProject.instance()
                     qgis_project.addMapLayer(new_layer)
-
-    def finished_analyzing_layers(
-            self,
-            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]],
-            usable_layer_ids: dict[str, list[str]]
-    ):
-        if any(usable_layers):
-            self._layers = usable_layers
-            selected_in_toc = self.iface.layerTreeView().selectedLayers()
-            selected_layers = [la for la in selected_in_toc if la in self._layers.keys()]
-            if not any(selected_layers):
-                selected_layers.append(self._layers.keys()[0])
-            self.change_ui_availability(True)
-            selected_layers: list[qgis.core.QgsVectorLayer]
-            self.model = tablemodel.ProcessLayerTableModel(
-                qgis_layers=self._layers,
-                initial_layers_to_process=selected_layers,
-                dialog=self
-            )
-            self.tableView.setModel(self.model)
-            delegate = tablemodel.ProcessLayerDelegate(dialog=self, parent=self)
-            self.tableView.setItemDelegate(delegate)
-            self.add_row_btn.released.connect(self.add_conefor_input)
-            self.remove_row_btn.released.connect(self.remove_conefor_input)
-            # self.buttonBox.button(self.buttonBox.Ok).released.connect(self.run_queries)
-            self.output_dir_btn.released.connect(self.get_output_dir)
-            self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
-            self.model.is_runnable_check.connect(self.toggle_run_button)
-            if len(selected_layers) < 2:
-                self.remove_row_btn.setEnabled(False)
-            self.toggle_run_button()
-            output_dir = load_settings_key(
-                schemas.QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
-            self.output_dir_le.setText(output_dir)
-            self.create_distances_files_chb.setChecked(False)
-        else:
-            self.change_ui_availability(False)
-            self.progress_la.setText(
-                "No suitable layers found. Please load some vector layers and check "
-                "out the plugin documentation"
-            )
-            palette = QtGui.QPalette()
-            palette.setColor(QtGui.QPalette.Foreground, QtCore.Qt.GlobalColor.red)
-            self.progress_la.setPalette(palette)
 
     def toggle_lock_layers(self, lock):
         index = self.model.index(0, 0)
@@ -198,22 +158,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         #         all_layers_runnable = False
         #         break
         self.buttonBox.button(self.buttonBox.Ok).setEnabled(all_layers_runnable)
-
-    def change_ui_availability(self, enabled: bool):
-        widgets = [
-            self.layers_la,
-            self.tableView,
-            self.remove_row_btn,
-            self.add_row_btn,
-            self.use_selected_features_chb,
-            self.create_distances_files_chb,
-            self.output_la,
-            self.output_dir_le,
-            self.output_dir_btn,
-            self.buttonBox.button(self.buttonBox.Ok),
-        ]
-        for widget in widgets:
-            widget.setEnabled(enabled)
 
 
 class NoUniqueFieldError(Exception):

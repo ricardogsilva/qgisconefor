@@ -3,6 +3,7 @@ A QGIS plugin for writing input files to the Conefor software.
 """
 
 import functools
+import uuid
 from typing import Optional
 
 import qgis.core
@@ -41,10 +42,12 @@ class QgisConefor:
     inputs_from_points_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     inputs_from_polygons_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     model: Optional[tablemodel.ProcessLayerTableModel]
-    layers: dict[str, list[str]]
     processing_context: Optional[qgis.core.QgsProcessingContext]
-    processing_tasks: dict[
-        schemas.ConeforInputParameters, qgis.core.QgsProcessingAlgRunnerTask]
+    _processing_tasks: dict[
+        uuid.UUID,
+        qgis.core.QgsProcessingAlgRunnerTask
+    ]
+    _task_results: dict[uuid.UUID, bool]
 
     analyzer_task: Optional[tasks.LayerAnalyzerTask]
 
@@ -52,7 +55,6 @@ class QgisConefor:
         self.iface = iface
         self.dialog = None
         project_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
-        self.layers = {}
         self.model = tablemodel.ProcessLayerTableModel(
             qgis_layers={},
             initial_layers_to_process=[],
@@ -64,7 +66,8 @@ class QgisConefor:
         self.processing_context = None
         self.inputs_from_points_algorithm = None
         self.inputs_from_polygons_algorithm = None
-        self.processing_tasks = {}
+        self._processing_tasks = {}
+        self._task_results = {}
 
     def init_processing(self):
         processing_registry = qgis.core.QgsApplication.processingRegistry()
@@ -96,7 +99,10 @@ class QgisConefor:
 
     def unload(self):
         processing_registry = qgis.core.QgsApplication.processingRegistry()
-        # processing_registry.removeProvider(self.processing_provider)
+        processing_registry.removeProvider(self.processing_provider)
+        qgis_project = qgis.core.QgsProject.instance()
+        qgis_project.legendLayersAdded.disconnect(self.check_for_new_layers)
+        qgis_project.layersRemoved.disconnect(self.check_for_removed_layers)
         self.iface.removePluginVectorMenu(f"&{self._action_title}", self.action)
         self.iface.removeVectorToolBarIcon(self.action)
 
@@ -114,33 +120,18 @@ class QgisConefor:
         task_manager.addTask(self.analyzer_task)
 
     def run(self):
-        # self.analyzer_task = tasks.LayerAnalyzerTask(
-        #     description="analyze currently loaded layers",
-        #     layers_to_analyze=qgis.core.QgsProject.instance().mapLayers(),
-        # )
-        # self.analyzer_task.layers_analyzed.connect(self.dialog.finished_analyzing_layers)
-        # task_manager = qgis.core.QgsApplication.taskManager()
-        # task_manager.addTask(self.analyzer_task)
-
-        self.model.data_ = self.layers
-        num_rows = self.model.rowCount()
-        self.model.removeRows(num_rows)
-
-
+        delegate = tablemodel.ProcessLayerDelegate()
+        self.dialog.tableView.setItemDelegate(delegate)
+        self.model.removeRows(position=0, rows=self.model.rowCount())
+        self.model.insertRows(0, rows=1)
         self.dialog.show()
 
     def finished_analyzing_layers(
             self,
             usable_layers: dict[qgis.core.QgsVectorLayer, list[str]],
-            usable_layer_ids: dict[str, list[str]],
     ):
-        log(f"{usable_layer_ids=}")
-        self.layers = usable_layers
-
-        if any(self.layers):
-            self.action.setEnabled(True)
-        else:
-            self.action.setEnabled(False)
+        self.model.data_ = usable_layers
+        self.action.setEnabled(any(usable_layers))
 
     def handle_dialog_closed(self, result: int):
         log(f"Dialog has been closed with result {result!r}")
@@ -148,7 +139,7 @@ class QgisConefor:
 
     def prepare_conefor_inputs(self):
         log(f"Inside prepare_conefor_inputs, now we need data to work with")
-        layer_inputs = []
+        layer_inputs = set()
         load_to_canvas = self.dialog.create_distances_files_chb.isChecked()
         output_dir = str(self.dialog.output_dir_le.text())
         only_selected_features = self.dialog.use_selected_features_chb.isChecked()
@@ -169,11 +160,11 @@ class QgisConefor:
             else:
                 input_parameters = self.get_conefor_input_parameters(
                     data_item, load_to_canvas, **kwargs)
-            layer_inputs.append(input_parameters)
+            layer_inputs.add(input_parameters)
         task_manager = qgis.core.QgsApplication.taskManager()
-        self.processing_tasks = {}
         self.processing_context = createContext()
         for layer_to_process in layer_inputs:
+            process_id = uuid.uuid4()
             common_params = {
                 ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
                         layer_to_process.id_attribute_field_name or ""),
@@ -182,9 +173,7 @@ class QgisConefor:
                 ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
                 ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: str(output_dir),
             }
-            log(f"{common_params=}")
             if layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
-                log(f"Creating the conefor:inputsfrompolygon runner task")
                 task = qgis.core.QgsProcessingAlgRunnerTask(
                     algorithm=self.inputs_from_polygons_algorithm,
                     parameters={
@@ -212,10 +201,10 @@ class QgisConefor:
                     f"geometry type: {layer_to_process.layer.geometryType()!r}"
                 )
             task.executed.connect(
-                functools.partial(self.finalize_task_execution, layer_to_process)
+                functools.partial(
+                    self.finalize_task_execution, process_id, layer_to_process)
             )
-            self.processing_tasks[layer_to_process] = task
-            log(f"{self.processing_tasks=}")
+            self._processing_tasks[process_id] = task
             task_manager.addTask(task)
 
     def get_conefor_input_parameters(
@@ -251,8 +240,30 @@ class QgisConefor:
             raise NoUniqueFieldError
 
     def finalize_task_execution(
-        self, layer_params: schemas.ConeforInputParameters, *args, **kwargs):
-        log(f"Finalizing task execution for layer params {layer_params=} {args=} {kwargs=}")
+            self,
+            process_id: uuid.UUID,
+            layer_params: schemas.ConeforInputParameters,
+            was_successful: bool,
+            results: dict,
+    ):
+        log(f"Finalizing task {process_id!r} with layer params {layer_params=} {was_successful=} {results=}")
+        self._task_results[process_id] = was_successful
+        del self._processing_tasks[process_id]
+        all_done = len(self._processing_tasks) == 0
+        if all_done:
+            if not all(self._task_results.values()):
+                self.iface.messageBar().pushMessage(
+                    "Conefor inputs",
+                    "Some tasks failed - Check the Processing tab of the QGIS logs for more info",
+                    level=qgis.core.Qgis.Critical
+                )
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Conefor inputs",
+                    "Plugin finished execution",
+                    level=qgis.core.Qgis.Info
+                )
+            self._task_results = {}
 
     def check_for_new_layers(self, new_layers: list[qgis.core.QgsMapLayer]):
         log("inside check_for_new_layers")

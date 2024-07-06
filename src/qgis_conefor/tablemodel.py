@@ -242,7 +242,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
                 position + row,
                 schemas.TableModelItem(
                     layer=first_layer,
-                    id_attribute_field_name=unique_fields[0],
+                    # id_attribute_field_name=unique_fields[0],
                     # calculate_centroid_distance=(
                     #         geom_type == qgis.core.Qgis.GeometryType.Point),
                     # calculate_edge_distance=(
@@ -254,8 +254,10 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         return True
 
     def removeRows(self, position, rows=1, index=QtCore.QModelIndex()):
+        log(f"inside removeRows: {position=} {rows=}")
+        log(f"{[ltp.layer.name() for ltp in self.layers_to_process]=}")
         result = False
-        if self.rowCount() > 1:
+        if self.rowCount() > 0:
             self.beginRemoveRows(QtCore.QModelIndex(), position, position + rows - 1)
             self.layers_to_process = (
                     self.layers_to_process[:position] +
@@ -264,6 +266,8 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             self.endRemoveRows()
             self.dirty = True
             result = True
+        log("leaving removeRows")
+        log(f"{[ltp.layer.name() for ltp in self.layers_to_process]=}")
         return result
 
     def get_field_names(self, layer_name: str) -> list[str]:
@@ -273,11 +277,8 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
 class ProcessLayerDelegate(QtWidgets.QItemDelegate):
 
-    dialog: QtWidgets.QDialog
-
-    def __init__(self, *, dialog, parent=None):
+    def __init__(self, *, parent=None):
         super(ProcessLayerDelegate, self).__init__(parent)
-        self.dialog = dialog
 
     def createEditor(self, parent, option, index):
         column = ModelLabel(index.column())

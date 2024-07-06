@@ -14,7 +14,7 @@ from .processing.algorithms import coneforinputs
 class LayerAnalyzerTask(qgis.core.QgsTask):
     """Collects useful info about input qGIS layers."""
 
-    layers_analyzed = QtCore.pyqtSignal(dict, dict)
+    layers_analyzed = QtCore.pyqtSignal(dict)
 
     layers_to_analyze: dict[str, qgis.core.QgsMapLayer]
     relevant_layers: dict[qgis.core.QgsVectorLayer, list[str]]
@@ -58,8 +58,7 @@ class LayerAnalyzerTask(qgis.core.QgsTask):
         return True
 
     def finished(self, result):
-        self.layers_analyzed.emit(
-            self.relevant_layers, self.relevant_layer_ids)
+        self.layers_analyzed.emit(self.relevant_layers)
 
 
 class LayerProcessorTask(qgis.core.QgsTask):
