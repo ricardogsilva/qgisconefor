@@ -35,7 +35,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     add_row_btn: QtWidgets.QPushButton
     buttonBox: QtWidgets.QDialogButtonBox
     centroid_distance_rb: QtWidgets.QRadioButton
-    create_distances_files_chb: QtWidgets.QCheckBox
+    create_distances_file_chb: QtWidgets.QCheckBox
     edge_distance_rb: QtWidgets.QRadioButton
     layers_la: QtWidgets.QLabel
     lock_layers_chb: QtWidgets.QCheckBox
@@ -71,7 +71,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         output_dir = load_settings_key(
             schemas.QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
         self.output_dir_le.setText(output_dir)
-        self.create_distances_files_chb.setChecked(False)
+        self.create_distances_file_chb.setChecked(False)
 
         self.progress_la.setText('<REMOVE ME>')
         self.use_selected_features_chb.setChecked(
@@ -96,7 +96,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
             self, new_files: Optional[list[str]] = None
     ):
         self.processing_thread.wait()
-        if self.create_distances_files_chb.isChecked():
+        if self.create_distances_file_chb.isChecked():
             for new_layer_path in new_files or []:
                 if new_layer_path.endswith(".shp"):
                     layer_name = os.path.basename(new_layer_path)
