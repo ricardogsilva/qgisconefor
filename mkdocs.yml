@@ -1,0 +1,36 @@
+site_name: QGIS Conefor plugin
+
+repo_url: https://github.com/ricardogsilva/qgisconefor
+repo_name: qgisconefor
+
+site_description: QGIS Conefor plugin
+
+site_author: Ricardo Garcia Silva
+
+nav:
+  - Home: 'index.md'
+  - User guide: 'user-guide.md'
+  - Development: 'development.md'
+  - About: 'about.md'
+  - Changelog: 'changelog-base.md'
+  - QGIS Repo: 'repo/plugins.xml'
+
+theme:
+  name: material
+  palette:
+    primary: green
+    accent: purple
+    scheme: preference
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.snippets:
+      base_path: .
+  - pymdownx.details
+  - admonition
+
+plugins:
+  - search
