@@ -55,7 +55,7 @@ jobs:
         run: poetry install --without gdal
 
       - name: generate plugin repo XML
-        run: poetry run python pluginadmin.py --verbose generate-plugin-repo-xml
+        run: poetry run pluginadmin --verbose generate-plugin-repo-xml
 
       - name: update docs
         run: poetry run mkdocs gh-deploy --force

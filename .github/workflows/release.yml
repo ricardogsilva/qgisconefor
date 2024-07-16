@@ -31,7 +31,7 @@ jobs:
           echo "::set-output name=IS_EXPERIMENTAL::$(poetry run python -c "import toml; data=toml.load('pyproject.toml'); print(data['tool']['qgis-plugin']['metadata']['experimental'].lower())")"
 
       - name: generate zip
-        run: poetry run python pluginadmin generate-zip
+        run: poetry run pluginadmin generate-zip
 
       - name: get zip details
         id: get-zip-details
