@@ -45,13 +45,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: set safe directory
+        run: git config --global --add safe.directory ${{ github.workspace }}
+
       - name: fix Python command
         run: apt-get install python-is-python3
 
       - name: Install poetry
         uses: Gr1N/setup-poetry@v9
 
-      - name: Install pluginadmin dependencies
+      - name: Install dependencies
         run: poetry install --without gdal
 
       - name: generate plugin repo XML

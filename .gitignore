@@ -4,6 +4,9 @@
 # pyqt resources
 resources_rc.py
 
+# mkdocs documentation
+/site
+
 # other files
 *.swp
 *un~
