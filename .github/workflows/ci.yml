@@ -1,0 +1,52 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-22.04
+    container:
+      image: qgis/qgis:ltr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install poetry
+        uses: Gr1N/setup-poetry@v9
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Rebuild docs
+        run: poetry run mkdocs build
+
+      - name: Regenerate plugin repo XML
+        run: poetry run pluginadmin --verbose generate-plugin-repo-xml
+
+  publish-docs:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    container:
+      image: qgis/qgis:ltr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install poetry
+        uses: Gr1N/setup-poetry@v9
+
+      - name: Install pluginadmin dependencies
+        run: poetry install
+
+      - name: generate plugin repo XML
+        run: poetry run python pluginadmin.py --verbose generate-plugin-repo-xml
+
+      - name: update docs
+        run: poetry run mkdocs gh-deploy --force

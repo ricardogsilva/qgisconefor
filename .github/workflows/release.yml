@@ -1,0 +1,73 @@
+name: Create a release
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-22.04
+    container:
+      image: qgis/qgis:ltr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: fix Python command
+        run: apt-get install python-is-python3
+
+      - name: Install poetry
+        uses: Gr1N/setup-poetry@v9
+
+      - name: Install pluginadmin dependencies
+        run: poetry install
+
+      - name: Get experimental info
+        id: get-experimental
+        run: |
+          echo "::set-output name=IS_EXPERIMENTAL::$(poetry run python -c "import toml; data=toml.load('pyproject.toml'); print(data['tool']['qgis-plugin']['metadata']['experimental'].lower())")"
+
+      - name: generate zip
+        run: poetry run python pluginadmin generate-zip
+
+      - name: get zip details
+        id: get-zip-details
+        run: |
+          echo "::set-output name=ZIP_PATH::dist/$(ls dist)\n"
+          echo "::set-output name=ZIP_NAME::$(ls dist)"
+
+      - name: create release from tag
+        id: create-release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref }}
+          prerelease: ${{ steps.get-experimental.outputs.IS_EXPERIMENTAL }}
+          body_path: ${{ github.workspace }}/CHANGELOG.md
+          draft: false
+          files: ${{ steps.get-zip-details.outputs.ZIP_PATH }}
+          token: ${{ github.token }}
+
+  update-docs:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    container:
+      image: qgis/qgis:ltr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: fix Python command
+        run: apt-get install python-is-python3
+
+      - name: Install poetry
+        uses: Gr1N/setup-poetry@v9
+
+      - name: Install pluginadmin dependencies
+        run: poetry install
+
+      - name: generate plugin repo XML
+        run: poetry run pluginadmin --verbose generate-plugin-repo-xml
+
+      - name: update docs
+        run: poetry run mkdocs gh-deploy --force
