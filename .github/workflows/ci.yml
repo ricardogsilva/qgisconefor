@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+env:
+  TZ: UTC
+
 jobs:
   ci:
     runs-on: ubuntu-22.04
