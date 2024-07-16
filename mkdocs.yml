@@ -17,8 +17,10 @@ nav:
 
 theme:
   name: material
+  logo: images/conefor_logo.png
+  favicon: images/conefor_logo.png
   palette:
-    primary: green
+    primary: amber
     accent: purple
     scheme: preference
   icon:
@@ -30,6 +32,7 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: .
   - pymdownx.details
+  - pymdownx.superfences
   - admonition
 
 plugins:
