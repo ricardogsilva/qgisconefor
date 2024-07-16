@@ -112,12 +112,12 @@ class ConeforProcessorBase(base.Base):
             qgis.core.QgsProcessingParameterFile(
                 name=self.INPUT_NODES_FILE_PATH[0],
                 description=self.tr(self.INPUT_NODES_FILE_PATH[1]),
-                fileFilter="*.txt",
+                fileFilter="txt(*.txt)",
             ),
             qgis.core.QgsProcessingParameterFile(
                 name=self.INPUT_CONNECTIONS_FILE_PATH[0],
                 description=self.tr(self.INPUT_CONNECTIONS_FILE_PATH[1]),
-                fileFilter="*.txt",
+                fileFilter="txt(*.txt)",
         ),
             qgis.core.QgsProcessingParameterBoolean(
                 self.INPUT_ALL_NODES_CONNECTED[0],
