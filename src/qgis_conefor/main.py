@@ -4,12 +4,10 @@ A QGIS plugin for writing input files to the Conefor software.
 
 import functools
 import uuid
-from pathlib import Path
 from typing import Optional
 
 import qgis.core
 import qgis.gui
-import processing
 from processing.tools.dataobjects import createContext
 from qgis.PyQt import (
     QtGui,
@@ -24,7 +22,6 @@ from . import (
     tablemodel,
     tasks,
 )
-from .coneforinputsprocessor import InputsProcessor
 from .conefordialog import ConeforDialog
 from .processing.provider import ProcessingConeforProvider
 from .processing.algorithms.coneforinputs import (
@@ -58,14 +55,12 @@ class QgisConefor:
     def __init__(self, iface: qgis.gui.QgisInterface):
         self.iface = iface
         self.dialog = None
-        project_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
         self.model = tablemodel.ProcessLayerTableModel(
             qgis_layers={},
             initial_layers_to_process=[],
             lock_layers=False,
             dialog=None
         )
-        self.processor = InputsProcessor(project_crs)
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
         self.inputs_from_points_algorithm = None
@@ -133,7 +128,19 @@ class QgisConefor:
         delegate = tablemodel.ProcessLayerDelegate()
         self.dialog.tableView.setItemDelegate(delegate)
         self.model.removeRows(position=0, rows=self.model.rowCount())
-        self.model.insertRows(0, rows=1)
+        selected_layers = self.iface.layerTreeView().selectedLayers()
+        # self.model.insertRows(0, rows=1)
+        selected_usable = [la for la in selected_layers if la in self.model.data_]
+        if len(selected_usable) > 0:
+            self.model.add_layers(selected_usable)
+        else:
+            self.model.insertRows(0, rows=1)
+        exist_selected_features = False
+        for usable_layer in self.model.data_:
+            if usable_layer.selectedFeatureCount() > 0:
+                exist_selected_features = True
+                break
+        self.dialog.use_selected_features_chb.setChecked(exist_selected_features)
         self.dialog.show()
 
     def finished_analyzing_layers(

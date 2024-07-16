@@ -1,24 +1,12 @@
-import os
-import functools
 from pathlib import Path
 from typing import Optional
 
 import qgis.core
-from qgis.PyQt import (
-    QtCore,
-    QtGui,
-)
-
-from qgis.utils import iface
 
 from ... import coneforinputsprocessor
-from ...coneforinputsprocessor import InputsProcessor
 from ...schemas import (
-    AUTOGENERATE_NODE_ID_LABEL,
-    ICON_RESOURCE_PATH,
     NodeConnectionType,
     QgisConeforSettingsKey,
-    ConeforInputParameters,
 )
 from ...utilities import load_settings_key
 from . import base
@@ -34,7 +22,7 @@ class ConeforInputsBase(base.Base):
     OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH = ("output_connections_path", "Conefor connections file")
 
     def group(self):
-        return self.tr("Prepare inputs for Conefor")
+        return self.tr("Prepare input files")
 
     def groupId(self):
         return "coneforinputs"
@@ -112,7 +100,7 @@ class ConeforInputsPoint(ConeforInputsBase):
         return "inputsfrompoint"
 
     def displayName(self):
-        return "Generate Conefor inputs from point layer"
+        return "Generate input files from point layer"
 
     def initAlgorithm(self, configuration=None):
         self.addParameter(
@@ -255,7 +243,7 @@ class ConeforInputsPolygon(ConeforInputsBase):
         return "inputsfrompolygon"
 
     def displayName(self):
-        return "Generate Conefor inputs from polygon layer"
+        return "Generate input files from polygon layer"
 
     def initAlgorithm(self, configuration=None):
         self.addParameter(

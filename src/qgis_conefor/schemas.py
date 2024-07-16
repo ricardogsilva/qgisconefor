@@ -33,6 +33,12 @@ class NodeConnectionType(enum.Enum):
     CENTROID_DISTANCE = "centroid distance"
 
 
+class ConeforNodeConnectionType(enum.Enum):
+    DISTANCE = "dist"
+    PROBABILITY = "prob"
+    # links is not supported
+
+
 class ConeforProcessingSetting(enum.Enum):
     CONEFOR_CLI_PATH = "conefor executable path"
 
@@ -48,12 +54,6 @@ class ConeforInputParameters:
     id_attribute_field_name: Optional[str] = None  # None means autogenerate a node id
     attribute_field_name: Optional[str] = None  # None means use area as the attribute
     connections_method: NodeConnectionType = NodeConnectionType.EDGE_DISTANCE
-    # attribute_file_name: Optional[str] = None
-    # area_file_name: Optional[str] = None
-    # centroid_file_name: Optional[str] = None
-    # edge_file_name: Optional[str] = None
-    # centroid_distance_name: Optional[str] = None
-    # edge_distance_name: Optional[str] = None
 
     def __hash__(self):
         return hash(
@@ -70,8 +70,5 @@ class ConeforInputParameters:
 @dataclasses.dataclass
 class TableModelItem:
     layer: qgis.core.QgsVectorLayer
-    # calculate_centroid_distance: bool
-    # calculate_edge_distance: bool
     id_attribute_field_name: str = AUTOGENERATE_NODE_ID_LABEL
     attribute_field_name: str = GENERATE_FROM_AREA_LABEL
-    # calculate_area_as_node_attribute: bool = False

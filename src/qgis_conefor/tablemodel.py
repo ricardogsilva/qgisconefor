@@ -253,6 +253,20 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         self.dirty = True
         return True
 
+    def add_layers(self, layers: list[qgis.core.QgsVectorLayer]):
+        position = 0
+        self.beginInsertRows(QtCore.QModelIndex(), position, position + len(layers) - 1)
+        for idx, layer in enumerate(layers):
+            available_attributes = self.data_.get(layer)
+            if available_attributes is not None:
+                self.layers_to_process.insert(
+                    position + idx,
+                    schemas.TableModelItem(
+                        layer=layer
+                    )
+                )
+        self.endInsertRows()
+
     def removeRows(self, position, rows=1, index=QtCore.QModelIndex()):
         log(f"inside removeRows: {position=} {rows=}")
         log(f"{[ltp.layer.name() for ltp in self.layers_to_process]=}")

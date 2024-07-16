@@ -1,9 +1,7 @@
 from pathlib import Path
 
-from qgis.PyQt import (
-    QtCore,
-    QtGui,
-)
+from PyQt5.QtGui import QIcon
+from qgis.PyQt import QtGui
 import qgis.core
 from processing.core.ProcessingConfig import (
     ProcessingConfig,
@@ -14,7 +12,10 @@ from ..schemas import (
     ICON_RESOURCE_PATH,
     ConeforProcessingSetting
 )
-from .algorithms import coneforinputs
+from .algorithms import (
+    coneforinputs,
+    coneforprocessor,
+)
 
 
 class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
@@ -49,12 +50,20 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
             name="Create centroid distances file",
         )
         centroid_distance_algorithm.fromFile(str(centroid_distance_model_path))
+        centroid_distance_algorithm.groupId = lambda: "utilities"
+        centroid_distance_algorithm.group = lambda: "Utilities"
+        centroid_distance_algorithm.icon = lambda: QtGui.QIcon(ICON_RESOURCE_PATH)
+        centroid_distance_algorithm.displayName = lambda: "Calculate centroid distances file"
 
         edge_distance_model_path = Path(__file__).parent / "models/edge_distances.model3"
         edge_distance_algorithm = qgis.core.QgsProcessingModelAlgorithm(
             name="Create edge distances file",
         )
         edge_distance_algorithm.fromFile(str(edge_distance_model_path))
+        edge_distance_algorithm.groupId = lambda: "utilities"
+        edge_distance_algorithm.group = lambda: "Utilities"
+        edge_distance_algorithm.icon = lambda: QtGui.QIcon(ICON_RESOURCE_PATH)
+        edge_distance_algorithm.displayName = lambda: "Calculate edge distances file"
 
         return [
             centroid_distance_algorithm,
@@ -64,27 +73,17 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
     def loadAlgorithms(self):
         self.addAlgorithm(coneforinputs.ConeforInputsPoint())
         self.addAlgorithm(coneforinputs.ConeforInputsPolygon())
+        self.addAlgorithm(coneforprocessor.ConeforNCProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforNLProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforHProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforCCPProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforLCPProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforIICProcessor())
+        self.addAlgorithm(coneforprocessor.ConeforBCProcessor())
         model_algorithms = self._load_models()
         for model_algorithm in model_algorithms:
             self.addAlgorithm(model_algorithm)
 
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPointAttribute())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonAttribute())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonArea())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPointCentroid())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonCentroid())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonEdge())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPointCentroidDistance())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonCentroidDistance())
-        # self.addAlgorithm(processingconeforinputs.ConeforInputsPolygonEdgeDistance())
-
-        # self.addAlgorithm(processingconeforprocessor.ConeforNCProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforNLProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforHProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforCCPProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforLCPProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforIICProcessor())
-        # self.addAlgorithm(processingconeforprocessor.ConeforBCProcessor())
         # self.addAlgorithm(processingconeforprocessor.ConeforBCIICProcessor())
         # self.addAlgorithm(processingconeforprocessor.ConeforFDistanceProcessor())
         # self.addAlgorithm(processingconeforprocessor.ConeforFProbabilityProcessor())
