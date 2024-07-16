@@ -93,7 +93,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def show_help(self):
         QtGui.QDesktopServices.openUrl(
-            QtCore.QUrl("https://github.com/ricardogsilva/qgisconefor"))
+            QtCore.QUrl("https://ricardogsilva.github.io/qgisconefor"))
 
     def add_conefor_input(self):
         row = self.model.rowCount()
