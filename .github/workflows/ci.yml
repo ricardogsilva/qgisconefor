@@ -24,7 +24,7 @@ jobs:
         uses: Gr1N/setup-poetry@v9
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry install --without gdal
 
       - name: Rebuild docs
         run: poetry run mkdocs build
@@ -49,7 +49,7 @@ jobs:
         uses: Gr1N/setup-poetry@v9
 
       - name: Install pluginadmin dependencies
-        run: poetry install
+        run: poetry install --without gdal
 
       - name: generate plugin repo XML
         run: poetry run python pluginadmin.py --verbose generate-plugin-repo-xml

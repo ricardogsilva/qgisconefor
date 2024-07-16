@@ -20,7 +20,7 @@ jobs:
         uses: Gr1N/setup-poetry@v9
 
       - name: Install pluginadmin dependencies
-        run: poetry install
+        run: poetry install --without gdal
 
       - name: Get experimental info
         id: get-experimental
@@ -64,7 +64,7 @@ jobs:
         uses: Gr1N/setup-poetry@v9
 
       - name: Install pluginadmin dependencies
-        run: poetry install
+        run: poetry install --without gdal
 
       - name: generate plugin repo XML
         run: poetry run pluginadmin --verbose generate-plugin-repo-xml
