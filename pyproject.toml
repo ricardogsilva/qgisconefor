@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qgisconefor"
-version = "2.0.0"
+version = "2.0.0-dev"
 description = "A QGIS plugin to integrate with the Conefor landscape conectivity analysis software."
 authors = ["Ricardo Garcia Silva <ricardo.garcia.silva@gmail.com>"]
 readme = "README.md"
@@ -16,14 +16,17 @@ typer = "^0.12.3"
 rich = "^13.7.1"
 toml = "^0.10.2"
 httpx = "^0.27.0"
+pyyaml = "^6.0.1"
+gdal = "3.8.4"
+psycopg2-binary = "^2.9.9"
 
 [tool.poetry.scripts]
 pluginadmin = "plugindev.pluginadmin:app"
 
 [tool.qgis-plugin.metadata]
 name = "QGIS Conefor"
-qgisMinimumVersion = "3.34.7"
-icon = "plugin-logo.png"
+qgisMinimumVersion = "3.34.0"
+icon = "icon.png"
 experimental = true
 deprecated = false
 homepage = "https://github.com/ricardogsilva/qgisconefor"
@@ -36,39 +39,26 @@ tags = [
 category = "plugins"
 hasProcessingProvider = true
 about = """\
-This plugin adds GeoNode client functionality to QGIS - search, load and manage GeoNode resources from inside QGIS.
-
-Initial development has been commissioned by the by the Pacific Community (SPC), with funcding from the World Bank, \
-and implemented by the Kartoza and GeoSolutions teams. The plugin is actively maintained and aims to keep up to \
-date with changes in the GeoNode API.
-
-Check the website for a user guide and more detail.\
-
 This plugin adds integration with Conefor, a tool for landscape analysis.
 
-Conefor is a software that provides tools for studying landscape conectivity. It features a command line version that
+Conefor is a software that provides tools for studying landscape conectivity. It features a command line version that\
 is available for Windows, Mac OS and Linux. It can be downloaded from \
 
 http://conefor.org
 
 This plugin integrates Conefor with QGIS. It can be used in two modes:
 
-    * A plugin dialog with a custom GUI that can be used to generate the
-      input files needed in order to run Conefor analysis. These files can
-      then be used to run Conefor externally and perform the study.
+* A plugin dialog with a custom GUI that can be used to generate the input files needed in order to run Conefor \
+analysis. These files can then be used to run Conefor externally and perform the study.
 
-    * A set of Processing algorithms that can be used to work with Conefor
-      inside QGIS. It provides algorithms for both preparing Conefor inputs
-      (the same functionality as available in the plugin's dialog) and also
-      for running most of Conefor's algorithms. This makes it possible to
-      create Processing models and scripts that efectively enable a user to
-      use QGIS as a frontend to interact with Conefor.
+* A set of Processing algorithms that can be used to work with Conefor inside QGIS. It provides algorithms for both \
+preparing Conefor inputs (the same functionality as available in the plugin's dialog) and also for running most of \
+Conefor's algorithms. This makes it possible to create Processing models and scripts that efectively enable a user to \
+use QGIS as a frontend to interact with Conefor.
 
-    * Conefor authors are Santiago Saura (santiago.saura@upm.es) and Josep Torné.
-      This plugin was developed by Ricardo Garcia Silva (ricardo.garcia.silva@gmail.com)
-      with funding from ETSI Montes, Universidad Politécnica de Madrid.
-      The plugin is released under a GPL license.
-
+* Conefor authors are Santiago Saura (santiago.saura@upm.es) and Josep Torné. This plugin was developed by Ricardo \
+Garcia Silva (ricardo.garcia.silva@gmail.com) with funding from ETSI Montes, Universidad Politécnica de Madrid. The \
+plugin is released under a GPL license.\
 """
 # changelog: dynamically pulled from the README.md file
 # description: dynamically pulled from the tool.poetry.description section

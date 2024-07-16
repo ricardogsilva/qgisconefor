@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>640</width>
-    <height>598</height>
+    <width>647</width>
+    <height>659</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -64,6 +64,9 @@
    </item>
    <item>
     <widget class="QTableView" name="tableView">
+     <property name="sizeAdjustPolicy">
+      <enum>QAbstractScrollArea::AdjustToContents</enum>
+     </property>
      <property name="editTriggers">
       <set>QAbstractItemView::AllEditTriggers</set>
      </property>
@@ -76,9 +79,6 @@
      <property name="textElideMode">
       <enum>Qt::ElideRight</enum>
      </property>
-     <attribute name="horizontalHeaderDefaultSectionSize">
-      <number>102</number>
-     </attribute>
      <attribute name="horizontalHeaderStretchLastSection">
       <bool>true</bool>
      </attribute>
@@ -119,6 +119,29 @@
     </layout>
    </item>
    <item>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Calculate node connections as</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_5">
+      <item>
+       <widget class="QRadioButton" name="edge_distance_rb">
+        <property name="text">
+         <string>Edge distances</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="centroid_distance_rb">
+        <property name="text">
+         <string>Centroid distances</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_6">
      <item>
       <widget class="QCheckBox" name="use_selected_features_chb">
@@ -145,7 +168,7 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QCheckBox" name="create_distances_files_chb">
+      <widget class="QCheckBox" name="create_distances_file_chb">
        <property name="text">
         <string>Create link vector layer (Slower and works only with valid geometries)</string>
        </property>
@@ -198,66 +221,20 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="progress_la">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="text">
-      <string>Label</string>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok</set>
      </property>
     </widget>
-   </item>
-   <item>
-    <widget class="QProgressBar" name="progressBar">
-     <property name="value">
-      <number>24</number>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_5">
-     <item>
-      <widget class="QPushButton" name="help_btn">
-       <property name="text">
-        <string>Help</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="run_btn">
-       <property name="text">
-        <string>Run</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
    </item>
   </layout>
  </widget>
  <tabstops>
   <tabstop>add_row_btn</tabstop>
   <tabstop>remove_row_btn</tabstop>
-  <tabstop>create_distances_files_chb</tabstop>
+  <tabstop>create_distances_file_chb</tabstop>
   <tabstop>output_dir_btn</tabstop>
   <tabstop>output_dir_le</tabstop>
-  <tabstop>run_btn</tabstop>
-  <tabstop>help_btn</tabstop>
  </tabstops>
  <resources/>
  <connections/>
