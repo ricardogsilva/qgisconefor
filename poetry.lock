@@ -199,7 +199,7 @@ test = ["pytest (>=6)"]
 name = "gdal"
 version = "3.8.4"
 description = "GDAL: Geospatial Data Abstraction Library"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.6.0"
 files = [
@@ -1127,4 +1127,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "8cb66b3ceebb112ec44144f9dcff6382ef0dd0e6f5148547bea0c706324febc6"
+content-hash = "1475bdefec28190c391a7bc6979d75758506af0a534dafef0c2f5077553ec0c7"
