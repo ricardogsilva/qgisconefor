@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Update docs
+
 
 ## [2.0.0-rc1] - 2024-07-17
 - Ported code to Python3 and QGIS v3
@@ -15,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converted README to markdown
 - Manage dev workflows with pluginadmin
 - Move business logic outside of plugin dialog
+- Measure areas using QGIS project's ellipsoid
 - Use Processing algorithm also for powering dialog-based execution 
+- Generation of Conefor inputs can be cancelled by the user
 - Use QgsTask and QgsTaskManager instead of QThreads with locks
 - Use QgsDistanceArea for area and distance calculations
 - Use QgsMessageBar for communication instead of a custom QLabel
