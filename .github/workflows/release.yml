@@ -23,7 +23,7 @@ jobs:
         uses: Gr1N/setup-poetry@v9
 
       - name: Install pluginadmin dependencies
-        run: poetry install --without gdal
+        run: poetry install --without gdal --with pyqt
 
       - name: Get experimental info
         id: get-experimental
