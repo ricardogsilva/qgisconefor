@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [2.0.0-rc1] - 2024-07-17
 - Ported code to Python3 and QGIS v3
 - Added Changelog
 - Moved to src layout
@@ -42,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release
 
 [unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v1.2.1...main
+[2.0.0-rc1]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc1...main
 [1.2.1]: https://github.com/ricardogsilva/qgisconefor/compare/v1.2...v1.2.1
 [1.2]: https://github.com/kartoza/qgis_geonode/releases/tag/v1.2
