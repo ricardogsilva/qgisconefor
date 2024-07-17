@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+from pathlib import Path
 from typing import Optional
 
 from qgis.PyQt import QtCore
@@ -72,3 +73,29 @@ class TableModelItem:
     layer: qgis.core.QgsVectorLayer
     id_attribute_field_name: str = AUTOGENERATE_NODE_ID_LABEL
     attribute_field_name: str = GENERATE_FROM_AREA_LABEL
+
+
+@dataclasses.dataclass
+class ConeforRuntimeParameters:
+    conefor_path: Path
+    nodes_path: Path
+    connections_path: Path
+    connection_type: ConeforNodeConnectionType
+    all_pairs_connected: bool
+    threshold_direct_links: Optional[float] = 0.0
+    binary_indexes: Optional[list[str]] = None
+    decay_distance: float = 0.0
+    decay_probability: float = 0.0
+    probability_indexes: Optional[list[str]] = None
+    only_overall: bool = False
+    removal: bool = False
+    removal_threshold: Optional[float] = None
+    improvement: bool = False
+    improvement_threshold: Optional[float] = None
+    write_component_file: bool = False
+    write_links_file: bool = False
+    write_dispersal_probabilities_file: bool = False
+    write_maximum_probabilities_file: bool = False
+    land_area: Optional[float] = None
+    prefix: Optional[str] = None
+

@@ -1,16 +1,25 @@
-import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
+import tempfile
 
-import qgis.core
+from qgis.core import (
+    QgsProcessingContext,
+    QgsProcessingFeedback,
+    QgsProcessingParameterBoolean,
+    QgsProcessingParameterDefinition,
+    QgsProcessingParameterFile,
+    QgsProcessingParameterEnum,
+    QgsProcessingParameterNumber,
+    QgsProcessingParameterFolderDestination,
+)
 
 from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.ProcessingResults import ProcessingResults
-from qgis._core import QgsProcessingParameters
 
 from ... import utilities
 from ...schemas import (
+    ConeforRuntimeParameters,
     ConeforNodeConnectionType,
     ConeforProcessingSetting,
     QgisConeforSettingsKey,
@@ -25,15 +34,17 @@ class ConeforProcessorBase(base.Base):
     index_code: str = ""
     index_name: str = ""
 
-    INPUT_NODES_FILE_PATH = ("nodes_file_path", "Conefor nodes file path")
-    INPUT_CONNECTIONS_FILE_PATH = ("connections_file_path", "Conefor connections file path")
-    INPUT_ALL_NODES_CONNECTED = ("all_nodes_connected", "Whether all nodes are connected")
+    INPUT_NODES_FILE_PATH = ("nodes_file_path", "Nodes file path")
+    INPUT_CONNECTIONS_FILE_PATH = ("connections_file_path", "Connections file path")
+    INPUT_ALL_NODES_CONNECTED = ("all_nodes_connected", "All nodes are connected")
     INPUT_THRESHOLD_DIRECT_LINKS = (
         "threshold_direct_links",
         "Threshold (distance/probability) for connecting nodes (confAdj)"
     )
-    INPUT_CREATE_NODE_IMPORTANCES = (
-        "create_node_importances", "Process individual node importances")
+    INPUT_ONLY_OVERALL_INDEX_VALUES = (
+        "only_overall_index_values",
+        "Calculate only the overall index values (onlyoverall)"
+    )
     INPUT_WRITE_LINKS_FILE = ("write_links_file", "Write links file")
     INPUT_PROCESS_REMOVAL_IMPORTANCES = (
         "process_removal_importances", "Process individual node importances")
@@ -54,83 +65,64 @@ class ConeforProcessorBase(base.Base):
         "Write components file"
     )
     INPUT_NODE_CONNECTION_TYPE = ("node_connection_type", "node connection type")
+    INPUT_CONF_PROB_DISTANCE = ("conf_prob_distance", "distance value used to compute indices when the connection file is a distance file (-confProb distance)")
+    INPUT_CONF_PROB_PROBABILITY = ("conf_prob_probability", "probability value used to compute indices when the connection file is a distance file (-confProb distance)")
 
-
-    DISTANCE_PROB = "DISTANCE_PROB"
-    PROBABILITY_PROB = "PROBABILITY_PROB"
-
-    WRITE_PROB_DIR = "WRITE_PROB_DIR"
-    WRITE_PROB_MAX = "WRITE_PROB_MAX"
+    INPUT_WRITE_PROB_DIR = ("write_probdir_file", "write direct dispersal probabilities file")
+    INPUT_WRITE_PROB_MAX = ("write_probmax_file", "write maximum product probabilities file")
     INPUT_OUTPUT_DIRECTORY = (
         "output_directory", "Output directory for generated Conefor analysis files")
 
-    _parameter_order = [
-        INPUT_NODES_FILE_PATH[0],
-        INPUT_CONNECTIONS_FILE_PATH[0],
-        INPUT_NODE_CONNECTION_TYPE,
-        INPUT_ALL_NODES_CONNECTED[0],
-        # -* option is not used by this plugin
-        INPUT_THRESHOLD_DIRECT_LINKS,
-        # binary_indices are not selectable in the GUI
-        DISTANCE_PROB,
-        PROBABILITY_PROB,
-        # probability indices are not selectable in the GUI
-        INPUT_CREATE_NODE_IMPORTANCES,
-        # pcHeur is not implemented, yet
-        # -add is not implemented, yet
-        INPUT_PROCESS_REMOVAL_IMPORTANCES,
-        INPUT_REMOVAL_DISTANCE_THRESHOLD,
-        INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES,
-        INPUT_IMPROVEMENT_DISTANCE_THRESHOLD,
-        # -change is not implemented in this plugin
-        # self._precision is not exposed in the GUI
-        # -noout is not used by this plugin
-        INPUT_WRITE_COMPONENTS_FILE,
-        INPUT_WRITE_LINKS_FILE,
-        WRITE_PROB_DIR,
-        WRITE_PROB_MAX,
-        # -landArea is not implemented, yet
-        # prefix is not exposed in the GUI
-        INPUT_OUTPUT_DIRECTORY[0],
-    ]
+    OUTPUT_COMPONENTS_FILE_PATH = "components_file_path"
+    OUTPUT_LINKS_FILE_PATH = "links_file_path"
+    OUTPUT_PROBDIR_FILE_PATH = "probdir_file_path"
+    OUTPUT_PROBMAX_FILE_PATH = "probmax_file_path"
+    OUTPUT_ALL_OVERALL_INDICES_FILE_PATH = "all_overall_indices_file_path"
+    OUTPUT_ALL_EC_IIC_FILE_PATH = "all_overall_ec_iic_file_path"
+    OUTPUT_ALL_EC_PC_FILE_PATH = "all_overall_ec_pc_file_path"
 
     def name(self):
-        return f"{self.index_code}"
+        return f"{self.index_code.lower()}"
 
     def displayName(self):
-        return f"{self.index_code} ({self.index_name})"
+        return self.index_name
 
-    def _create_parameters(self) -> list[qgis.core.QgsProcessingParameterDefinition]:
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
         return [
-            qgis.core.QgsProcessingParameterFolderDestination(
+            QgsProcessingParameterFolderDestination(
                 name=self.INPUT_OUTPUT_DIRECTORY[0],
                 description=self.tr(self.INPUT_OUTPUT_DIRECTORY[1]),
                 defaultValue=utilities.load_settings_key(
                     QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home())
                 )
             ),
-            qgis.core.QgsProcessingParameterFile(
+            QgsProcessingParameterFile(
                 name=self.INPUT_NODES_FILE_PATH[0],
                 description=self.tr(self.INPUT_NODES_FILE_PATH[1]),
                 fileFilter="txt(*.txt)",
             ),
-            qgis.core.QgsProcessingParameterFile(
+            QgsProcessingParameterFile(
                 name=self.INPUT_CONNECTIONS_FILE_PATH[0],
                 description=self.tr(self.INPUT_CONNECTIONS_FILE_PATH[1]),
                 fileFilter="txt(*.txt)",
-        ),
-            qgis.core.QgsProcessingParameterBoolean(
+            ),
+            QgsProcessingParameterBoolean(
                 self.INPUT_ALL_NODES_CONNECTED[0],
                 self.tr(self.INPUT_ALL_NODES_CONNECTED[1]),
                 defaultValue=True
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_ONLY_OVERALL_INDEX_VALUES[0],
+                self.tr(self.INPUT_ONLY_OVERALL_INDEX_VALUES[1]),
+                defaultValue=False
             ),
         ]
 
     def get_runtime_parameters(
             self,
             parameters: dict,
-            context: qgis.core.QgsProcessingContext,
-            feedback: qgis.core.QgsProcessingFeedback
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
     ) -> dict:
         return {
             self.INPUT_OUTPUT_DIRECTORY[0]: Path(
@@ -159,6 +151,8 @@ class ConeforProcessorBase(base.Base):
                 self.INPUT_ALL_NODES_CONNECTED[0],
                 context
             ),
+            self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_ONLY_OVERALL_INDEX_VALUES[0], context),
         }
 
     def initAlgorithm(self, configuration = None):
@@ -169,25 +163,48 @@ class ConeforProcessorBase(base.Base):
             self,
             *,
             conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
+        """Parametrize and run conefor.
+
+        Note that the inputs `conefor_path`, `nodes_path` and `connections_path`
+        are all expected to be in the same directory.
+        """
         raise NotImplementedError
 
     def processAlgorithm(self, parameters, context, feedback):
-        conefor_path = Path(
-            ProcessingConfig.getSetting(ConeforProcessingSetting.CONEFOR_CLI_PATH))
+        original_conefor_path = Path(
+            ProcessingConfig.getSetting(
+                ConeforProcessingSetting.CONEFOR_CLI_PATH.name)
+        )
+        parsed_inputs = self.get_runtime_parameters(parameters, context, feedback)
+        adjusted_paths = _prepare_execution(
+            original_conefor_path=original_conefor_path,
+            original_nodes_path=parsed_inputs[self.INPUT_NODES_FILE_PATH[0]],
+            original_connections_path=parsed_inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
+        )
+        conefor_path, nodes_path, connections_path = adjusted_paths
         conefor_dir = conefor_path.parent
+        feedback.pushInfo(f"About to start execution")
+        feedback.pushInfo(f"{conefor_dir=}")
         files_before = list(conefor_dir.iterdir())
+        feedback.pushInfo(f"{files_before=}")
         self._run_the_algorithm(
             conefor_path=conefor_path,
+            nodes_path=nodes_path,
+            connections_path=connections_path,
             inputs=self.get_runtime_parameters(parameters, context, feedback),
             feedback=feedback
         )
         files_after = list(conefor_dir.iterdir())
+        feedback.pushInfo(f"{files_after=}")
         new_files = [
             conefor_dir / f for f in files_after if f not in files_before
         ]
+        feedback.pushInfo(f"{new_files=}")
         output_dir = Path(
             self.parameterAsFile(
                 parameters,
@@ -195,111 +212,10 @@ class ConeforProcessorBase(base.Base):
                 context
             )
         )
-        utilities.store_processing_outputs(output_dir, new_files)
-        # for new_file in result_files:
-        #     name = os.path.basename(new_file)
-        #     ProcessingResults.addResult(name, new_file)
+        final_files = _store_processing_outputs(output_dir, new_files)
+        feedback.pushInfo(f"{final_files=}")
         feedback.setProgress(100)
-
-    def _run_conefor(
-            self,
-            *,
-            feedback: qgis.core.QgsProcessingFeedback,
-            conefor_path: Path,
-            nodes_path: Path,
-            connections_path: Path,
-            connection_type,
-            all_pairs_connected: bool,
-            threshold_direct_links=0,
-            binary_indexes: list[str] | None = None,
-            decay_distance=0,
-            decay_probability=0,
-            probability_indexes: list[str] | None = None,
-            only_overall: bool = False,
-            removal: bool = False,
-            removal_threshold=None,
-            improvement: bool = False,
-            improvement_threshold=None,
-            write_component_file: bool = False,
-            write_links_file: bool = False,
-            write_dispersal_probabilities_file: bool = False,
-            write_maximum_probabilities_file: bool = False,
-            land_area=None,
-            prefix=None
-    ) -> bool:
-        """Run Conefor and return the output.
-
-        In order to successfuly run the conefor CLI executable, the following
-        constraints must be taken into consideration:
-
-            - conefor will only save the output files to disk if it is called
-              from the same directory where the executable is located
-            - conefor will save output files in the same directory
-              as the executable.
-        """
-
-        conefor_dir, conefor_file_name = os.path.split(conefor_path)
-        command_list = []
-        command_list += [
-            conefor_path,
-            "-nodeFile", str(nodes_path),
-            "-conFile", str(connections_path),
-            "-t", connection_type,
-            "all" if all_pairs_connected else "notall",
-        ]
-        if any(binary_indexes):
-            command_list += ['-confAdj', '%1.3f' % threshold_direct_links]
-            if 'BCIIC' in binary_indexes and 'IIC' not in binary_indexes:
-                binary_indexes.append('IIC')
-            if 'BCIIC' in binary_indexes and 'BC' not in binary_indexes:
-                binary_indexes.append('BC')
-            command_list.extend(f"-{idx}" for idx in binary_indexes)
-
-        if any(probability_indexes):
-            if connection_type == 'dist':
-                command_list += [
-                    '-confProb', '%1.3f' % decay_distance,
-                    '%1.3f' % decay_probability
-                ]
-            if 'BCPC' in probability_indexes and 'PC' not in probability_indexes:
-                probability_indexes.append('PC')
-            if 'BCPC' in probability_indexes and 'BC' not in binary_indexes:
-                binary_indexes.append('BC')
-            command_list.extend(f"-{idx}" for idx in probability_indexes)
-
-        if only_overall:
-            command_list.append('onlyoverall')
-        if removal:
-            command_list.append('-removal')
-            if removal_threshold is not None:
-                command_list.extend(["maxValue", str(removal_threshold)])
-        if improvement:
-            command_list.append('-improvement')
-            if improvement_threshold is not None:
-                command_list.extend(["maxValue", str(improvement_threshold)])
-        command_list.append(f'-{self._precision}')
-        if write_component_file and 'NC' in binary_indexes:
-            command_list.append('-wcomp')
-        if write_links_file and any(binary_indexes):
-            command_list.append('-wlinks')
-        if write_dispersal_probabilities_file and any(probability_indexes):
-            command_list.append('-wprobdir')
-        if write_maximum_probabilities_file and 'PC' in probability_indexes:
-            command_list.append('-wprobmax')
-        if land_area is not None:
-            command_list += ['-landArea', land_area]
-        if prefix is not None:
-            command_list += ['-prefix', prefix]
-        full_command = " ".join(command_list)
-        utilities.log(f"{full_command=}")
-        completed_process = subprocess.run(
-            shlex.split(full_command),
-            cwd=conefor_dir,
-            text=True,
-            capture_output=True,
-        )
-        feedback.pushInfo(completed_process.stdout)
-        return completed_process.returncode == 0
+        return {}
 
     def canExecute(self) -> tuple[bool, str]:
         conefor_path = Path(
@@ -328,55 +244,50 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
     def groupId(self):
         return "binaryindices"
 
-    def _create_parameters(self):
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
         params = super()._create_parameters()
         params.extend(
             [
-                qgis.core.QgsProcessingParameterEnum(
+                QgsProcessingParameterEnum(
                     name=self.INPUT_NODE_CONNECTION_TYPE[0],
                     description=self.tr(
                         self.INPUT_NODE_CONNECTION_TYPE[1]),
                     options=self._NODE_CONNECTION_TYPE_CHOICES,
                     defaultValue=ConeforNodeConnectionType.DISTANCE.value
                 ),
-                qgis.core.QgsProcessingParameterNumber(
+                QgsProcessingParameterNumber(
                     name=self.INPUT_THRESHOLD_DIRECT_LINKS[0],
                     description=self.tr(self.INPUT_THRESHOLD_DIRECT_LINKS[1]),
-                    type=qgis.core.QgsProcessingParameterNumber.Double,
+                    type=QgsProcessingParameterNumber.Double,
                     optional=True,
                     minValue=0,
                 ),
-                qgis.core.QgsProcessingParameterBoolean(
-                    self.INPUT_CREATE_NODE_IMPORTANCES[0],
-                    self.tr(self.INPUT_CREATE_NODE_IMPORTANCES[1]),
-                    defaultValue=False
-                ),
-                qgis.core.QgsProcessingParameterBoolean(
+                QgsProcessingParameterBoolean(
                     self.INPUT_WRITE_LINKS_FILE[0],
                     self.tr(self.INPUT_WRITE_LINKS_FILE[1]),
                     defaultValue=False
                 ),
-                qgis.core.QgsProcessingParameterBoolean(
+                QgsProcessingParameterBoolean(
                     self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0],
                     self.tr(self.INPUT_PROCESS_REMOVAL_IMPORTANCES[1]),
                     defaultValue=False
                 ),
-                qgis.core.QgsProcessingParameterNumber(
+                QgsProcessingParameterNumber(
                     name=self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0],
                     description=self.tr(self.INPUT_REMOVAL_DISTANCE_THRESHOLD[1]),
-                    type=qgis.core.QgsProcessingParameterNumber.Double,
+                    type=QgsProcessingParameterNumber.Double,
                     optional=True,
                     minValue=0,
                 ),
-                qgis.core.QgsProcessingParameterBoolean(
+                QgsProcessingParameterBoolean(
                     self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0],
                     self.tr(self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[1]),
                     defaultValue=False
                 ),
-                qgis.core.QgsProcessingParameterNumber(
+                QgsProcessingParameterNumber(
                     name=self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0],
                     description=self.tr(self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[1]),
-                    type=qgis.core.QgsProcessingParameterNumber.Double,
+                    type=QgsProcessingParameterNumber.Double,
                     optional=True,
                     minValue=0,
                 ),
@@ -387,8 +298,8 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
     def get_runtime_parameters(
             self,
             parameters: dict,
-            context: qgis.core.QgsProcessingContext,
-            feedback: qgis.core.QgsProcessingFeedback
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
     ) -> dict:
         return {
             **super().get_runtime_parameters(parameters, context, feedback),
@@ -402,8 +313,8 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
             self.INPUT_THRESHOLD_DIRECT_LINKS[0]: self.parameterAsDouble(
                 parameters, self.INPUT_THRESHOLD_DIRECT_LINKS[0], context
             ),
-            self.INPUT_CREATE_NODE_IMPORTANCES[0]: self.parameterAsBoolean(
-                parameters, self.INPUT_CREATE_NODE_IMPORTANCES[0], context
+            self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_ONLY_OVERALL_INDEX_VALUES[0], context
             ),
             self.INPUT_WRITE_LINKS_FILE[0]: self.parameterAsBoolean(
                 parameters, self.INPUT_WRITE_LINKS_FILE[0], context
@@ -424,14 +335,14 @@ class ConeforBinaryIndexBase(ConeforProcessorBase):
 
 
 class ConeforNCProcessor(ConeforBinaryIndexBase):
-    index_name = 'Number of Components'
-    index_code = 'NC'
+    index_name = "NC (Number of Components)"
+    index_code = "NC"
 
     def _create_parameters(self):
         parameters = super()._create_parameters()
         parameters.extend(
             [
-                qgis.core.QgsProcessingParameterBoolean(
+                QgsProcessingParameterBoolean(
                     self.INPUT_WRITE_COMPONENTS_FILE[0],
                     self.tr(self.INPUT_WRITE_COMPONENTS_FILE[1]),
                     defaultValue=False
@@ -443,8 +354,8 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
     def get_runtime_parameters(
             self,
             parameters: dict,
-            context: qgis.core.QgsProcessingContext,
-            feedback: qgis.core.QgsProcessingFeedback
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
     ) -> dict:
         return {
             **super().get_runtime_parameters(parameters, context, feedback),
@@ -456,762 +367,926 @@ class ConeforNCProcessor(ConeforBinaryIndexBase):
             self,
             *,
             conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+            ),
             feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
         )
 
 
 class ConeforNLProcessor(ConeforBinaryIndexBase):
-    index_name = 'Number of Links'
-    index_code = 'NL'
+    index_name = "NL (Number of Links)"
+    index_code = "NL"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
-            feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+            ),
+            feedback=feedback
         )
 
 
 class ConeforHProcessor(ConeforBinaryIndexBase):
-    index_name = 'Harary'
-    index_code = 'H'
+    index_name = "H (Harary)"
+    index_code = "H"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+            ),
             feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
         )
 
 
 class ConeforCCPProcessor(ConeforBinaryIndexBase):
-    index_name = 'Class Coincidence Probability'
-    index_code = 'CCP'
+    index_name = "CCP (Class Coincidence Probability)"
+    index_code = "CCP"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
-            feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+
+            ),
+            feedback=feedback
         )
 
 
 class ConeforLCPProcessor(ConeforBinaryIndexBase):
-    index_name = 'Landscape Coincidence Probability'
-    index_code = 'LCP'
+    index_name = "LCP (Landscape Coincidence Probability)"
+    index_code = "LCP"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
-            feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+            ),
+            feedback=feedback
         )
 
 
 class ConeforIICProcessor(ConeforBinaryIndexBase):
-    index_name = 'Integral Index of Connectivity'
-    index_code = 'IIC'
+    index_name = "IIC (Integral Index of Connectivity)"
+    index_code = "IIC"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
-            feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
-            removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
-            improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
-            improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
-            write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_component_file=inputs[self.INPUT_WRITE_COMPONENTS_FILE[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+
+            ),
+            feedback=feedback
         )
 
 
 class ConeforBCProcessor(ConeforBinaryIndexBase):
-    index_name = 'Betweeness Centrality (Classic)'
-    index_code = 'BC'
+    index_name = "BC (Betweeness Centrality Classic)"
+    index_code = "BC"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    str(threshold_direct_links)
+                ))
+
+            ),
             feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=[self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
         )
 
 
 class ConeforBCIICProcessor(ConeforBCProcessor):
-    index_name = 'Betweeness Centrality Generalized(IIC)'
-    index_code = 'BCIIC'
+    index_name = "BCIIC (Betweeness Centrality Generalized IIC)"
+    index_code = "BCIIC"
 
     def _run_the_algorithm(
             self,
             *,
-            conefor_path,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
             inputs: dict,
-            feedback: qgis.core.QgsProcessingFeedback,
+            feedback: QgsProcessingFeedback,
     ):
         threshold_direct_links = inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]]
-        return self._run_conefor(
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=threshold_direct_links,
+                binary_indexes=["IIC", self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
+                    self.index_code,
+                    threshold_direct_links
+                ))
+
+            ),
             feedback=feedback,
-            conefor_path=conefor_path,
-            nodes_path=inputs[self.INPUT_NODES_FILE_PATH[0]],
-            connections_path=inputs[self.INPUT_CONNECTIONS_FILE_PATH[0]],
-            connection_type=inputs[self.INPUT_NODE_CONNECTION_TYPE[0]],
-            all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
-            threshold_direct_links=threshold_direct_links,
-            binary_indexes=["IIC", self.index_code],
-            only_overall=inputs[self.INPUT_CREATE_NODE_IMPORTANCES[0]],
-            write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
-            prefix="_".join((
-                inputs[self.INPUT_NODES_FILE_PATH[0]].stem,
-                self.index_code,
-                threshold_direct_links
-            ))
         )
-#
-#
-# class ConeforProbabilityIndexBase(ConeforProcessorBase):
-#
-#     def defineCharacteristics(self):
-#         ConeforProcessorBase.defineCharacteristics(self)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProcessorBase._create_parameters(self)
-#         parameters += [
-#             ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
-#                              'individual node importances', default=False),
-#             ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
-#                              'dispersal probabilities for each pair of nodes',
-#                              default=False),
-#             ParameterBoolean(self.REMOVAL, 'Process link removal importances '
-#                              '(-removal)', default=False),
-#             ParameterNumber(self.REMOVAL_DISTANCE, 'Maximum threshold for '
-#                             'link removal analysis'),
-#             ParameterBoolean(self.IMPROVEMENT, 'Process link improvement '
-#                              'importances (-improvement)', default=False),
-#             ParameterNumber(self.IMPROVEMENT_DISTANCE, 'Maximum threshold '
-#                             'for link improvement analysis'),
-#         ]
-#         return parameters
-#
-#
-# class ConeforFDistanceProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (distance based)'
-#     INDEX_NAME = 'Flux'
-#     INDEX_CODE = 'F'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'dist'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProbabilityIndexBase._create_parameters(self)
-#         parameters += [
-#             ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
-#                             'probability (confProb distance)'),
-#             ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
-#                             'with distance (confProb probability)'),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
-#         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             decay_distance=distance_prob,
-#             decay_probability=prob_prob,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforFProbabilityProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (probability based)'
-#     INDEX_NAME = 'Flux'
-#     INDEX_CODE = 'F'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'prob'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s' % self.INDEX_CODE
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforAWFDistanceProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (distance based)'
-#     INDEX_NAME = 'Area-weighted Flux'
-#     INDEX_CODE = 'AWF'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'dist'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProbabilityIndexBase._create_parameters(self)
-#         parameters += [
-#             ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
-#                             'probability (confProb distance)'),
-#             ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
-#                             'with distance (confProb probability)'),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
-#         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             decay_distance=distance_prob,
-#             decay_probability=prob_prob,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforAWFProbabilityProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (probability based)'
-#     INDEX_NAME = 'Area-weighted Flux'
-#     INDEX_CODE = 'AWF'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'prob'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s' % self.INDEX_CODE
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforPCDistanceProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (distance based)'
-#     INDEX_NAME = 'Probability of Connectivity'
-#     INDEX_CODE = 'PC'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'dist'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProbabilityIndexBase._create_parameters(self)
-#         parameters += [
-#             ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
-#                             'probability (confProb distance)'),
-#             ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
-#                             'with distance (confProb probability)'),
-#             ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
-#                              'product probabilities for each pair of nodes',
-#                              default=False),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
-#         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             decay_distance=distance_prob,
-#             decay_probability=prob_prob,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             write_maximum_probabilities_file=write_prob_max,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforPCProbabilityProcessor(ConeforProbabilityIndexBase):
-#     GROUP = 'Probability indices (probability based)'
-#     INDEX_NAME = 'Probability of Connectivity'
-#     INDEX_CODE = 'PC'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'prob'
-#
-#     def defineCharacteristics(self):
-#         ConeforProbabilityIndexBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProbabilityIndexBase._create_parameters(self)
-#         parameters += [
-#             ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
-#                              'product probabilities for each pair of nodes',
-#                              default=False),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         removal_threshold = self.getParameterValue(self.REMOVAL_DISTANCE)
-#         if removal_threshold <= 0:
-#             removal_threshold = None
-#         improv_threshold = self.getParameterValue(self.IMPROVEMENT_DISTANCE)
-#         if improv_threshold <= 0:
-#             improv_threshold = None
-#         prefix +='_%s' % self.INDEX_CODE
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             probability_indexes=[self.INDEX_CODE],
-#             only_overall=only_overall,
-#             removal=self.getParameterValue(self.REMOVAL),
-#             removal_threshold=removal_threshold,
-#             improvement=self.getParameterValue(self.IMPROVEMENT),
-#             improvement_threshold=improv_threshold,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             write_maximum_probabilities_file=write_prob_max,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforBCPCDistanceProcessor(ConeforProcessorBase):
-#     GROUP = 'Probability indices (distance based)'
-#     INDEX_NAME = 'Betweeness Centrality Generalized(PC)'
-#     INDEX_CODE = 'BCPC'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'dist'
-#
-#     def defineCharacteristics(self):
-#         ConeforProcessorBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProcessorBase._create_parameters(self)
-#         parameters += [
-#             ParameterNumber(self.THRESHOLD_DIRECT_LINKS, '(BC) Threshold ' \
-#                             '(distance/probability) for connecting nodes ' \
-#                             '(confAdj)'),
-#             ParameterBoolean(self.WRITE_LINKS_FILE, '(BC) Write links file',
-#                              default=False),
-#             ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
-#                              'individual node importances', default=False),
-#             ParameterNumber(self.DISTANCE_PROB, 'Distance to match with ' \
-#                             'probability (confProb distance)'),
-#             ParameterNumber(self.PROBABILITY_PROB, 'Probability to match ' \
-#                             'with distance (confProb probability)'),
-#             ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
-#                              'dispersal probabilities for each pair of nodes',
-#                              default=False),
-#             ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
-#                              'product probabilities for each pair of nodes',
-#                              default=False),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         distance_prob = self.getParameterValue(self.DISTANCE_PROB)
-#         prob_prob = self.getParameterValue(self.PROBABILITY_PROB)
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
-#         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         prefix +='_%s_%s_%s' % (self.INDEX_CODE, distance_prob, prob_prob)
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             threshold_direct_links=thresh_d_links,
-#             binary_indexes=['BC'],
-#             decay_distance=distance_prob,
-#             decay_probability=prob_prob,
-#             probability_indexes=['PC', self.INDEX_CODE],
-#             only_overall=only_overall,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             write_maximum_probabilities_file=write_prob_max,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
-#
-#
-# class ConeforBCPCProbabilityProcessor(ConeforProcessorBase):
-#     GROUP = 'Probability indices (probability based)'
-#     INDEX_NAME = 'Betweeness Centrality Generalized(PC)'
-#     INDEX_CODE = 'BCPC'
-#     NAME = '%s index (%s) [%s]' % (INDEX_CODE, INDEX_NAME, GROUP)
-#     _connection_type = 'prob'
-#
-#     def defineCharacteristics(self):
-#         ConeforProcessorBase.defineCharacteristics(self)
-#         parameters = self._create_parameters()
-#         self._add_parameters(parameters)
-#
-#     def _create_parameters(self):
-#         parameters = ConeforProcessorBase._create_parameters(self)
-#         parameters += [
-#             ParameterNumber(self.THRESHOLD_DIRECT_LINKS, '(BC) Threshold ' \
-#                             '(distance/probability) for connecting nodes ' \
-#                             '(confAdj)'),
-#             ParameterBoolean(self.WRITE_LINKS_FILE, '(BC) Write links file',
-#                              default=False),
-#             ParameterBoolean(self.CREATE_NODE_IMPORTANCES, 'Process ' \
-#                              'individual node importances', default=False),
-#             ParameterBoolean(self.WRITE_PROB_DIR, 'Write file with direct ' \
-#                              'dispersal probabilities for each pair of nodes',
-#                              default=False),
-#             ParameterBoolean(self.WRITE_PROB_MAX, 'Write file with maximum ' \
-#                              'product probabilities for each pair of nodes',
-#                              default=False),
-#         ]
-#         return parameters
-#
-#     def _run_the_algorithm(self, conefor_path, nodes_file_path,
-#                            connections_file_path, all_connections,
-#                            prefix, progress):
-#         write_prob_dir = self.getParameterValue(self.WRITE_PROB_DIR)
-#         write_prob_max = self.getParameterValue(self.WRITE_PROB_MAX)
-#         thresh_d_links = self.getParameterValue(self.THRESHOLD_DIRECT_LINKS)
-#         only_overall = True
-#         if self.getParameterValue(self.CREATE_NODE_IMPORTANCES):
-#             only_overall = False
-#         prefix +='_%s' % self.INDEX_CODE
-#         returncode, stdout, stderr = self._run_conefor(
-#             progress,
-#             conefor_path,
-#             nodes_file_path,
-#             connections_file_path,
-#             self._connection_type,
-#             all_connections,
-#             threshold_direct_links=thresh_d_links,
-#             binary_indexes=['BC'],
-#             probability_indexes=['PC', self.INDEX_CODE],
-#             only_overall=only_overall,
-#             write_dispersal_probabilities_file=write_prob_dir,
-#             write_maximum_probabilities_file=write_prob_max,
-#             prefix=prefix
-#         )
-#         return returncode, stdout, stderr
+
+
+class ConeforProbabilityIndexBase(ConeforProcessorBase):
+
+    def group(self):
+        return self.tr("Probabilistic indices")
+
+    def groupId(self):
+        return "probabilityindices"
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_PROB_DIR[0],
+                self.tr(self.INPUT_WRITE_PROB_DIR[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0],
+                self.tr(self.INPUT_PROCESS_REMOVAL_IMPORTANCES[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterNumber(
+                name=self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0],
+                description=self.tr(self.INPUT_REMOVAL_DISTANCE_THRESHOLD[1]),
+                type=QgsProcessingParameterNumber.Double,
+                optional=True,
+                minValue=0,
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0],
+                self.tr(self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterNumber(
+                name=self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0],
+                description=self.tr(self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[1]),
+                type=QgsProcessingParameterNumber.Double,
+                optional=True,
+                minValue=0,
+            ),
+
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_WRITE_PROB_DIR[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_DIR[0], context
+            ),
+            self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0], context
+            ),
+            self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]: self.parameterAsDouble(
+                parameters, self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0], context
+            ),
+            self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0], context
+            ),
+            self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]: self.parameterAsDouble(
+                parameters, self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0], context
+            ),
+        }
+
+
+class ProbabilityIndexDistanceBase(ConeforProbabilityIndexBase):
+    _connection_type = ConeforNodeConnectionType.DISTANCE
+
+    def group(self):
+        return self.tr("Probabilistic indices (distance based)")
+
+    def groupId(self):
+        return "probabilityindicesdistance"
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterNumber(
+                self.INPUT_CONF_PROB_DISTANCE[0],
+                self.tr(self.INPUT_CONF_PROB_DISTANCE[1]),
+                type=QgsProcessingParameterNumber.Double,
+            ),
+            QgsProcessingParameterNumber(
+                self.INPUT_CONF_PROB_PROBABILITY[0],
+                self.tr(self.INPUT_CONF_PROB_PROBABILITY[1]),
+                type=QgsProcessingParameterNumber.Double,
+            ),
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_CONF_PROB_DISTANCE[0]: self.parameterAsDouble(
+                parameters, self.INPUT_CONF_PROB_DISTANCE[0], context
+            ),
+            self.INPUT_CONF_PROB_PROBABILITY[0]: self.parameterAsDouble(
+                parameters, self.INPUT_CONF_PROB_PROBABILITY[0], context
+            ),
+        }
+
+    def _run_the_algorithm(
+            self,
+            *,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
+            inputs: dict,
+            feedback: QgsProcessingFeedback
+    ):
+        decay_distance = inputs[self.INPUT_CONF_PROB_DISTANCE[0]]
+        decay_probability = inputs[self.INPUT_CONF_PROB_PROBABILITY[0]]
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=self._connection_type,
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                decay_distance=decay_distance,
+                decay_probability=decay_probability,
+                probability_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_dispersal_probabilities_file=inputs[self.INPUT_WRITE_PROB_DIR[0]],
+                prefix="_".join((
+                    self.INPUT_NODES_FILE_PATH[0].stem,
+                    self.index_code,
+                    decay_distance,
+                    decay_probability
+                ))
+            ),
+            feedback=feedback
+        )
+
+
+class ConeforFDistanceProcessor(ProbabilityIndexDistanceBase):
+    index_name = "F (Flux - distance-based)"
+    index_code = "Fdist"
+
+
+class ConeforAWFDistanceProcessor(ProbabilityIndexDistanceBase):
+    index_name = "AWF (Area-weighted Flux - distance-based)"
+    index_code = "AWFdist"
+
+
+class ConeforPCDistanceProcessor(ProbabilityIndexDistanceBase):
+    index_name = "PC (Probability of Connectivity - distance-based)"
+    index_code = "PCdist"
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_PROB_MAX[0],
+                self.tr(self.INPUT_WRITE_PROB_MAX[1]),
+                defaultValue=False
+            )
+
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_WRITE_PROB_MAX[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_MAX[0], context
+            ),
+        }
+
+    def _run_the_algorithm(
+            self,
+            *,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
+            inputs: dict,
+            feedback: QgsProcessingFeedback
+    ):
+        decay_distance = inputs[self.INPUT_CONF_PROB_DISTANCE[0]]
+        decay_probability = inputs[self.INPUT_CONF_PROB_PROBABILITY[0]]
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=self._connection_type,
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                decay_distance=decay_distance,
+                decay_probability=decay_probability,
+                probability_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_dispersal_probabilities_file=inputs[self.INPUT_WRITE_PROB_DIR[0]],
+                write_maximum_probabilities_file=inputs[self.INPUT_WRITE_PROB_MAX[0]],
+                prefix="_".join((
+                    self.INPUT_NODES_FILE_PATH[0].stem,
+                    self.index_code,
+                    decay_distance,
+                    decay_probability
+                ))
+            ),
+            feedback=feedback
+        )
+
+
+class ConeforBCPCDistanceProcessor(ProbabilityIndexDistanceBase):
+    index_name = "BCPC (Betweeness Centrality Generalized PC - distance-based)"
+    index_code = "BCPCdist"
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterNumber(
+                self.INPUT_THRESHOLD_DIRECT_LINKS[0],
+                self.tr(self.INPUT_THRESHOLD_DIRECT_LINKS[1]),
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_LINKS_FILE[0],
+                self.tr(self.INPUT_WRITE_LINKS_FILE[1]),
+                defaultValue=False
+            ),
+            params.extend([
+                QgsProcessingParameterBoolean(
+                    self.INPUT_WRITE_PROB_MAX[0],
+                    self.tr(self.INPUT_WRITE_PROB_MAX[1]),
+                    defaultValue=False
+                )
+
+            ])
+
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_THRESHOLD_DIRECT_LINKS[0]: self.parameterAsDouble(
+                parameters, self.INPUT_THRESHOLD_DIRECT_LINKS[0], context
+            ),
+            self.INPUT_WRITE_LINKS_FILE[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_LINKS_FILE[0], context
+            ),
+            self.INPUT_WRITE_PROB_MAX[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_MAX[0], context
+            ),
+        }
+
+    def _run_the_algorithm(
+            self,
+            *,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
+            inputs: dict,
+            feedback: QgsProcessingFeedback
+    ):
+        decay_distance = inputs[self.INPUT_CONF_PROB_DISTANCE[0]]
+        decay_probability = inputs[self.INPUT_CONF_PROB_PROBABILITY[0]]
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=self._connection_type,
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]],
+                binary_indexes=["BC"],
+                decay_distance=decay_distance,
+                decay_probability=decay_probability,
+                probability_indexes=["PC", self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                write_dispersal_probabilities_file=inputs[self.INPUT_WRITE_PROB_DIR[0]],
+                write_maximum_probabilities_file=inputs[self.INPUT_WRITE_PROB_MAX[0]],
+                prefix="_".join((
+                    self.INPUT_NODES_FILE_PATH[0].stem,
+                    self.index_code,
+                    decay_distance,
+                    decay_probability
+                ))
+            ),
+            feedback=feedback
+        )
+
+
+class ProbabilityIndexProbabilityBase(ConeforProbabilityIndexBase):
+    _connection_type = ConeforNodeConnectionType.PROBABILITY
+
+    def group(self):
+        return self.tr("Probabilistic indices (probability based)")
+
+    def groupId(self):
+        return "probabilityindicesprobability"
+
+
+class ConeforFProbabilityProcessor(ProbabilityIndexProbabilityBase):
+    index_name = 'F (Flux - probability-based)'
+    index_code = 'Fprob'
+
+
+class ConeforAWFProbabilityProcessor(ProbabilityIndexProbabilityBase):
+    index_name = 'AWF (Area-weighted Flux - probability-based)'
+    index_code = 'AWFprob'
+
+
+class ConeforPCProbabilityProcessor(ProbabilityIndexProbabilityBase):
+    index_name = 'PC (Probability of Connectivity - probability-based)'
+    index_code = 'PCprob'
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_PROB_MAX[0],
+                self.tr(self.INPUT_WRITE_PROB_MAX[1]),
+                defaultValue=False
+            )
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_WRITE_PROB_MAX[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_MAX[0], context
+            ),
+        }
+
+    def _run_the_algorithm(
+            self,
+            *,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
+            inputs: dict,
+            feedback: QgsProcessingFeedback
+    ):
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=self._connection_type,
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                probability_indexes=[self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                removal=inputs[self.INPUT_PROCESS_REMOVAL_IMPORTANCES[0]],
+                removal_threshold=inputs[self.INPUT_REMOVAL_DISTANCE_THRESHOLD[0]],
+                improvement=inputs[self.INPUT_PROCESS_LINK_IMPROVEMENT_IMPORTANCES[0]],
+                improvement_threshold=inputs[self.INPUT_IMPROVEMENT_DISTANCE_THRESHOLD[0]],
+                write_dispersal_probabilities_file=inputs[self.INPUT_WRITE_PROB_DIR[0]],
+                write_maximum_probabilities_file=inputs[self.INPUT_WRITE_PROB_MAX[0]],
+                prefix="_".join((
+                    self.INPUT_NODES_FILE_PATH[0].stem,
+                    self.index_code,
+                ))
+            ),
+            feedback=feedback
+        )
+
+
+class ConeforBCPCProbabilityProcessor(ProbabilityIndexProbabilityBase):
+    index_name = 'BCPC (Betweeness Centrality Generalized PC - probability-based)'
+    index_code = 'BCPCprob'
+
+    def _create_parameters(self) -> list[QgsProcessingParameterDefinition]:
+        params = super()._create_parameters()
+        params.extend([
+            QgsProcessingParameterNumber(
+                name=self.INPUT_THRESHOLD_DIRECT_LINKS[0],
+                description=self.tr(self.INPUT_THRESHOLD_DIRECT_LINKS[1]),
+                type=QgsProcessingParameterNumber.Double,
+                optional=True,
+                minValue=0,
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_LINKS_FILE[0],
+                self.tr(self.INPUT_WRITE_LINKS_FILE[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_ONLY_OVERALL_INDEX_VALUES[0],
+                self.tr(self.INPUT_ONLY_OVERALL_INDEX_VALUES[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_PROB_DIR[0],
+                self.tr(self.INPUT_WRITE_PROB_DIR[1]),
+                defaultValue=False
+            ),
+            QgsProcessingParameterBoolean(
+                self.INPUT_WRITE_PROB_MAX[0],
+                self.tr(self.INPUT_WRITE_PROB_MAX[1]),
+                defaultValue=False
+            )
+        ])
+        return params
+
+    def get_runtime_parameters(
+            self,
+            parameters: dict,
+            context: QgsProcessingContext,
+            feedback: QgsProcessingFeedback
+    ) -> dict:
+        return {
+            **super().get_runtime_parameters(parameters, context, feedback),
+            self.INPUT_THRESHOLD_DIRECT_LINKS[0]: self.parameterAsDouble(
+                parameters, self.INPUT_THRESHOLD_DIRECT_LINKS[0], context
+            ),
+            self.INPUT_WRITE_LINKS_FILE[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_LINKS_FILE[0], context
+            ),
+            self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_ONLY_OVERALL_INDEX_VALUES[0], context),
+            self.INPUT_WRITE_PROB_DIR[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_DIR[0], context
+            ),
+            self.INPUT_WRITE_PROB_MAX[0]: self.parameterAsBoolean(
+                parameters, self.INPUT_WRITE_PROB_MAX[0], context
+            ),
+        }
+
+    def _run_the_algorithm(
+            self,
+            *,
+            conefor_path: Path,
+            nodes_path: Path,
+            connections_path: Path,
+            inputs: dict,
+            feedback: QgsProcessingFeedback
+    ):
+        return _run_conefor(
+            params=ConeforRuntimeParameters(
+                conefor_path=conefor_path,
+                nodes_path=nodes_path,
+                connections_path=connections_path,
+                connection_type=self._connection_type,
+                all_pairs_connected=inputs[self.INPUT_ALL_NODES_CONNECTED[0]],
+                threshold_direct_links=inputs[self.INPUT_THRESHOLD_DIRECT_LINKS[0]],
+                binary_indexes=["BC"],
+                probability_indexes=["PC", self.index_code],
+                only_overall=inputs[self.INPUT_ONLY_OVERALL_INDEX_VALUES[0]],
+                write_dispersal_probabilities_file=inputs[self.INPUT_WRITE_PROB_DIR[0]],
+                write_maximum_probabilities_file=inputs[self.INPUT_WRITE_PROB_MAX[0]],
+                write_links_file=inputs[self.INPUT_WRITE_LINKS_FILE[0]],
+                prefix="_".join((
+                    self.INPUT_NODES_FILE_PATH[0].stem,
+                    self.index_code,
+                ))
+            ),
+            feedback=feedback
+        )
+
+
+def _prepare_execution(
+        *,
+        original_conefor_path: Path,
+        original_nodes_path: Path,
+        original_connections_path: Path,
+) -> tuple[Path, Path, Path]:
+    """Copy the input paths into a temporary directory.
+
+    Conefor requires inputs and itself to be on the same directory.
+    """
+
+    execution_directory = Path(tempfile.mkdtemp(prefix="qgisconefor_"))
+    new_conefor_path = execution_directory / original_conefor_path.name
+    shutil.copy(original_conefor_path, new_conefor_path)
+    new_nodes_path = execution_directory / original_nodes_path.name
+    shutil.copy(original_nodes_path, new_nodes_path)
+    new_connections_path = execution_directory / original_connections_path.name
+    shutil.copy(original_connections_path, new_connections_path)
+    return new_conefor_path, new_nodes_path, new_connections_path
+
+
+def _run_conefor(
+        params: ConeforRuntimeParameters,
+        feedback: QgsProcessingFeedback
+) -> bool:
+    command_list = [
+        str(params.conefor_path),
+        "-nodeFile", str(params.nodes_path),
+        "-conFile", str(params.connections_path),
+        "-t", params.connection_type.value,
+        "all" if params.all_pairs_connected else "notall",
+    ]
+    bin_indexes = params.binary_indexes[:] if params.binary_indexes else []
+    prob_indexes = params.probability_indexes[:] if params.probability_indexes else []
+
+    if any(bin_indexes):
+        if "BCIIC" in bin_indexes and "IIC" not in bin_indexes:
+            bin_indexes.append("IIC")
+        if "BCIIC" in bin_indexes and "BC" not in bin_indexes:
+            bin_indexes.append("BC")
+    if any(prob_indexes):
+        if "BCPC" in prob_indexes and "PC" not in prob_indexes:
+            prob_indexes.append("PC")
+        if "BCPC" in prob_indexes and "BC" not in bin_indexes:
+            bin_indexes.append("BC")
+
+    if any(bin_indexes):
+        command_list += ["-confAdj", "%1.3f" % params.threshold_direct_links]
+        command_list.extend(f"-{idx}" for idx in bin_indexes)
+    if any(prob_indexes):
+        if params.connection_type == ConeforNodeConnectionType.DISTANCE:
+            command_list += [
+                "-confProb",
+                "%1.3f" % params.decay_distance,
+                "%1.3f" % params.decay_probability
+            ]
+        command_list.extend(f"-{idx}" for idx in prob_indexes)
+
+    if params.only_overall:
+        command_list.append('onlyoverall')
+    if params.removal:
+        command_list.append('-removal')
+        if params.removal_threshold is not None:
+            command_list.extend(["maxValue", str(params.removal_threshold)])
+    if params.improvement:
+        command_list.append('-improvement')
+        if params.improvement_threshold is not None:
+            command_list.extend(["maxValue", str(params.improvement_threshold)])
+    if params.write_component_file and 'NC' in bin_indexes:
+        command_list.append('-wcomp')
+    if params.write_links_file and any(bin_indexes):
+        command_list.append('-wlinks')
+    if params.write_dispersal_probabilities_file and any(prob_indexes):
+        command_list.append('-wprobdir')
+    if params.write_maximum_probabilities_file and 'PC' in prob_indexes:
+        command_list.append('-wprobmax')
+    if params.land_area is not None:
+        command_list += ['-landArea', params.land_area]
+    prefix = "_".join(("results", params.prefix or "")).lstrip("_")
+    command_list += ['-prefix', prefix]
+    full_command = " ".join(command_list)
+    feedback.pushInfo(f"{full_command=}")
+    completed_process = subprocess.run(
+        shlex.split(full_command),
+        cwd=params.conefor_path.parent,
+        text=True,
+        capture_output=True,
+    )
+    feedback.pushInfo(completed_process.stdout)
+    return completed_process.returncode == 0
+
+
+def _store_processing_outputs(
+        intended_output_dir: Path,
+        outputs: list[Path],
+) -> list[Path]:
+    stored = []
+    for output in outputs:
+        if output.name in (
+                "results_all_overall_indices.txt",
+                "results_all_EC(IIC).txt",
+                "results_all_EC(PC).txt"
+        ):
+            stored.append(
+                _store_output_in_target_directory(
+                    intended_output_dir, output, append_if_exists=True)
+            )
+        else:
+            stored.append(
+                _store_output_in_target_directory(
+                    intended_output_dir, output
+                )
+            )
+    return stored
+
+
+def _store_output_in_target_directory(
+        intended_output_dir: Path,
+        output: Path,
+        append_if_exists: bool = False
+) -> Path:
+    contents = output.read_text()
+    target = intended_output_dir / output.name
+    if target.exists():
+        if append_if_exists:
+            with target.open(mode="a") as fh:
+                fh.write(contents)
+        else:
+            shutil.copy(output, target)
+    else:
+        shutil.copy(output, target)
+    return target
