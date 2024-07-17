@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [2.0.0-rc3] - 2024-07-17
+
+- Fixed docs update when a new release is tagged
+
+
 ## [2.0.0-rc2] - 2024-07-17
 
 - Update docs
@@ -50,8 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc2...main
-[2.0.0-rc1]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc1...v2.0.0-rc2
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc3...main
+[2.0.0-rc3]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc2...v2.0.0-rc3
+[2.0.0-rc2]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc1...v2.0.0-rc2
 [2.0.0-rc1]: https://github.com/ricardogsilva/qgisconefor/compare/v1.2.1...v2.0.0-rc1
 [1.2.1]: https://github.com/ricardogsilva/qgisconefor/compare/v1.2...v1.2.1
 [1.2]: https://github.com/kartoza/qgis_geonode/releases/tag/v1.2
