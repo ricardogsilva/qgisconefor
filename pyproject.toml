@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qgisconefor"
-version = "2.0.0-rc3"
+version = "2.0.0-dev"
 description = "A QGIS plugin to integrate with the Conefor landscape conectivity analysis software."
 authors = ["Ricardo Garcia Silva <ricardo.garcia.silva@gmail.com>"]
 readme = "README.md"
@@ -42,7 +42,7 @@ qgisMinimumVersion = "3.34.0"
 icon = "icon.png"
 experimental = true
 deprecated = false
-homepage = "https://github.com/ricardogsilva/qgisconefor"
+homepage = "https://ricardogsilva.github.io/qgisconefor"
 tracker = "https://github.com/ricardogsilva/qgisconefor/issues"
 repository = "https://github.com/ricardogsilva/qgisconefor"
 tags = [
