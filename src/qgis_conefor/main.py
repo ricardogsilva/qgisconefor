@@ -96,6 +96,7 @@ class QgisConefor:
             self.iface.mainWindow()
         )
         self.action.triggered.connect(self.run)
+        self.action.setEnabled(False)
         self.iface.addPluginToVectorMenu(f"&{self._action_title}", self.action)
         self.iface.addVectorToolBarIcon(self.action)
         qgis_project = qgis.core.QgsProject.instance()
