@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Disabled plugin main dialog by default
+- Added button for opening output dir upon successful completion
+
 
 ## [2.0.0-rc3] - 2024-07-17
 

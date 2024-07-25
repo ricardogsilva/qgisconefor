@@ -10,6 +10,7 @@ import qgis.core
 import qgis.gui
 from processing.tools.dataobjects import createContext
 from qgis.PyQt import (
+    QtCore,
     QtGui,
     QtWidgets,
 )
@@ -28,7 +29,10 @@ from .processing.algorithms.coneforinputs import (
     ConeforInputsPoint,
     ConeforInputsPolygon,
 )
-from .utilities import log
+from .utilities import (
+    log,
+    load_settings_key,
+)
 
 
 class QgisConefor:
@@ -438,9 +442,14 @@ class QgisConefor:
                     level=qgis.core.Qgis.Critical
                 )
             else:
-                self.iface.messageBar().pushMessage(
-                    "Conefor inputs",
-                    "Plugin finished execution",
+                message_widget = self.iface.messageBar().createMessage(
+                    "Conefor inputs", "Plugin finished execution")
+                open_output_dir_btn = QtWidgets.QPushButton(message_widget)
+                open_output_dir_btn.setText("Open output directory")
+                open_output_dir_btn.pressed.connect(self.open_output_dir)
+                message_widget.layout().addWidget(open_output_dir_btn)
+                self.iface.messageBar().pushWidget(
+                    message_widget,
                     level=qgis.core.Qgis.Info
                 )
             self._task_results = {}
@@ -452,6 +461,11 @@ class QgisConefor:
     def check_for_removed_layers(self, removed_layer_ids: list[str]):
         log("inside check_for_removed_layers")
         self.start_analyzing_layers(disregard_ids=removed_layer_ids)
+
+    def open_output_dir(self):
+        output_dir = load_settings_key(
+            schemas.QgisConeforSettingsKey.OUTPUT_DIR)
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(f"file://{output_dir}"))
 
 
 
