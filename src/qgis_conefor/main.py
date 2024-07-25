@@ -221,53 +221,6 @@ class QgisConefor:
         task_manager = qgis.core.QgsApplication.taskManager()
         task_manager.addTask(task)
 
-    def _process_point_layer(
-            self,
-            layer_params: schemas.ConeforInputParameters,
-            create_distance_file: bool,
-            output_dir: str,
-            use_selected_features: bool
-    ):
-        process_id = schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-            str(uuid.uuid4()),
-            layer_params.layer.name()
-        ))
-        input_layer_param = qgis.core.QgsProcessingFeatureSourceDefinition(
-            source=layer_params.layer.id(),
-            selectedFeaturesOnly=use_selected_features,
-            featureLimit=-1,
-            geometryCheck=self.processing_context.invalidGeometryCheck(),
-        )
-        task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.inputs_from_points_algorithm,
-            parameters={
-                ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
-                        layer_params.id_attribute_field_name or ""),
-                ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME[0]: (
-                        layer_params.attribute_field_name or ""),
-                ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
-                ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: output_dir,
-                ConeforInputsPoint.INPUT_POINT_LAYER[0]: input_layer_param,
-            },
-            context=self.processing_context
-        )
-        task.executed.connect(
-            functools.partial(
-                self.finalize_task_execution, process_id, layer_params)
-        )
-        self._processing_tasks[process_id] = task
-        task_manager = qgis.core.QgsApplication.taskManager()
-        log(f"About to enqueue task with process_id: {process_id!r}")
-        task_manager.addTask(task)
-        if create_distance_file:
-            self._enqueue_centroid_distance_generation_task(
-                layer_params,
-                schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-                    process_id,
-                    "centroid_distance",
-                )),
-            )
-
     def _process_polygon_layer(
             self,
             layer_params: schemas.ConeforInputParameters,
@@ -334,7 +287,6 @@ class QgisConefor:
                 raise NotImplementedError()
 
     def prepare_conefor_inputs(self):
-        log(f"Inside prepare_conefor_inputs, now we need data to work with")
         layer_inputs = set()
         output_dir = str(self.dialog.output_dir_le.text())
         only_selected_features = self.dialog.use_selected_features_chb.isChecked()
@@ -363,15 +315,6 @@ class QgisConefor:
                     output_dir,
                     only_selected_features,
                 )
-
-            elif layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Point:
-                self._process_point_layer(
-                    layer_to_process,
-                    self.dialog.create_distances_file_chb.isChecked(),
-                    output_dir,
-                    only_selected_features,
-                )
-                raise NotImplementedError
             else:
                 raise RuntimeError(
                     f"layer: {layer_to_process.layer.name()!r} has invalid "
