@@ -10,6 +10,7 @@ import qgis.core
 import qgis.gui
 from processing.tools.dataobjects import createContext
 from qgis.PyQt import (
+    QtCore,
     QtGui,
     QtWidgets,
 )
@@ -28,7 +29,10 @@ from .processing.algorithms.coneforinputs import (
     ConeforInputsPoint,
     ConeforInputsPolygon,
 )
-from .utilities import log
+from .utilities import (
+    log,
+    load_settings_key,
+)
 
 
 class QgisConefor:
@@ -38,7 +42,6 @@ class QgisConefor:
     action: QtWidgets.QAction
     dialog: Optional[QtWidgets.QDialog]
     processing_provider: ProcessingConeforProvider
-    inputs_from_points_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     inputs_from_polygons_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     edge_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
     centroid_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
@@ -63,7 +66,6 @@ class QgisConefor:
         )
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
-        self.inputs_from_points_algorithm = None
         self.inputs_from_polygons_algorithm = None
         self.edge_distance_processing_model = None
         self.centroid_distance_processing_model = None
@@ -77,8 +79,6 @@ class QgisConefor:
     def initGui(self):
         self.init_processing()
         processing_registry = qgis.core.QgsApplication.processingRegistry()
-        self.inputs_from_points_algorithm = processing_registry.createAlgorithmById(
-            "conefor:inputsfrompoint")
         self.inputs_from_polygons_algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
         self.edge_distance_processing_model = processing_registry.createAlgorithmById(
@@ -96,6 +96,7 @@ class QgisConefor:
             self.iface.mainWindow()
         )
         self.action.triggered.connect(self.run)
+        self.action.setEnabled(False)
         self.iface.addPluginToVectorMenu(f"&{self._action_title}", self.action)
         self.iface.addVectorToolBarIcon(self.action)
         qgis_project = qgis.core.QgsProject.instance()
@@ -216,53 +217,6 @@ class QgisConefor:
         task_manager = qgis.core.QgsApplication.taskManager()
         task_manager.addTask(task)
 
-    def _process_point_layer(
-            self,
-            layer_params: schemas.ConeforInputParameters,
-            create_distance_file: bool,
-            output_dir: str,
-            use_selected_features: bool
-    ):
-        process_id = schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-            str(uuid.uuid4()),
-            layer_params.layer.name()
-        ))
-        input_layer_param = qgis.core.QgsProcessingFeatureSourceDefinition(
-            source=layer_params.layer.id(),
-            selectedFeaturesOnly=use_selected_features,
-            featureLimit=-1,
-            geometryCheck=self.processing_context.invalidGeometryCheck(),
-        )
-        task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.inputs_from_points_algorithm,
-            parameters={
-                ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
-                        layer_params.id_attribute_field_name or ""),
-                ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME[0]: (
-                        layer_params.attribute_field_name or ""),
-                ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
-                ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: output_dir,
-                ConeforInputsPoint.INPUT_POINT_LAYER[0]: input_layer_param,
-            },
-            context=self.processing_context
-        )
-        task.executed.connect(
-            functools.partial(
-                self.finalize_task_execution, process_id, layer_params)
-        )
-        self._processing_tasks[process_id] = task
-        task_manager = qgis.core.QgsApplication.taskManager()
-        log(f"About to enqueue task with process_id: {process_id!r}")
-        task_manager.addTask(task)
-        if create_distance_file:
-            self._enqueue_centroid_distance_generation_task(
-                layer_params,
-                schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-                    process_id,
-                    "centroid_distance",
-                )),
-            )
-
     def _process_polygon_layer(
             self,
             layer_params: schemas.ConeforInputParameters,
@@ -280,6 +234,12 @@ class QgisConefor:
             featureLimit=-1,
             geometryCheck=self.processing_context.invalidGeometryCheck(),
         )
+        connection_method = ConeforInputsPolygon._NODE_DISTANCE_CHOICES.index(
+            layer_params.connections_method.value)
+        log(
+            f"About to use {connection_method!r} as the node "
+            f"connection distance value"
+        )
         task = qgis.core.QgsProcessingAlgRunnerTask(
             algorithm=self.inputs_from_polygons_algorithm,
             parameters={
@@ -294,7 +254,7 @@ class QgisConefor:
                 ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
                     input_layer_param),
                 ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0]: (
-                    layer_params.connections_method.value),
+                    connection_method),
             },
             context=self.processing_context
         )
@@ -329,7 +289,6 @@ class QgisConefor:
                 raise NotImplementedError()
 
     def prepare_conefor_inputs(self):
-        log(f"Inside prepare_conefor_inputs, now we need data to work with")
         layer_inputs = set()
         output_dir = str(self.dialog.output_dir_le.text())
         only_selected_features = self.dialog.use_selected_features_chb.isChecked()
@@ -358,15 +317,6 @@ class QgisConefor:
                     output_dir,
                     only_selected_features,
                 )
-
-            elif layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Point:
-                self._process_point_layer(
-                    layer_to_process,
-                    self.dialog.create_distances_file_chb.isChecked(),
-                    output_dir,
-                    only_selected_features,
-                )
-                raise NotImplementedError
             else:
                 raise RuntimeError(
                     f"layer: {layer_to_process.layer.name()!r} has invalid "
@@ -437,9 +387,14 @@ class QgisConefor:
                     level=qgis.core.Qgis.Critical
                 )
             else:
-                self.iface.messageBar().pushMessage(
-                    "Conefor inputs",
-                    "Plugin finished execution",
+                message_widget = self.iface.messageBar().createMessage(
+                    "Conefor inputs", "Plugin finished execution")
+                open_output_dir_btn = QtWidgets.QPushButton(message_widget)
+                open_output_dir_btn.setText("Open output directory")
+                open_output_dir_btn.pressed.connect(self.open_output_dir)
+                message_widget.layout().addWidget(open_output_dir_btn)
+                self.iface.messageBar().pushWidget(
+                    message_widget,
                     level=qgis.core.Qgis.Info
                 )
             self._task_results = {}
@@ -451,6 +406,11 @@ class QgisConefor:
     def check_for_removed_layers(self, removed_layer_ids: list[str]):
         log("inside check_for_removed_layers")
         self.start_analyzing_layers(disregard_ids=removed_layer_ids)
+
+    def open_output_dir(self):
+        output_dir = load_settings_key(
+            schemas.QgisConeforSettingsKey.OUTPUT_DIR)
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(f"file://{output_dir}"))
 
 
 

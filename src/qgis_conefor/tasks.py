@@ -15,7 +15,6 @@ class LayerAnalyzerTask(qgis.core.QgsTask):
     relevant_layer_ids: dict[str, list[str]]
 
     _relevant_geometry_types = (
-        qgis.core.Qgis.GeometryType.Point,
         qgis.core.Qgis.GeometryType.Polygon,
     )
 

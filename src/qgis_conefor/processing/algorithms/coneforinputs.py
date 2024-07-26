@@ -226,14 +226,7 @@ class ConeforInputsPoint(ConeforInputsBase):
 
 class ConeforInputsPolygon(ConeforInputsBase):
     INPUT_POLYGON_LAYER = ("vector_layer", "Polygon layer",)
-    # INPUT_NODE_IDENTIFIER_NAME = (
-    #     "node_identifier", "Node identifier (will autogenerate if not set)")
-    # INPUT_NODE_ATTRIBUTE_NAME = ("node_attribute", "Node attribute (will calculate area if not set)")
     INPUT_NODE_CONNECTION_DISTANCE_METHOD = ("node_connection", "Node connection distance method")
-    # INPUT_DISTANCE_THRESHOLD = ("distance_threshold", "Distance threshold")
-    # INPUT_OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
-    # OUTPUT_CONEFOR_NODES_FILE_PATH = ("output_path", "Conefor nodes file")
-    # OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH = ("output_connections_path", "Conefor connections file")
     _NODE_DISTANCE_CHOICES = [
         NodeConnectionType.EDGE_DISTANCE.value,
         NodeConnectionType.CENTROID_DISTANCE.value,
@@ -326,7 +319,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
             node_id_field_name = None
         else:
             node_id_field_name = raw_node_id_field_name
-        feedback.pushInfo(f"{self.parameterAsEnum(parameters, self.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0], context)=} ")
         connections_distance_method = NodeConnectionType(
             self._NODE_DISTANCE_CHOICES[
                 self.parameterAsEnum(
@@ -334,6 +326,7 @@ class ConeforInputsPolygon(ConeforInputsBase):
                 )
             ]
         )
+        feedback.pushInfo(f"{connections_distance_method.value=} ")
         raw_distance_threshold = self.parameterAsString(
             parameters, self.INPUT_DISTANCE_THRESHOLD[0], context)
         if raw_distance_threshold == "":
