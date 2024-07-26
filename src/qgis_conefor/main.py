@@ -42,7 +42,6 @@ class QgisConefor:
     action: QtWidgets.QAction
     dialog: Optional[QtWidgets.QDialog]
     processing_provider: ProcessingConeforProvider
-    inputs_from_points_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     inputs_from_polygons_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     edge_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
     centroid_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
@@ -67,7 +66,6 @@ class QgisConefor:
         )
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
-        self.inputs_from_points_algorithm = None
         self.inputs_from_polygons_algorithm = None
         self.edge_distance_processing_model = None
         self.centroid_distance_processing_model = None
@@ -81,8 +79,6 @@ class QgisConefor:
     def initGui(self):
         self.init_processing()
         processing_registry = qgis.core.QgsApplication.processingRegistry()
-        self.inputs_from_points_algorithm = processing_registry.createAlgorithmById(
-            "conefor:inputsfrompoint")
         self.inputs_from_polygons_algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
         self.edge_distance_processing_model = processing_registry.createAlgorithmById(
@@ -238,6 +234,12 @@ class QgisConefor:
             featureLimit=-1,
             geometryCheck=self.processing_context.invalidGeometryCheck(),
         )
+        connection_method = ConeforInputsPolygon._NODE_DISTANCE_CHOICES.index(
+            layer_params.connections_method.value)
+        log(
+            f"About to use {connection_method!r} as the node "
+            f"connection distance value"
+        )
         task = qgis.core.QgsProcessingAlgRunnerTask(
             algorithm=self.inputs_from_polygons_algorithm,
             parameters={
@@ -252,7 +254,7 @@ class QgisConefor:
                 ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
                     input_layer_param),
                 ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0]: (
-                    layer_params.connections_method.value),
+                    connection_method),
             },
             context=self.processing_context
         )

@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Disabled plugin main dialog by default
-- Added button for opening output dir upon successful completion
+- Disable plugin main dialog by default
+- Add button for opening output dir upon successful completion
+- Drop support for point layers in the main plugin dialog
+- Fix node connection method always being set to 'edge distance' when running
+  via the main plugin dialog
 
 
 ## [2.0.0-rc3] - 2024-07-17
