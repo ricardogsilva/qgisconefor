@@ -30,6 +30,10 @@ def get_numeric_attribute(
             f"attribute {attribute_name!r} does not exist")
 
 
+def autogenerate_feature_id(feature: qgis.core.QgsFeature) -> int:
+    return feature.id() + 1
+
+
 def get_output_path(tentative_path: Path) -> Path:
     """
     Rename the output name if it is already present in the directory.
@@ -102,7 +106,7 @@ def generate_node_file_by_attribute(
                 level=qgis.core.Qgis.Warning
             )
         id_ = (
-            feat.id() if node_id_field_name is None
+            autogenerate_feature_id(feat) if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
         attr = get_numeric_attribute(feat, node_attribute_field_name)
@@ -161,7 +165,7 @@ def generate_node_file_by_area(
         geom = feat.geometry()
         feat_area = area_measurer.measureArea(geom)
         id_ = (
-            feat.id() if node_id_field_name is None
+            autogenerate_feature_id(feat) if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
         if id_ is not None:
@@ -208,7 +212,7 @@ def generate_connection_file_with_centroid_distances(
     seen_ids = set()
     for feat in feature_iterator_factory():
         feat_id = (
-            feat.id() if node_id_field_name is None
+            autogenerate_feature_id(feat) if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
         if feat_id is not None:
@@ -223,7 +227,7 @@ def generate_connection_file_with_centroid_distances(
                         break
                     if pair_feat.id() > feat.id():
                         pair_feat_id = (
-                            pair_feat.id() if node_id_field_name is None
+                            autogenerate_feature_id(pair_feat) if node_id_field_name is None
                             else get_numeric_attribute(pair_feat, node_id_field_name)
                         )
                         if pair_feat_id is not None:
@@ -295,7 +299,7 @@ def generate_connection_file_with_edge_distances(
     seen_ids = set()
     for feat in feature_iterator_factory():
         feat_id = (
-            feat.id() if node_id_field_name is None
+            autogenerate_feature_id(feat) if node_id_field_name is None
             else get_numeric_attribute(feat, node_id_field_name)
         )
         if feat_id is not None:
@@ -312,7 +316,7 @@ def generate_connection_file_with_edge_distances(
                         break
                     if pair_feat.id() > feat.id():
                         pair_feat_id = (
-                            pair_feat.id() if node_id_field_name is None
+                            autogenerate_feature_id(pair_feat) if node_id_field_name is None
                             else get_numeric_attribute(pair_feat, node_id_field_name)
                         )
                         if pair_feat_id is not None:
