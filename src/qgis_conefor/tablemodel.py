@@ -1,4 +1,7 @@
+import dataclasses
 import enum
+from typing import Optional
+
 from qgis.PyQt import (
     QtCore,
     QtWidgets,
@@ -6,9 +9,7 @@ from qgis.PyQt import (
 
 import qgis.core
 
-from . import coneforinputsprocessor
 from . import schemas
-from .utilities import log
 
 
 class ModelLabel(enum.Enum):
@@ -16,14 +17,22 @@ class ModelLabel(enum.Enum):
     LAYER = 0
     ID = 1
     ATTRIBUTE = 2
-    # AREA = 3
-    # EDGE = 4
-    # CENTROID = 5
-    # EDGE = 3
-    # CENTROID = 4
+    NODES_TO_ADD = 3
 
 
-UNAVAILABLE_LABEL = "<UNAVAILABLE>"
+class TableModelLabel(enum.Enum):
+    AUTOGENERATE = "<AUTOGENERATE>"
+    GENERATE_FROM_AREA = "<GENERATE_FROM_AREA>"
+    UNAVAILABLE = "<UNAVAILABLE>"
+    NONE = "<NONE>"
+
+
+@dataclasses.dataclass
+class TableModelItem:
+    layer: qgis.core.QgsVectorLayer
+    id_attribute_field_name: str = TableModelLabel.AUTOGENERATE.value
+    attribute_field_name: str = TableModelLabel.GENERATE_FROM_AREA.value
+    nodes_to_add_field_name: str = TableModelLabel.NONE.value
 
 
 class ProcessLayerTableModel(QtCore.QAbstractTableModel):
@@ -31,24 +40,21 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         ModelLabel.LAYER: "Layer",
         ModelLabel.ID: "Node ID\n(unique)",
         ModelLabel.ATTRIBUTE: "Node\nattribute",
-        # ModelLabel.AREA: "Calculate area\nas the node\nattribute",
-        # ModelLabel.EDGE: "Edge\ndistance",
-        # ModelLabel.CENTROID: "Centroid\ndistance",
+        ModelLabel.NODES_TO_ADD: "Nodes\nto add",
     }
 
     is_runnable_check = QtCore.pyqtSignal()
 
     lock_layers: bool
-    data_: dict[qgis.core.QgsVectorLayer, list[str]]
+    data_: dict[qgis.core.QgsVectorLayer, schemas.LayerRelevantFields]
     dialog: QtWidgets.QDialog
     dirty: bool
-    layers_to_process: list[schemas.TableModelItem]
-
+    layers_to_process: list[TableModelItem]
 
     def __init__(
             self,
             *,
-            qgis_layers: dict[qgis.core.QgsVectorLayer, list[str]],
+            qgis_layers: dict[qgis.core.QgsVectorLayer, schemas.LayerRelevantFields],
             initial_layers_to_process: list[qgis.core.QgsVectorLayer],
             dialog: QtWidgets.QDialog,
             lock_layers: bool = False,
@@ -60,13 +66,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         self.lock_layers = lock_layers
         self.layers_to_process = []
         for la in initial_layers_to_process:
-            self.layers_to_process.append(
-                schemas.TableModelItem(
-                    layer=la,
-                    # calculate_centroid_distance=la.geometryType() == qgis.core.Qgis.GeometryType.Point,
-                    # calculate_edge_distance=la.geometryType() == qgis.core.Qgis.GeometryType.Polygon,
-                )
-            )
+            self.layers_to_process.append(TableModelItem(layer=la))
 
     def rowCount(self, index=QtCore.QModelIndex()):
         return len(self.layers_to_process)
@@ -74,7 +74,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
     def columnCount(self, index=QtCore.QModelIndex):
         return len(self._header_labels)
 
-    def data(self, index, role=QtCore.Qt.DisplayRole):
+    def data(self, index, role=QtCore.Qt.DisplayRole) -> Optional[str]:
         if not index.isValid() or not (0 <= index.row() < len(self.layers_to_process)):
             result = None
         else:
@@ -82,7 +82,6 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             locked_data_item = data_item
             column = ModelLabel(index.column())
             row = index.row()
-            layer_geom = data_item.layer.geometryType()
             if row != 0 and self.lock_layers:
                 data_item = locked_data_item
             if role == QtCore.Qt.DisplayRole:
@@ -92,53 +91,10 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
                     result = data_item.id_attribute_field_name
                 elif column == ModelLabel.ATTRIBUTE:
                     result = data_item.attribute_field_name
-                # elif column == ModelLabel.AREA:
-                #     if layer_geom == qgis.core.Qgis.GeometryType.Point:
-                #         result = UNAVAILABLE_LABEL
-                #     else:
-                #         result = None
-                # elif column == ModelLabel.EDGE:
-                #     if layer_geom == qgis.core.Qgis.GeometryType.Point:
-                #         result = UNAVAILABLE_LABEL
-                #     else:
-                #         result = None
+                elif column == ModelLabel.NODES_TO_ADD:
+                    result = data_item.nodes_to_add_field_name
                 else:
                     result = None
-            # elif role == QtCore.Qt.CheckStateRole:
-                # if column == ModelLabel.AREA:
-                #     if layer_geom == qgis.core.Qgis.GeometryType.Point:
-                #         result = None
-                #     else:
-                #         result = (
-                #             QtCore.Qt.Checked
-                #             if data_item.calculate_area_as_node_attribute
-                #             else QtCore.Qt.Unchecked
-                #         )
-                # elif column == ModelLabel.CENTROID:
-                # if column == ModelLabel.CENTROID:
-                #         result = (
-                #         QtCore.Qt.Checked if data_item.calculate_centroid_distance
-                #         else QtCore.Qt.Unchecked
-                #     )
-                # elif column == ModelLabel.EDGE:
-                #     if layer_geom == qgis.core.Qgis.GeometryType.Point:
-                #         result = None
-                #     else:
-                #         result = (
-                #             QtCore.Qt.Checked if data_item.calculate_edge_distance
-                #             else QtCore.Qt.Unchecked
-                #         )
-                # else:
-                #     result = None
-            # elif role == QtCore.Qt.TextAlignmentRole:
-            #     if column in (
-            #             # ModelLabel.AREA,
-            #             ModelLabel.CENTROID,
-            #             ModelLabel.EDGE
-            #     ):
-            #         result = int(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            #     else:
-            #         result = None
             else:
                 result = None
         return result
@@ -153,40 +109,22 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         return result
 
     def flags(self, index):
-        # checkable_column_labels = (
-            # ModelLabel.AREA,
-            # ModelLabel.CENTROID,
-            # ModelLabel.EDGE,
-        # )
-        checkable_column_labels = []
         if self.lock_layers:
-            column = ModelLabel(index.column())
             if index.row() == 0:
-                if column in checkable_column_labels:
-                    result = QtCore.Qt.ItemFlags(
-                        QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)
-                else:
-                    result = QtCore.Qt.ItemFlags(
-                        QtCore.QAbstractTableModel.flags(self, index) |
-                        QtCore.Qt.ItemIsEditable
-                    )
+                result = QtCore.Qt.ItemFlags(
+                    QtCore.QAbstractTableModel.flags(self, index) |
+                    QtCore.Qt.ItemIsEditable
+                )
             else:
                 result = QtCore.Qt.NoItemFlags
         else:
             if not index.isValid():
                 result = QtCore.Qt.ItemIsEnabled()
             else:
-                column = ModelLabel(index.column())
-                if column in checkable_column_labels:
-                    result = QtCore.Qt.ItemFlags(
-                        QtCore.Qt.ItemIsEnabled |
-                        QtCore.Qt.ItemIsUserCheckable
-                    )
-                else:
-                    result = QtCore.Qt.ItemFlags(
-                        QtCore.QAbstractTableModel.flags(self, index) |
-                        QtCore.Qt.ItemIsEditable
-                    )
+                result = QtCore.Qt.ItemFlags(
+                    QtCore.QAbstractTableModel.flags(self, index) |
+                    QtCore.Qt.ItemIsEditable
+                )
         return result
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
@@ -200,27 +138,9 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
                 data_item.id_attribute_field_name = value
             elif column == ModelLabel.ATTRIBUTE:
                 data_item.attribute_field_name = value
-            # elif column == ModelLabel.AREA:
-            #     try:
-            #         if data_item.layer.geometryType() != qgis.core.Qgis.Point:
-            #             data_item.calculate_area_as_node_attribute = value
-            #         else:
-            #             data_item.calculate_area_as_node_attribute = False
-            #     except AttributeError:
-            #         data_item.calculate_area_as_node_attribute = value
-            # elif column == ModelLabel.CENTROID:
-            #     data_item.calculate_centroid_distance = value
-            # elif column == ModelLabel.EDGE:
-            #     try:
-            #         if data_item.layer.geometryType() != qgis.core.Qgis.Point:
-            #             data_item.calculate_edge_distance = bool(value)
-            #         else:
-            #             data_item.calculate_edge_distance = False
-            #     except AttributeError:
-            #         data_item.calculate_edge_distance = value
+            elif column == ModelLabel.NODES_TO_ADD:
+                data_item.nodes_to_add_field_name = value
             self.dirty = True
-            #self.emit(SIGNAL('dataChanged(QModelIndex,QModelIndex)'),
-            #          index, index)
             self.dataChanged.emit(index, index)
             result = True
         self.is_runnable_check.emit()
@@ -235,19 +155,16 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     def insertRows(self, position, rows=1, index=QtCore.QModelIndex()):
         self.beginInsertRows(QtCore.QModelIndex(), position, position + rows - 1)
-        first_layer, unique_fields = next(iter(self.data_.items()))
-        geom_type = first_layer.geometryType()
+        first_layer = next(iter(self.data_.keys()))
+        if len(self.data_[first_layer].binary_value_field_names) > 0:
+            nodes_to_add_field_name = TableModelLabel.NONE.value
+        else:
+            nodes_to_add_field_name = TableModelLabel.UNAVAILABLE.value
         for row in range(rows):
             self.layers_to_process.insert(
                 position + row,
-                schemas.TableModelItem(
-                    layer=first_layer,
-                    # id_attribute_field_name=unique_fields[0],
-                    # calculate_centroid_distance=(
-                    #         geom_type == qgis.core.Qgis.GeometryType.Point),
-                    # calculate_edge_distance=(
-                    #         geom_type == qgis.core.Qgis.GeometryType.Polygon),
-                )
+                TableModelItem(
+                    layer=first_layer, nodes_to_add_field_name=nodes_to_add_field_name)
             )
         self.endInsertRows()
         self.dirty = True
@@ -257,19 +174,22 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         position = 0
         self.beginInsertRows(QtCore.QModelIndex(), position, position + len(layers) - 1)
         for idx, layer in enumerate(layers):
-            available_attributes = self.data_.get(layer)
-            if available_attributes is not None:
+            is_known_layer = bool(self.data_.get(layer, False))
+            if is_known_layer:
+                if len(self.data_[layer].binary_value_field_names) > 0:
+                    nodes_to_add_field_name = TableModelLabel.NONE.value
+                else:
+                    nodes_to_add_field_name = TableModelLabel.UNAVAILABLE.value
                 self.layers_to_process.insert(
                     position + idx,
-                    schemas.TableModelItem(
-                        layer=layer
+                    TableModelItem(
+                        layer=layer,
+                        nodes_to_add_field_name=nodes_to_add_field_name
                     )
                 )
         self.endInsertRows()
 
     def removeRows(self, position, rows=1, index=QtCore.QModelIndex()):
-        log(f"inside removeRows: {position=} {rows=}")
-        log(f"{[ltp.layer.name() for ltp in self.layers_to_process]=}")
         result = False
         if self.rowCount() > 0:
             self.beginRemoveRows(QtCore.QModelIndex(), position, position + rows - 1)
@@ -280,11 +200,9 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
             self.endRemoveRows()
             self.dirty = True
             result = True
-        log("leaving removeRows")
-        log(f"{[ltp.layer.name() for ltp in self.layers_to_process]=}")
         return result
 
-    def get_field_names(self, layer_name: str) -> list[str]:
+    def get_field_names(self, layer_name: str) -> schemas.LayerRelevantFields:
         layer = self.get_qgis_layer(layer_name)
         return self.data_[layer]
 
@@ -296,7 +214,13 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
 
     def createEditor(self, parent, option, index):
         column = ModelLabel(index.column())
-        if column in (ModelLabel.LAYER, ModelLabel.ID, ModelLabel.ATTRIBUTE):
+        combo_box_columns = (
+            ModelLabel.LAYER,
+            ModelLabel.ID,
+            ModelLabel.ATTRIBUTE,
+            ModelLabel.NODES_TO_ADD,
+        )
+        if column in combo_box_columns:
             combo_box = QtWidgets.QComboBox(parent)
             combo_box.activated[int].connect(self.commitAndCloseEditor)
             result = combo_box
@@ -305,18 +229,14 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
                 self, parent, option, index)
         return result
 
-    def setEditorData(self, editor, index):
+    def setEditorData(self, editor, index: QtCore.QModelIndex):
         row = index.row()
         column = ModelLabel(index.column())
         model = index.model()
         model: ProcessLayerTableModel
         data_item = model.layers_to_process[row]
-        log(f"{data_item.layer.name()=}")
-        log(f"{data_item.id_attribute_field_name=}")
         selected_layer_name = data_item.layer.name()
         selected_id_field_name = data_item.id_attribute_field_name
-        log(f"{selected_layer_name=}")
-        log(f"{selected_id_field_name=}")
         selected_attribute_field_name = data_item.attribute_field_name
         if column == ModelLabel.LAYER:
             layer_names = [la.name() for la in model.data_.keys()]
@@ -324,19 +244,31 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
             cmb_index = editor.findText(selected_layer_name)
             editor.setCurrentIndex(cmb_index)
         elif column == ModelLabel.ID:
+            relevant_field_names = model.data_.get(data_item.layer)
             unique_field_names = (
-                    [schemas.AUTOGENERATE_NODE_ID_LABEL] +
-                    model.data_.get(data_item.layer)
+                    [TableModelLabel.AUTOGENERATE.value] +
+                    relevant_field_names.unique_field_names
             )
             editor.addItems(unique_field_names)
             cmb_index = editor.findText(
-                selected_id_field_name or schemas.AUTOGENERATE_NODE_ID_LABEL)
+                selected_id_field_name or TableModelLabel.AUTOGENERATE.value)
             editor.setCurrentIndex(cmb_index)
         elif column == ModelLabel.ATTRIBUTE:
-            field_names = model.get_field_names(selected_layer_name)
-            editor.addItems([schemas.GENERATE_FROM_AREA_LABEL] + field_names)
+            relevant_field_names = model.get_field_names(selected_layer_name)
+            editor.addItems(
+                [TableModelLabel.GENERATE_FROM_AREA.value] +
+                relevant_field_names.numerical_field_names
+            )
             cmb_index = editor.findText(selected_attribute_field_name)
             editor.setCurrentIndex(cmb_index)
+        elif column == ModelLabel.NODES_TO_ADD:
+            relevant_field_names = (
+                model.get_field_names(selected_layer_name).binary_value_field_names)
+            if len(relevant_field_names) == 0:
+                editor.addItems([TableModelLabel.UNAVAILABLE.value])
+            else:
+                editor.addItems(
+                    [TableModelLabel.NONE.value] + relevant_field_names)
         else:
             QtWidgets.QItemDelegate.setEditorData(self, editor, index)
 
@@ -344,15 +276,21 @@ class ProcessLayerDelegate(QtWidgets.QItemDelegate):
         row = index.row()
         column = ModelLabel(index.column())
         if column == ModelLabel.LAYER:
-            model.setData(index, editor.currentText())
-            selected_layer_name = str(editor.currentText())
-            layer = model.get_qgis_layer(selected_layer_name)
-            unique_field_names = [schemas.AUTOGENERATE_NODE_ID_LABEL] + model.data_.get(layer)
-            id_index = model.index(row, ModelLabel.ID.value)
-            attr_index = model.index(row, ModelLabel.ATTRIBUTE.value)
-            model.setData(id_index, unique_field_names[0])
-            model.setData(attr_index, schemas.GENERATE_FROM_AREA_LABEL)
-        elif column in (ModelLabel.ID, ModelLabel.ATTRIBUTE):
+            previous_name = model.layers_to_process[index.row()].layer.name()
+            layer_name = editor.currentText()
+            if previous_name != layer_name:
+                model.setData(index, layer_name)
+                id_index = model.index(row, ModelLabel.ID.value)
+                attr_index = model.index(row, ModelLabel.ATTRIBUTE.value)
+                nodes_to_add_index = model.index(row, ModelLabel.NODES_TO_ADD.value)
+                model.setData(id_index, TableModelLabel.AUTOGENERATE.value)
+                model.setData(attr_index, TableModelLabel.GENERATE_FROM_AREA.value)
+                layer = model.get_qgis_layer(layer_name)
+                if len(model.data_[layer].binary_value_field_names) > 0:
+                    model.setData(nodes_to_add_index, TableModelLabel.NONE.value)
+                else:
+                    model.setData(nodes_to_add_index, TableModelLabel.UNAVAILABLE.value)
+        elif column in (ModelLabel.ID, ModelLabel.ATTRIBUTE, ModelLabel.NODES_TO_ADD):
             model.setData(index, editor.currentText())
         else:
             QtWidgets.QItemDelegate.setModelData(self, editor, model, index)

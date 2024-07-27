@@ -2,32 +2,87 @@ from pathlib import Path
 from typing import (
     Callable,
     Optional,
+    Union,
 )
 
 import qgis.core
-from qgis.PyQt import QtCore
+from qgis.PyQt import (
+    QtCore,
+)
 
 from .utilities import log
+
+_NUMERIC_FIELD_TYPES = (
+    QtCore.QMetaType.Int,
+    QtCore.QMetaType.Double,
+    QtCore.QMetaType.Float,
+    QtCore.QMetaType.Short,
+    QtCore.QMetaType.Long,
+    QtCore.QMetaType.LongLong,
+    QtCore.QMetaType.UInt,
+    QtCore.QMetaType.ULong,
+    QtCore.QMetaType.ULongLong,
+    QtCore.QMetaType.UShort,
+)
+
+_IDENTIFIER_FIELD_TYPES = (
+    QtCore.QMetaType.Int,
+    QtCore.QMetaType.Short,
+    QtCore.QMetaType.Long,
+    QtCore.QMetaType.LongLong,
+    QtCore.QMetaType.UInt,
+    QtCore.QMetaType.ULong,
+    QtCore.QMetaType.ULongLong,
+    QtCore.QMetaType.UShort,
+)
+
+_BINARY_FIELD_TYPES = (
+    QtCore.QMetaType.Int,
+    QtCore.QMetaType.Short,
+    QtCore.QMetaType.Long,
+    QtCore.QMetaType.LongLong,
+    QtCore.QMetaType.UInt,
+    QtCore.QMetaType.ULong,
+    QtCore.QMetaType.ULongLong,
+    QtCore.QMetaType.UShort,
+)
 
 
 class InvalidAttributeError(Exception):
     pass
 
 
-def get_numeric_attribute(
-        feature: qgis.core.QgsFeature,
-        attribute_name: str,
-) -> Optional[int]:
-    try:
-        value = feature[attribute_name]
-        if type(value) is QtCore.QVariant:  # pyqt was not able to convert this
-            result = None
-        else:
-            result = int(value)
-        return result
-    except KeyError:
-        raise InvalidAttributeError(
-            f"attribute {attribute_name!r} does not exist")
+def validate_node_identifier_attribute(
+        feature_source: Union[
+            qgis.core.QgsVectorLayer, qgis.core.QgsProcessingFeatureSource],
+        field: qgis.core.QgsField,
+) -> bool:
+    is_eligible = field.type() in _IDENTIFIER_FIELD_TYPES
+    field_index = list(feature_source.fields()).index(field)
+    has_unique_values = (
+            feature_source.featureCount() ==
+            len(feature_source.uniqueValues(field_index))
+    )
+    return is_eligible and has_unique_values
+
+
+def validate_node_attribute(
+        feature_source: Union[
+            qgis.core.QgsVectorLayer, qgis.core.QgsProcessingFeatureSource],
+        field: qgis.core.QgsField,
+) -> bool:
+    return field.type() in _NUMERIC_FIELD_TYPES
+
+
+def validate_node_to_add_attribute(
+        feature_source: Union[
+            qgis.core.QgsVectorLayer, qgis.core.QgsProcessingFeatureSource],
+        field: qgis.core.QgsField,
+) -> bool:
+    is_eligible = field.type() in _BINARY_FIELD_TYPES
+    field_index = list(feature_source.fields()).index(field)
+    has_only_binary_values = set(feature_source.uniqueValues(field_index)) <= {0, 1}
+    return is_eligible and has_only_binary_values
 
 
 def autogenerate_feature_id(feature: qgis.core.QgsFeature) -> int:
@@ -84,6 +139,7 @@ def get_measurer(
 def generate_node_file_by_attribute(
     node_id_field_name: Optional[str],
     node_attribute_field_name: str,
+    nodes_to_add_field_name: Optional[str],
     feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
     num_features: int,
     output_path: Path,
@@ -107,22 +163,40 @@ def generate_node_file_by_attribute(
             )
         id_ = (
             autogenerate_feature_id(feat) if node_id_field_name is None
-            else get_numeric_attribute(feat, node_id_field_name)
+            else feat[node_id_field_name]
         )
-        attr = get_numeric_attribute(feat, node_attribute_field_name)
-        info_callback(f"{id_=} - {attr=}")
-        if id_ is not None and attr is not None:
+        if id_ is not None:
             if id_ not in seen_ids:
-                if attr >= 0:
-                    data.append((id_, attr))
-                    seen_ids.add(id_)
+                attr = feat[node_attribute_field_name]
+                if attr is not None:
+                    if attr >= 0:
+                        if nodes_to_add_field_name is not None:
+                            nodes_to_add_attr_value = feat[nodes_to_add_field_name]
+                            if nodes_to_add_attr_value is not None:
+                                data.append((id_, attr, nodes_to_add_attr_value))
+                            else:
+                                raise qgis.core.QgsProcessingException(
+                                    f"node id {id_!r} has invalid value for the 'nodes to add' "
+                                    f"attribute. Conefor expects 'nodes to add' to be "
+                                    f"either 0 or 1 - found a value of "
+                                    f"{nodes_to_add_attr_value!r}."
+                                )
+                        else:
+                            data.append((id_, attr))
+                        seen_ids.add(id_)
+                    else:
+                        info_callback(
+                            f"Feature with id {id_!r}: Attribute "
+                            f"{node_attribute_field_name!r} "
+                            f"has value: {attr!r} - this is lower than zero. Skipping this "
+                            f"feature...",
+                        )
                 else:
                     info_callback(
-                        f"Feature with id {id_!r}: Attribute "
-                        f"{node_attribute_field_name!r} "
-                        f"has value: {attr!r} - this is lower than zero. Skipping this "
-                        f"feature...",
+                        f"Was not able to retrieve a valid value for node attribute "
+                        f"for node with id ({id_!r}), skipping this feature...",
                     )
+
             else:
                 raise qgis.core.QgsProcessingException(
                     f"node id {id_!r} is not unique. Conefor node identifiers must be "
@@ -130,8 +204,8 @@ def generate_node_file_by_attribute(
                 )
         else:
             info_callback(
-                f"Was not able to retrieve a valid value for id ({id_!r}) and "
-                f"attribute ({attr!r}), skipping this feature...",
+                f"Was not able to retrieve a valid value for id ({id_!r}), skipping "
+                f"this feature...",
             )
 
         current_progress += (end_progress - start_progress)/num_features
@@ -146,6 +220,7 @@ def generate_node_file_by_attribute(
 
 def generate_node_file_by_area(
     node_id_field_name: Optional[str],
+    nodes_to_add_field_name: Optional[str],
     crs: qgis.core.QgsCoordinateReferenceSystem,
     feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
     num_features: int,
@@ -166,11 +241,23 @@ def generate_node_file_by_area(
         feat_area = area_measurer.measureArea(geom)
         id_ = (
             autogenerate_feature_id(feat) if node_id_field_name is None
-            else get_numeric_attribute(feat, node_id_field_name)
+            else feat[node_id_field_name]
         )
         if id_ is not None:
             if id_ not in seen_ids:
-                data.append((id_, feat_area))
+                if nodes_to_add_field_name is not None:
+                    nodes_to_add_attr_value = feat[nodes_to_add_field_name]
+                    if nodes_to_add_attr_value is not None:
+                        data.append((id_, feat_area, nodes_to_add_attr_value))
+                    else:
+                        raise qgis.core.QgsProcessingException(
+                            f"node id {id_!r} has invalid value for the 'nodes to add' "
+                            f"attribute. Conefor expects 'nodes to add' to be "
+                            f"either 0 or 1 - found a value of "
+                            f"{nodes_to_add_attr_value!r}."
+                        )
+                else:
+                    data.append((id_, feat_area))
                 seen_ids.add(id_)
             else:
                 raise qgis.core.QgsProcessingException(
@@ -213,7 +300,7 @@ def generate_connection_file_with_centroid_distances(
     for feat in feature_iterator_factory():
         feat_id = (
             autogenerate_feature_id(feat) if node_id_field_name is None
-            else get_numeric_attribute(feat, node_id_field_name)
+            else feat[node_id_field_name]
         )
         if feat_id is not None:
             if feat_id not in seen_ids:
@@ -228,7 +315,7 @@ def generate_connection_file_with_centroid_distances(
                     if pair_feat.id() > feat.id():
                         pair_feat_id = (
                             autogenerate_feature_id(pair_feat) if node_id_field_name is None
-                            else get_numeric_attribute(pair_feat, node_id_field_name)
+                            else pair_feat[node_id_field_name]
                         )
                         if pair_feat_id is not None:
                             # info_callback(f"Processing pair feature {pair_feat_id}...")
@@ -300,7 +387,7 @@ def generate_connection_file_with_edge_distances(
     for feat in feature_iterator_factory():
         feat_id = (
             autogenerate_feature_id(feat) if node_id_field_name is None
-            else get_numeric_attribute(feat, node_id_field_name)
+            else feat[node_id_field_name]
         )
         if feat_id is not None:
             if feat_id not in seen_ids:
@@ -317,7 +404,7 @@ def generate_connection_file_with_edge_distances(
                     if pair_feat.id() > feat.id():
                         pair_feat_id = (
                             autogenerate_feature_id(pair_feat) if node_id_field_name is None
-                            else get_numeric_attribute(pair_feat, node_id_field_name)
+                            else pair_feat[node_id_field_name]
                         )
                         if pair_feat_id is not None:
                             # info_callback(f"Processing pair feature {pair_feat_id}...")

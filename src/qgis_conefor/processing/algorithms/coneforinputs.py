@@ -16,6 +16,10 @@ class ConeforInputsBase(base.Base):
     INPUT_NODE_IDENTIFIER_NAME = (
         "node_identifier", "Node identifier (will autogenerate if not set)")
     INPUT_NODE_ATTRIBUTE_NAME = ("node_attribute", "Node attribute (will calculate area if not set)")
+    INPUT_NODES_TO_ADD_ATTRIBUTE_NAME = (
+        "nodes_to_add_attribute",
+        "Which attribute to use for the 'nodes to add' Conefor feature"
+    )
     INPUT_DISTANCE_THRESHOLD = ("distance_threshold", "Distance threshold")
     INPUT_OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
     OUTPUT_CONEFOR_NODES_FILE_PATH = ("output_path", "Conefor nodes file")
@@ -27,10 +31,57 @@ class ConeforInputsBase(base.Base):
     def groupId(self):
         return "coneforinputs"
 
+    def _validate_node_attributes(
+            self,
+            source: qgis.core.QgsProcessingFeatureSource,
+            node_id_field: Optional[str],
+            nodes_to_add_field: Optional[str],
+            node_attribute_field: Optional[str] = None,
+    ):
+        if node_id_field is not None:
+            node_id_source_field = [
+                f for f in source.fields() if f.name() == node_id_field][0]
+            node_id_field_is_valid = (
+                coneforinputsprocessor.validate_node_identifier_attribute(
+                    source, node_id_source_field
+                )
+            )
+            if not node_id_field_is_valid:
+                raise qgis.core.QgsProcessingException(
+                    f"Node id field is not valid - if set, the node id field must be "
+                    f"an integer column with unique values"
+                )
+        if node_attribute_field is not None:
+            node_attribute_source_field = [
+                f for f in source.fields() if f.name() == node_attribute_field][0]
+            node_attribute_field_is_valid = coneforinputsprocessor.validate_node_attribute(
+                source, node_attribute_source_field)
+            if not node_attribute_field_is_valid:
+                raise qgis.core.QgsProcessingException(
+                    f"Node attribute field is not valid - the node attribute field "
+                    f"must be a numeric column"
+                )
+        if nodes_to_add_field is not None:
+            nodes_to_add_source_field = [
+                f for f in source.fields() if f.name() == nodes_to_add_field][0]
+            nodes_to_add_field_is_valid = (
+                coneforinputsprocessor.validate_node_to_add_attribute(
+                    source,
+                    nodes_to_add_source_field
+                )
+            )
+            if not nodes_to_add_field_is_valid:
+                raise qgis.core.QgsProcessingException(
+                    f"Nodes to add attribute field is not valid - if set, the "
+                    f"'nodes to add' attribute must be a column that has only 0 or 1 "
+                    f"values."
+                )
+
     def _generate_node_file_by_attribute(
         self,
         node_id_field: Optional[str],
         node_attribute_field: str,
+        nodes_to_add_field: Optional[str],
         source: qgis.core.QgsProcessingFeatureSource,
         output_dir: Path,
         feedback: qgis.core.QgsProcessingFeedback,
@@ -38,6 +89,7 @@ class ConeforInputsBase(base.Base):
         return coneforinputsprocessor.generate_node_file_by_attribute(
             node_id_field_name=node_id_field,
             node_attribute_field_name=node_attribute_field,
+            nodes_to_add_field_name=nodes_to_add_field,
             feature_iterator_factory=source.getFeatures,
             num_features=source.featureCount(),
             output_path=(
@@ -51,12 +103,14 @@ class ConeforInputsBase(base.Base):
     def _generate_node_file_by_area(
         self,
         node_id_field: Optional[str],
+        nodes_to_add_field: Optional[str],
         source: qgis.core.QgsProcessingFeatureSource,
         output_dir: Path,
         feedback: qgis.core.QgsProcessingFeedback,
     ) -> Path:
         return coneforinputsprocessor.generate_node_file_by_area(
             node_id_field_name=node_id_field,
+            nodes_to_add_field_name=nodes_to_add_field,
             crs=source.sourceCrs(),
             feature_iterator_factory=source.getFeatures,
             num_features=source.featureCount(),
@@ -131,6 +185,15 @@ class ConeforInputsPoint(ConeforInputsBase):
             )
         )
         self.addParameter(
+            qgis.core.QgsProcessingParameterField(
+                name=self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0],
+                description=self.tr(self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[1]),
+                parentLayerParameterName=self.INPUT_POINT_LAYER[0],
+                type=qgis.core.QgsProcessingParameterField.Numeric,
+                optional=True,
+            )
+        )
+        self.addParameter(
             qgis.core.QgsProcessingParameterNumber(
                 name=self.INPUT_DISTANCE_THRESHOLD[0],
                 description=self.tr(self.INPUT_DISTANCE_THRESHOLD[1]),
@@ -192,23 +255,51 @@ class ConeforInputsPoint(ConeforInputsBase):
             self.INPUT_NODE_ATTRIBUTE_NAME[0],
             context
         )
+        raw_nodes_to_add_field_name = self.parameterAsString(
+            parameters, self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0], context
+        )
+        if raw_nodes_to_add_field_name == "":
+            nodes_to_add_field_name = None
+        else:
+            nodes_to_add_field_name = raw_nodes_to_add_field_name
 
         feedback.pushInfo(f"{source=}")
         feedback.pushInfo(f"{node_id_field_name=}")
+        feedback.pushInfo(f"{nodes_to_add_field_name=}")
         feedback.pushInfo(f"{connections_distance_threshold=}")
         feedback.pushInfo(f"{output_dir=}")
 
         if source.featureCount() > 0:
             try:
                 if len(node_attribute_field_names) == 0:  # use area as the attribute
+                    self._validate_node_attributes(
+                        source,
+                        node_id_field=node_id_field_name,
+                        nodes_to_add_field=nodes_to_add_field_name,
+                    )
                     node_file_output_path = self._generate_node_file_by_area(
-                        node_id_field_name, source, output_dir, feedback)
+                        node_id_field_name,
+                        nodes_to_add_field_name,
+                        source,
+                        output_dir,
+                        feedback
+                    )
                 else:
                     feedback.pushInfo(f"{node_attribute_field_names[0]=}")
+                    self._validate_node_attributes(
+                        source,
+                        node_id_field=node_id_field_name,
+                        nodes_to_add_field=nodes_to_add_field_name,
+                        node_attribute_field=node_attribute_field_names[0],
+                    )
                     node_file_output_path = (
                         self._generate_node_file_by_attribute(
-                            node_id_field_name, node_attribute_field_names[0], source,
-                            output_dir, feedback,
+                            node_id_field_name,
+                            node_attribute_field_names[0],
+                            nodes_to_add_field_name,
+                            source,
+                            output_dir,
+                            feedback,
                         )
                     )
                 connections_file_output_path = self._generate_connection_file_by_centroid_distance(
@@ -261,6 +352,15 @@ class ConeforInputsPolygon(ConeforInputsBase):
             qgis.core.QgsProcessingParameterField(
                 name=self.INPUT_NODE_ATTRIBUTE_NAME[0],
                 description=self.tr(self.INPUT_NODE_ATTRIBUTE_NAME[1]),
+                parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
+                type=qgis.core.QgsProcessingParameterField.Numeric,
+                optional=True,
+            )
+        )
+        self.addParameter(
+            qgis.core.QgsProcessingParameterField(
+                name=self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0],
+                description=self.tr(self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[1]),
                 parentLayerParameterName=self.INPUT_POLYGON_LAYER[0],
                 type=qgis.core.QgsProcessingParameterField.Numeric,
                 optional=True,
@@ -345,9 +445,17 @@ class ConeforInputsPolygon(ConeforInputsBase):
             self.INPUT_NODE_ATTRIBUTE_NAME[0],
             context
         )
+        raw_nodes_to_add_field_name = self.parameterAsString(
+            parameters, self.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0], context
+        )
+        if raw_nodes_to_add_field_name == "":
+            nodes_to_add_field_name = None
+        else:
+            nodes_to_add_field_name = raw_nodes_to_add_field_name
 
         feedback.pushInfo(f"{source=}")
         feedback.pushInfo(f"{node_id_field_name=}")
+        feedback.pushInfo(f"{nodes_to_add_field_name=}")
         feedback.pushInfo(f"{connections_distance_method=}")
         feedback.pushInfo(f"{connections_distance_threshold=}")
         feedback.pushInfo(f"{output_dir=}")
@@ -355,14 +463,34 @@ class ConeforInputsPolygon(ConeforInputsBase):
         if source.featureCount() > 0:
             try:
                 if len(node_attribute_field_names) == 0:  # use area as the attribute
+                    self._validate_node_attributes(
+                        source,
+                        node_id_field=node_id_field_name,
+                        nodes_to_add_field=nodes_to_add_field_name,
+                    )
                     node_file_output_path = self._generate_node_file_by_area(
-                        node_id_field_name, source, output_dir, feedback)
+                        node_id_field_name,
+                        nodes_to_add_field_name,
+                        source,
+                        output_dir,
+                        feedback
+                    )
                 else:
                     feedback.pushInfo(f"{node_attribute_field_names[0]=}")
+                    self._validate_node_attributes(
+                        source,
+                        node_id_field=node_id_field_name,
+                        nodes_to_add_field=nodes_to_add_field_name,
+                        node_attribute_field=node_attribute_field_names[0],
+                    )
                     node_file_output_path = (
                         self._generate_node_file_by_attribute(
-                            node_id_field_name, node_attribute_field_names[0], source,
-                            output_dir, feedback,
+                            node_id_field_name,
+                            node_attribute_field_names[0],
+                            nodes_to_add_field_name,
+                            source,
+                            output_dir,
+                            feedback,
                         )
                     )
                 if connections_distance_method == NodeConnectionType.EDGE_DISTANCE:
