@@ -2,6 +2,7 @@
 A QGIS plugin for writing input files to the Conefor software.
 """
 
+import dataclasses
 import functools
 import uuid
 from typing import Optional
@@ -20,19 +21,41 @@ from .resources import *  # noqa
 
 from . import (
     schemas,
-    tablemodel,
     tasks,
 )
 from .conefordialog import ConeforDialog
 from .processing.provider import ProcessingConeforProvider
-from .processing.algorithms.coneforinputs import (
-    ConeforInputsPoint,
-    ConeforInputsPolygon,
+from .processing.algorithms.coneforinputs import ConeforInputsPolygon
+from .tablemodel import (
+    TableModelItem,
+    TableModelLabel,
+    ProcessLayerDelegate,
+    ProcessLayerTableModel,
 )
 from .utilities import (
     log,
     load_settings_key,
 )
+
+
+@dataclasses.dataclass(frozen=True)
+class ConeforInputParameters:
+    layer: qgis.core.QgsVectorLayer
+    id_attribute_field_name: Optional[str] = None  # None means autogenerate a node id
+    attribute_field_name: Optional[str] = None  # None means use area as the attribute
+    nodes_to_add_field_name: Optional[str] = None  # None means do not used the 'nodes to add' Conefor feature
+    connections_method: schemas.NodeConnectionType = schemas.NodeConnectionType.EDGE_DISTANCE
+
+    def __hash__(self):
+        return hash(
+            "".join((
+                self.layer.name(),
+                self.id_attribute_field_name or "",
+                self.attribute_field_name or "",
+                self.nodes_to_add_field_name or "",
+                self.connections_method.value,
+            ))
+        )
 
 
 class QgisConefor:
@@ -42,10 +65,10 @@ class QgisConefor:
     action: QtWidgets.QAction
     dialog: Optional[QtWidgets.QDialog]
     processing_provider: ProcessingConeforProvider
-    inputs_from_polygons_algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
+    algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
     edge_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
     centroid_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
-    model: Optional[tablemodel.ProcessLayerTableModel]
+    model: Optional[ProcessLayerTableModel]
     processing_context: Optional[qgis.core.QgsProcessingContext]
     _processing_tasks: dict[
         str,
@@ -58,7 +81,7 @@ class QgisConefor:
     def __init__(self, iface: qgis.gui.QgisInterface):
         self.iface = iface
         self.dialog = None
-        self.model = tablemodel.ProcessLayerTableModel(
+        self.model = ProcessLayerTableModel(
             qgis_layers={},
             initial_layers_to_process=[],
             lock_layers=False,
@@ -66,7 +89,7 @@ class QgisConefor:
         )
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
-        self.inputs_from_polygons_algorithm = None
+        self.algorithm = None
         self.edge_distance_processing_model = None
         self.centroid_distance_processing_model = None
         self._processing_tasks = {}
@@ -79,7 +102,7 @@ class QgisConefor:
     def initGui(self):
         self.init_processing()
         processing_registry = qgis.core.QgsApplication.processingRegistry()
-        self.inputs_from_polygons_algorithm = processing_registry.createAlgorithmById(
+        self.algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
         self.edge_distance_processing_model = processing_registry.createAlgorithmById(
             "conefor:edge_distances")
@@ -126,7 +149,7 @@ class QgisConefor:
         task_manager.addTask(self.analyzer_task)
 
     def run(self):
-        delegate = tablemodel.ProcessLayerDelegate()
+        delegate = ProcessLayerDelegate()
         self.dialog.tableView.setItemDelegate(delegate)
         self.model.removeRows(position=0, rows=self.model.rowCount())
         selected_layers = self.iface.layerTreeView().selectedLayers()
@@ -146,7 +169,7 @@ class QgisConefor:
 
     def finished_analyzing_layers(
             self,
-            usable_layers: dict[qgis.core.QgsVectorLayer, list[str]],
+            usable_layers: dict[qgis.core.QgsVectorLayer, schemas.LayerRelevantFields],
     ):
         self.model.data_ = usable_layers
         self.action.setEnabled(any(usable_layers))
@@ -157,7 +180,7 @@ class QgisConefor:
 
     def _enqueue_centroid_distance_generation_task(
             self,
-            layer_params: schemas.ConeforInputParameters,
+            layer_params: ConeforInputParameters,
             process_id: str,
             use_selected_features: bool
     ):
@@ -188,7 +211,7 @@ class QgisConefor:
 
     def _enqueue_edge_distance_generation_task(
             self,
-            layer_params: schemas.ConeforInputParameters,
+            layer_params: ConeforInputParameters,
             process_id: str,
             use_selected_features: bool
     ):
@@ -217,9 +240,9 @@ class QgisConefor:
         task_manager = qgis.core.QgsApplication.taskManager()
         task_manager.addTask(task)
 
-    def _process_polygon_layer(
+    def _process_layer(
             self,
-            layer_params: schemas.ConeforInputParameters,
+            layer_params: ConeforInputParameters,
             create_distance_file: bool,
             output_dir: str,
             use_selected_features: bool
@@ -236,21 +259,17 @@ class QgisConefor:
         )
         connection_method = ConeforInputsPolygon._NODE_DISTANCE_CHOICES.index(
             layer_params.connections_method.value)
-        log(
-            f"About to use {connection_method!r} as the node "
-            f"connection distance value"
-        )
         task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.inputs_from_polygons_algorithm,
+            algorithm=self.algorithm,
             parameters={
                 ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
                         layer_params.id_attribute_field_name or ""),
                 ConeforInputsPolygon.INPUT_NODE_ATTRIBUTE_NAME[0]: (
                         layer_params.attribute_field_name or ""),
+                ConeforInputsPolygon.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0]: (
+                    layer_params.nodes_to_add_field_name or ""),
                 ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
                 ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: output_dir,
-                # ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
-                #     layer_params.layer),
                 ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
                     input_layer_param),
                 ConeforInputsPolygon.INPUT_NODE_CONNECTION_DISTANCE_METHOD[0]: (
@@ -308,43 +327,46 @@ class QgisConefor:
                     data_item, **kwargs)
             layer_inputs.add(input_parameters)
         self.processing_context = createContext()
-        # self.processing_context.setEllipsoid()
         for layer_to_process in layer_inputs:
-            if layer_to_process.layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
-                self._process_polygon_layer(
-                    layer_to_process,
-                    self.dialog.create_distances_file_chb.isChecked(),
-                    output_dir,
-                    only_selected_features,
-                )
-            else:
-                raise RuntimeError(
-                    f"layer: {layer_to_process.layer.name()!r} has invalid "
-                    f"geometry type: {layer_to_process.layer.geometryType()!r}"
-                )
+            self._process_layer(
+                layer_to_process,
+                self.dialog.create_distances_file_chb.isChecked(),
+                output_dir,
+                only_selected_features,
+            )
 
     def get_conefor_input_parameters(
         self,
-        data_item: schemas.TableModelItem,
+        data_item: TableModelItem,
         default_node_identifier_name: Optional[str] = None,
         default_node_attribute_name: Optional[str] = None,
-    ) -> schemas.ConeforInputParameters:
+        default_nodes_to_add_attribute_name: Optional[str] = None,
+    ) -> ConeforInputParameters:
         node_identifier_name = (
                 default_node_identifier_name or data_item.id_attribute_field_name)
-        if node_identifier_name != schemas.NONE_LABEL:
+        if node_identifier_name != TableModelLabel.NONE.value:
             node_attribute_name = (
                     default_node_attribute_name or data_item.attribute_field_name)
+            nodes_to_add_attribute_name = (
+                default_nodes_to_add_attribute_name or data_item.nodes_to_add_field_name
+            )
             process_edge_distance = self.dialog.edge_distance_rb.isChecked()
-            return schemas.ConeforInputParameters(
+            return ConeforInputParameters(
                 layer=data_item.layer,
                 id_attribute_field_name=(
                     node_identifier_name
-                    if node_identifier_name != schemas.AUTOGENERATE_NODE_ID_LABEL
+                    if node_identifier_name != TableModelLabel.AUTOGENERATE.value
                     else None
                 ),
                 attribute_field_name=(
-                    node_attribute_name if node_attribute_name != schemas.GENERATE_FROM_AREA_LABEL
+                    node_attribute_name if node_attribute_name != TableModelLabel.GENERATE_FROM_AREA.value
                     else None
+                ),
+                nodes_to_add_field_name=(
+                    nodes_to_add_attribute_name
+                    if nodes_to_add_attribute_name not in (
+                        TableModelLabel.UNAVAILABLE.value, TableModelLabel.NONE.value
+                    ) else None
                 ),
                 connections_method=(
                     schemas.NodeConnectionType.EDGE_DISTANCE if process_edge_distance
@@ -357,7 +379,7 @@ class QgisConefor:
     def finalize_task_execution(
             self,
             process_id: str,
-            layer_params: schemas.ConeforInputParameters,
+            layer_params: ConeforInputParameters,
             was_successful: bool,
             results: dict,
     ):

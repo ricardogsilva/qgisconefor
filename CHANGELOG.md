@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add validation of node-related attributes when using the processing algorithm that prepares conefor inputs
+- Fix main dialog always using default values for layers
+- Add support for generating the 'nodes to add' column when preparing conefor input node files
 - Disable plugin main dialog by default
 - Add button for opening output dir upon successful completion
 - Drop support for point layers in the main plugin dialog

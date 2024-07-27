@@ -11,23 +11,6 @@ ICON_RESOURCE_PATH = ":/plugins/qgisconefor/icon.png"
 
 PROCESSING_TASK_ID_SEPARATOR = "*_*_*_"
 
-AUTOGENERATE_NODE_ID_LABEL = "<AUTOGENERATE>"
-NONE_LABEL = "<NONE>"
-GENERATE_FROM_AREA_LABEL = "<GENERATE_FROM_AREA>"
-
-RELEVANT_FIELD_TYPES = (
-    QtCore.QMetaType.Int,
-    QtCore.QMetaType.Double,
-    QtCore.QMetaType.Float,
-    QtCore.QMetaType.Short,
-    QtCore.QMetaType.Long,
-    QtCore.QMetaType.LongLong,
-    QtCore.QMetaType.UInt,
-    QtCore.QMetaType.ULong,
-    QtCore.QMetaType.ULongLong,
-    QtCore.QMetaType.UShort,
-)
-
 
 class NodeConnectionType(enum.Enum):
     EDGE_DISTANCE = "edge distance"
@@ -49,30 +32,11 @@ class QgisConeforSettingsKey(enum.Enum):
     USE_SELECTED = "PythonPlugins/qgisconefor/use_selected_features"
 
 
-@dataclasses.dataclass(frozen=True)
-class ConeforInputParameters:
-    layer: qgis.core.QgsVectorLayer
-    id_attribute_field_name: Optional[str] = None  # None means autogenerate a node id
-    attribute_field_name: Optional[str] = None  # None means use area as the attribute
-    connections_method: NodeConnectionType = NodeConnectionType.EDGE_DISTANCE
-
-    def __hash__(self):
-        return hash(
-            "".join((
-                self.layer.name(),
-                self.id_attribute_field_name or AUTOGENERATE_NODE_ID_LABEL,
-                self.attribute_field_name or GENERATE_FROM_AREA_LABEL,
-                self.connections_method.value
-            ))
-        )
-
-
-# This will replace processlayer.ProcessLayer
 @dataclasses.dataclass
-class TableModelItem:
-    layer: qgis.core.QgsVectorLayer
-    id_attribute_field_name: str = AUTOGENERATE_NODE_ID_LABEL
-    attribute_field_name: str = GENERATE_FROM_AREA_LABEL
+class LayerRelevantFields:
+    unique_field_names: list[str] = dataclasses.field(default_factory=list)
+    numerical_field_names: list[str] = dataclasses.field(default_factory=list)
+    binary_value_field_names: list[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass

@@ -3,6 +3,11 @@ from qgis.PyQt import QtCore
 
 from . import schemas
 from .utilities import log
+from .coneforinputsprocessor import (
+    validate_node_identifier_attribute,
+    validate_node_attribute,
+    validate_node_to_add_attribute,
+)
 
 
 class LayerAnalyzerTask(qgis.core.QgsTask):
@@ -11,12 +16,7 @@ class LayerAnalyzerTask(qgis.core.QgsTask):
     layers_analyzed = QtCore.pyqtSignal(dict)
 
     layers_to_analyze: dict[str, qgis.core.QgsMapLayer]
-    relevant_layers: dict[qgis.core.QgsVectorLayer, list[str]]
-    relevant_layer_ids: dict[str, list[str]]
-
-    _relevant_geometry_types = (
-        qgis.core.Qgis.GeometryType.Polygon,
-    )
+    relevant_layers: dict[qgis.core.QgsVectorLayer, schemas.LayerRelevantFields]
 
     def __init__(
             self,
@@ -26,7 +26,6 @@ class LayerAnalyzerTask(qgis.core.QgsTask):
         super().__init__(description)
         self.layers_to_analyze = layers_to_analyze
         self.relevant_layers = {}
-        self.relevant_layer_ids = {}
 
     def run(self):
         if len(self.layers_to_analyze) > 0:
@@ -36,14 +35,24 @@ class LayerAnalyzerTask(qgis.core.QgsTask):
                 log(f"Analyzing layer {layer.name()!r}...")
                 if layer.type() == qgis.core.QgsMapLayer.LayerType.Vector:
                     layer: qgis.core.QgsVectorLayer
-                    if layer.geometryType() in self._relevant_geometry_types:
-                        the_fields = []
-                        for field in layer.fields():
-                            if field.type() in schemas.RELEVANT_FIELD_TYPES:
-                                the_fields.append(field.name())
-                        if any(the_fields):
-                            self.relevant_layers[layer] = the_fields
-                            self.relevant_layer_ids[layer_id] = the_fields
+                    if layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
+                        unique_fields = []
+                        numeric_fields = []
+                        binary_fields = []
+                        for field_index, field in enumerate(layer.fields()):
+                            name = field.name()
+                            if validate_node_identifier_attribute(layer, field):
+                                unique_fields.append(name)
+                            if validate_node_attribute(layer, field):
+                                numeric_fields.append(name)
+                            if validate_node_to_add_attribute(layer, field):
+                                binary_fields.append(name)
+                        if any(numeric_fields):
+                            self.relevant_layers[layer] = schemas.LayerRelevantFields(
+                                numerical_field_names=numeric_fields,
+                                unique_field_names=unique_fields,
+                                binary_value_field_names=binary_fields
+                            )
                 percent_done = progress_step + index * progress_step
                 self.setProgress(percent_done)
         else:
