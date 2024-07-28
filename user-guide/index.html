@@ -1,0 +1,827 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="QGIS Conefor plugin">
+      
+      
+        <meta name="author" content="Ricardo Garcia Silva">
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../development/">
+      
+      
+      <link rel="icon" href="../images/conefor_logo.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.29">
+    
+    
+      
+        <title>User guide - QGIS Conefor plugin</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.76a95c52.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="preference" data-md-color-primary="amber" data-md-color-accent="purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#user-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="QGIS Conefor plugin" class="md-header__button md-logo" aria-label="QGIS Conefor plugin" data-md-component="logo">
+      
+  <img src="../images/conefor_logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            QGIS Conefor plugin
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              User guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ricardogsilva/qgisconefor" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    qgisconefor
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="QGIS Conefor plugin" class="md-nav__button md-logo" aria-label="QGIS Conefor plugin" data-md-component="logo">
+      
+  <img src="../images/conefor_logo.png" alt="logo">
+
+    </a>
+    QGIS Conefor plugin
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ricardogsilva/qgisconefor" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    qgisconefor
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    User guide
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    User guide
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preparing-the-inputs-for-post-processing-with-conefor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preparing the inputs for post-processing with Conefor
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-conefor-inside-qgis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using Conefor inside QGIS
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using Conefor inside QGIS">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-conefor-processing-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configure the Conefor Processing provider
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-the-conefor-processing-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using the Conefor Processing algorithms
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using the Conefor Processing algorithms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-an-algorithm-in-batch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running an algorithm in batch mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-processing-workflows-with-the-model-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating Processing workflows with the model builder
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Development
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    About
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog-base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../repo/plugins.xml" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    QGIS Repo
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preparing-the-inputs-for-post-processing-with-conefor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preparing the inputs for post-processing with Conefor
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-conefor-inside-qgis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using Conefor inside QGIS
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using Conefor inside QGIS">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-conefor-processing-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configure the Conefor Processing provider
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-the-conefor-processing-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using the Conefor Processing algorithms
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using the Conefor Processing algorithms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-an-algorithm-in-batch-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running an algorithm in batch mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-processing-workflows-with-the-model-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating Processing workflows with the model builder
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="user-guide">User guide<a class="headerlink" href="#user-guide" title="Permanent link">&para;</a></h1>
+<p><strong>QGIS Conefor</strong> is a plugin for the Open Source GIS software <a href="http://qgis.org">QGIS</a> that allows to interact with 
+the <a href="http://conefor.org">Conefor</a> application.</p>
+<p>This plugin includes an interface which can be used solely for preparing inputs to use by Conefor as a separate
+application.</p>
+<p>It also provides a bridge between QGIS and Conefor, allowing you to run Conefor's landscape connectivity 
+analysis algorithms from inside QGIS, through the QGIS Processing framework/toolbox. This is a convenient 
+environment for landscape and habitat analysis. Conefor algorithms can be directly integrated in more complex 
+workflows through models and scripts and use all other GIS algorithms included in the QGIS processing 
+framework/toolbox.</p>
+<p>Once installed, the plugin tools can be reached in different places:</p>
+<ul>
+<li>From the main menu: <em>vector &gt; Conefor inputs &gt; Conefor inputs</em></li>
+<li>The <em>Vector</em> toolbar also shows a button to launch the plugin dialog</li>
+<li><em>Processing</em> toolbox (see below, "Using Conefor inside QGIS" paragraph)</li>
+</ul>
+<details class="note">
+<summary>Note</summary>
+<p>In QGIS the toolbars can be activated/deactivated by using the following menu:</p>
+<pre><code>_View &gt; toolbars_
+</code></pre>
+<p>The content of a toolbar may vary depending on what tools/plugins are installed/active in a specific QGIS installation</p>
+</details>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
+<p>This plugin has two main intended usage workflows:</p>
+<ol>
+<li>
+<p>As a means for generating the Conefor input files (nodes and connections) from geospatial layers and then running 
+   the standalone Conefor application with the tese input files. For this you can either:</p>
+</li>
+<li>
+<p>Use the plugin's main dialog</p>
+</li>
+<li>
+<p>Use the Processing algorithms present in <em>Processing toolbox &gt; Conefor &gt; Prepare input files</em></p>
+</li>
+<li>
+<p>As way to run the Conefor application from inside QGIS. In this workflow you can both prepare the Conefor input files
+   and run the Conefor analysis by combining the Processing algorithms present in <em>Processing toolbox &gt; Conefor</em></p>
+</li>
+</ol>
+<h2 id="preparing-the-inputs-for-post-processing-with-conefor">Preparing the inputs for post-processing with Conefor<a class="headerlink" href="#preparing-the-inputs-for-post-processing-with-conefor" title="Permanent link">&para;</a></h2>
+<p>The icon/shortcut available in the <em>Vector &gt; conefor inputs</em> menu or in the <em>Vector</em> toolbar provides access to an 
+interface that allows you to create the input files to be then processed with the Conefor application. For information
+on how to use the Conefor application, see the 
+<a href="http://www.conefor.org/files/usuarios/Manual_Conefor_26.pdf">Conefor user manual</a>. </p>
+<p>The tool allows to compute distance analysis and node (feature) queries:</p>
+<ul>
+<li>Distance from edges (for polygon layers)</li>
+<li>Distance from centroids (for polygon layers)</li>
+<li>Compute area of polygons (for polygon layers)</li>
+<li>Extract one attribute</li>
+</ul>
+<p>The results are placed into (separate) text files (with the .txt file extension) inside an output folder.</p>
+<p>For distance queries is available the option to compute also a vector layer that represents 
+the segments with the minimum distance between the input features.</p>
+<p>Upon opening the tool, it will load all currently selected vector layers. Additional layers can also be selected by
+adding rows to the tool's main table.</p>
+<p>{Insert image of the dialog}</p>
+<p>The options are described here below:</p>
+<ul>
+<li>
+<p><strong>Lock field names to first layer</strong>: before running any analysis/query, for each layer it is mandatory to select 
+   a few options (a unique ID among the others, see below for details). If the number of layers to be analyzed/queried 
+   is high then this can become a tedious operation. By checking this option the user can force the tool to assume 
+   that the same analysis/queries have to be run for all the layers. The tool will also assume that all the layers 
+   have a unique ID with the same name.</p>
+</li>
+<li>
+<p><strong>Layer</strong>: the list of loaded layers to be analyzed/queried. If the user mistakenly loads a layer that is not to be 
+  used, then it can double click on its name and a dropdown will show, allowing to choose any other proper layer 
+  loaded in the QGIS project.</p>
+</li>
+<li>
+<p><strong>NODE ID (unique)</strong>: this option allows to choose what is the attribute to be used as unique ID. The plugin is also 
+  able to autogenerate an ID</p>
+</li>
+<li>
+<p><strong>Node Attribute</strong>: this option allows the user to query (extract) one attribute from the table of attributes of the 
+  input layer. Results will be placed in a text file beside the "NODE ID" values. </p>
+</li>
+</ul>
+<p>If you select the <em><GENERATE_FROM_AREA></em> value, the plugin will the area of each feature as the node attribute. 
+  Areas are computed using the ellipsoid and units defined in the QGIS Project. You can manage them by going to the
+  QGIS main menu <em>Project &gt; Properties... &gt; General &gt; Measurements</em></p>
+<ul>
+<li>
+<p><strong>Remove Row/Add Row</strong> buttons: These buttons allow you to remove/add layers to be processed</p>
+</li>
+<li>
+<p><strong>Calculate node connections as</strong>:</p>
+</li>
+<li>
+<p><strong>Edge distances</strong> - When this option is active an output text file will be created and it will contain the 
+    minimum distance between the edges (boundaries) of each feature.</p>
+</li>
+<li>
+<p><strong>Centroid distances</strong> - When this option is active an output text file will be created and it will contain the 
+    minimum distance between the centroids of features.</p>
+</li>
+<li>
+<p><strong>Only use selected features</strong>: If a selection is made in the QGIS canvas (in one or more input layers) and this 
+  option is checked, then the analysis/queries will be run only using the selected features.</p>
+</li>
+<li>
+<p><strong>Create link vector layer</strong>: when this option is active (together with one distance analysis/query) then the plugin 
+  will also generate a map layer with the visual representaion of the node connections. This is generate as a QGIS 
+  memory layer and loaded onto the QGIS map canvas. Depending on the number of features in each layer, this option may 
+  significantly increase analysis time</p>
+</li>
+<li>
+<p><strong>Output directory</strong>: the folder where output Conefor nodes and connections files will be placed. The output file 
+  names contain the type of query and the layer name. For example, if the input file name is "espacios_natura2000" 
+  then all the possible outputs will be:</p>
+</li>
+<li>
+<p>connections_centroid-distance_espacios_natura2000.txt</p>
+</li>
+<li>connections_edge-distance_espacios_natura2000.txt</li>
+<li>nodes_calculated_area_espacios_natura2000.txt</li>
+<li>nodes_NODE_ATTRIBUTE_espacios_natura2000.txt</li>
+</ul>
+<p>!!! note</p>
+<pre><code>  When running multiple times the same analysis/query then the output files will not be overwritten, instead an 
+  underscore and a progressive number is added at the end of the output file name, for example:
+
+  - distances_centroids_espacios_natura2000_2.txt
+  - distances_centroids_espacios_natura2000_2.txt
+  - distances_centroids_espacios_natura2000_3.txt
+  - ...
+</code></pre>
+<ul>
+<li><strong>Run</strong> button: to run the analysis/queries. </li>
+</ul>
+<p>When running, the plugin dialog will close itself and the processing will be taking place as a background task. 
+  The progress is displayed in QGIS status bar. You can also cancel the execution by clicking on the progress 
+  indicator and then clicking the cancel button.</p>
+<p>When finished, the plugin displays a notification to let you know its work is done.</p>
+<h2 id="using-conefor-inside-qgis">Using Conefor inside QGIS<a class="headerlink" href="#using-conefor-inside-qgis" title="Permanent link">&para;</a></h2>
+<p>The files created with the tool described in the previous section are meant to eventually be processed using the Conefor 
+application, with either its graphical user interface or using the command line version.</p>
+<p>However, the qgisconefor plugin also provdes a set of QGIS Processing algorithms to perform the Conefor analysis 
+directly inside the QGIS environment. This feature uses under the hood the command line version of Conefor, thus 
+requiring that you have it installed on your system.</p>
+<p>This approach has the advantage of providing integration between QGIS' multiple geoprocessing/analysis/statistics tools
+and Conefor. It becomes possible to use Conefor analysis either:</p>
+<ul>
+<li>As a standalone tool inside QGIS</li>
+<li>For batch processing of multiple files</li>
+<li>Chaining together multiple QGIS Processing tools by means of building a workflow with the Processing model builder</li>
+<li>Storing complex workflows that use Conefor for reuse and sharing</li>
+</ul>
+<h3 id="configure-the-conefor-processing-provider">Configure the Conefor Processing provider<a class="headerlink" href="#configure-the-conefor-processing-provider" title="Permanent link">&para;</a></h3>
+<p>As mentioned above, in order to use Conefor inside QGIS you must have its command-line version already installed on 
+your system. Follow the <a href="http://conefor.org/coneforsensinode.html">Conefor download instructions</a> for more information
+on how to install the Conefor command line version.</p>
+<p>In QGIS, you need to specify the path to the Conefor application by going to:</p>
+<p><em>Settings &gt; Options... &gt; Processing &gt; Providers &gt; Conefor &gt; Conefor executable path</em></p>
+<p>and then providing the path on your system where Conefor is installed.</p>
+<h3 id="using-the-conefor-processing-algorithms">Using the Conefor Processing algorithms<a class="headerlink" href="#using-the-conefor-processing-algorithms" title="Permanent link">&para;</a></h3>
+<p>In the QGIS Processing toolbox, look for the <strong>Conefor</strong> section. </p>
+<details class="info - enabling the qgis processing toolbox">
+<summary>Info</summary>
+<p>If not already visible, you can enable it by going QGIS main menu <em>Processing &gt; Toolbox</em> </p>
+</details>
+<p>The QGIS/Processing Conefor section is organized in groups, each one containing one or more tools:</p>
+<ul>
+<li>
+<p><em>Binary indices</em> - Contains algorithms for using Conefor's binary indices: BC, BCIIC, CCP, etc.</p>
+</li>
+<li>
+<p><em>Prepare input files</em> - Contains algorithms for preparing the Conefor nodes and connection input files. These perform
+  the same task as the plugin's main dialog, which was described above</p>
+</li>
+<li>
+<p><em>Probability indices (distance based)</em> - Contains algorithms for using Conefor's probability indices</p>
+</li>
+<li>
+<p><em>Probability indices (probability based)</em> - Contains algorithms for using Conefor's probability indices</p>
+</li>
+<li>
+<p><em>Utilities</em></p>
+</li>
+</ul>
+<p>Technically the tools in the <em>Prepare input files</em> and <em>Utilities</em> sections do not require the Conefor command line 
+tool to be installed, as they are meant to create the input files to be processed with the Conefor program 
+(as discussed above. The advantages of having these tools inside the QGIS Processing toolbox are the ones already 
+cited, especially the possibility to run them in batch mode or as part of a larger workflow.</p>
+<p>When double clicking one of the tools a dialog is presented to the user, this allows to choose the inputs and 
+parameters for that particular tasks. Please read the Conefor user manual for information related to the various Conefor
+indices and parameters.</p>
+<h4 id="running-an-algorithm-in-batch-mode">Running an algorithm in batch mode<a class="headerlink" href="#running-an-algorithm-in-batch-mode" title="Permanent link">&para;</a></h4>
+<p>Since the Conefor algorithms are exposed inside the QGIS Processing toolbox, they can be ran in batch mode, just like
+all other toolbox tools. The official QGIS documentation has a section on how to use the batch mode:</p>
+<p>https://docs.qgis.org/3.34/en/docs/user_manual/processing/batch.html</p>
+<h4 id="creating-processing-workflows-with-the-model-builder">Creating Processing workflows with the model builder<a class="headerlink" href="#creating-processing-workflows-with-the-model-builder" title="Permanent link">&para;</a></h4>
+<p>Since the Conefor algorithms are exposed inside the QGIS Processing toolbox, they can be integrated into larger 
+workflows. The official QGIS documentation has a section on how to use the processing Model designer:</p>
+<p>https://docs.qgis.org/3.34/en/docs/user_manual/processing/modeler.html</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+    
+  </body>
+</html>
