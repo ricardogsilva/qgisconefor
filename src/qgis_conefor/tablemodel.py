@@ -110,7 +110,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
 
     def flags(self, index):
         if self.lock_layers:
-            if index.row() == 0:
+            if index.row() == 0 or index.column() == 0:
                 result = QtCore.Qt.ItemFlags(
                     QtCore.QAbstractTableModel.flags(self, index) |
                     QtCore.Qt.ItemIsEditable

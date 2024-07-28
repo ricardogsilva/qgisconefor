@@ -89,6 +89,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def toggle_lock_layers(self, lock):
         index = self.model.index(0, 0)
+        self.model.lock_layers = lock
         self.tableView.setFocus()
 
     def show_help(self):

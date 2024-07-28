@@ -318,6 +318,7 @@ class QgisConefor:
             kwargs.update({
                 "default_node_identifier_name": first.id_attribute_field_name,
                 "default_node_attribute_name": first.attribute_field_name,
+                "default_nodes_to_add_attribute_name": first.nodes_to_add_field_name,
             })
         for idx, data_item in enumerate(self.dialog.model.layers_to_process):
             if idx == 0 or not self.dialog.lock_layers_chb.isChecked():
