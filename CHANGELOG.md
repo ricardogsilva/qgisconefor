@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix 'lock attributes to first layer' button not working
 - Prevent using a float attribute as the node identifier
 - Add validation of node-related attributes when using the processing algorithm that prepares conefor inputs
 - Fix main dialog always using default values for layers
