@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Renamed distance files from 'connections_[edge|centroid]-distance_*' to the simpler 'distances_[edges|centroids]_*'
+- Simplified UI labels
 
 ### Removed
 - Removed option for creating an output vector layer with the distances from the main plugin dialog
