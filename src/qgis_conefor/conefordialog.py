@@ -32,7 +32,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     add_row_btn: QtWidgets.QPushButton
     buttonBox: QtWidgets.QDialogButtonBox
     centroid_distance_rb: QtWidgets.QRadioButton
-    create_distances_file_chb: QtWidgets.QCheckBox
     edge_distance_rb: QtWidgets.QRadioButton
     layers_la: QtWidgets.QLabel
     lock_layers_chb: QtWidgets.QCheckBox
@@ -56,7 +55,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.tableView.setModel(self.model)
         self.tableView.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
         self.iface = plugin_obj.iface
-        self.lock = QtCore.QReadWriteLock()
         self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.buttonBox.button(self.buttonBox.Cancel).released.connect(self.reject)
         self.buttonBox.button(self.buttonBox.Ok).released.connect(self.accept)
@@ -67,7 +65,6 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         output_dir = load_settings_key(
             schemas.QgisConeforSettingsKey.OUTPUT_DIR, default_to=str(Path.home()))
         self.output_dir_le.setText(output_dir)
-        self.create_distances_file_chb.setChecked(False)
 
         self.use_selected_features_chb.setChecked(
             load_settings_key(

@@ -166,30 +166,6 @@
     </layout>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QCheckBox" name="create_distances_file_chb">
-       <property name="text">
-        <string>Create link vector layer (Slower and works only with valid geometries)</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_4">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-    </layout>
-   </item>
-   <item>
     <widget class="QLabel" name="output_la">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Output directory&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -232,7 +208,6 @@
  <tabstops>
   <tabstop>add_row_btn</tabstop>
   <tabstop>remove_row_btn</tabstop>
-  <tabstop>create_distances_file_chb</tabstop>
   <tabstop>output_dir_btn</tabstop>
   <tabstop>output_dir_le</tabstop>
  </tabstops>
