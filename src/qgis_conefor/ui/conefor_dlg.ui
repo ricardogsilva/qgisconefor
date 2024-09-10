@@ -103,16 +103,16 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="remove_row_btn">
+      <widget class="QPushButton" name="remove_layer_btn">
        <property name="text">
-        <string>Remove row</string>
+        <string>Remove layer</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="add_row_btn">
+      <widget class="QPushButton" name="add_layer_btn">
        <property name="text">
-        <string>Add row</string>
+        <string>Add layer</string>
        </property>
       </widget>
      </item>
@@ -206,10 +206,15 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>add_row_btn</tabstop>
-  <tabstop>remove_row_btn</tabstop>
-  <tabstop>output_dir_btn</tabstop>
+  <tabstop>add_layer_btn</tabstop>
+  <tabstop>remove_layer_btn</tabstop>
+  <tabstop>edge_distance_rb</tabstop>
+  <tabstop>centroid_distance_rb</tabstop>
+  <tabstop>use_selected_features_chb</tabstop>
   <tabstop>output_dir_le</tabstop>
+  <tabstop>output_dir_btn</tabstop>
+  <tabstop>lock_layers_chb</tabstop>
+  <tabstop>tableView</tabstop>
  </tabstops>
  <resources/>
  <connections/>

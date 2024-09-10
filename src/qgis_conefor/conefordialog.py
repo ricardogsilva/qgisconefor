@@ -29,7 +29,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     model: tablemodel.ProcessLayerTableModel
 
     # UI controls
-    add_row_btn: QtWidgets.QPushButton
+    add_layer_btn: QtWidgets.QPushButton
     buttonBox: QtWidgets.QDialogButtonBox
     centroid_distance_rb: QtWidgets.QRadioButton
     edge_distance_rb: QtWidgets.QRadioButton
@@ -38,7 +38,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
     output_la: QtWidgets.QLabel
     output_dir_le: QtWidgets.QLineEdit
     output_dir_btn: QtWidgets.QPushButton
-    remove_row_btn: QtWidgets.QPushButton
+    remove_layer_btn: QtWidgets.QPushButton
     tableView: QtWidgets.QTableView
     use_selected_features_chb: QtWidgets.QCheckBox
 
@@ -58,8 +58,8 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.buttonBox.button(self.buttonBox.Cancel).released.connect(self.reject)
         self.buttonBox.button(self.buttonBox.Ok).released.connect(self.accept)
-        self.add_row_btn.released.connect(self.add_conefor_input)
-        self.remove_row_btn.released.connect(self.remove_conefor_input)
+        self.add_layer_btn.released.connect(self.add_conefor_input)
+        self.remove_layer_btn.released.connect(self.remove_conefor_input)
         self.output_dir_btn.released.connect(self.get_output_dir)
         self.lock_layers_chb.toggled.connect(self.toggle_lock_layers)
         output_dir = load_settings_key(
@@ -75,7 +75,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         )
         self.use_selected_features_chb.stateChanged.connect(
             self.use_selected_features_toggled)
-        self.remove_row_btn.setEnabled(self.model.rowCount() > 1)
+        self.remove_layer_btn.setEnabled(self.model.rowCount() > 1)
         self._layers = {}
 
     def use_selected_features_toggled(self, state: int):
@@ -101,15 +101,15 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.tableView.setCurrentIndex(index)
         self.tableView.edit(index)
         if self.model.rowCount() > 1:
-            self.remove_row_btn.setEnabled(True)
+            self.remove_layer_btn.setEnabled(True)
         else:
-            self.remove_row_btn.setEnabled(False)
+            self.remove_layer_btn.setEnabled(False)
 
     def remove_conefor_input(self):
         last_row = self.model.rowCount() - 1
         self.model.removeRows(last_row)
         if self.model.rowCount() == 1:
-            self.remove_row_btn.setEnabled(False)
+            self.remove_layer_btn.setEnabled(False)
 
     def get_output_dir(self):
         initial_dir = load_settings_key(
