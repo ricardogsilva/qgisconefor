@@ -66,8 +66,6 @@ class QgisConefor:
     dialog: Optional[QtWidgets.QDialog]
     processing_provider: ProcessingConeforProvider
     algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
-    edge_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
-    centroid_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
     model: Optional[ProcessLayerTableModel]
     processing_context: Optional[qgis.core.QgsProcessingContext]
     _processing_tasks: dict[
@@ -90,8 +88,6 @@ class QgisConefor:
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
         self.algorithm = None
-        self.edge_distance_processing_model = None
-        self.centroid_distance_processing_model = None
         self._processing_tasks = {}
         self._task_results = {}
 
@@ -104,10 +100,6 @@ class QgisConefor:
         processing_registry = qgis.core.QgsApplication.processingRegistry()
         self.algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
-        self.edge_distance_processing_model = processing_registry.createAlgorithmById(
-            "conefor:edge_distances")
-        self.centroid_distance_processing_model = processing_registry.createAlgorithmById(
-            "conefor:centroid_distances")
         self.analyzer_task = None
         self.dialog = ConeforDialog(self, model=self.model)
         self.dialog.setModal(True)
