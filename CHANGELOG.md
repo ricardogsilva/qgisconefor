@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplified UI labels
 
 ### Removed
+- Removed demo processing algorithms that interface with Conefor standalone
 - Removed option for creating an output vector layer with the distances from the main plugin dialog
 
 

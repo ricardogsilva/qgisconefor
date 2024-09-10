@@ -33,15 +33,15 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
         return QtGui.QIcon(ICON_RESOURCE_PATH)
 
     def load(self):
-        ProcessingConfig.settingIcons[self.name()] = self.icon()
-        ProcessingConfig.addSetting(
-            ProcessingSetting(
-                group=self.name(),
-                name=ConeforProcessingSetting.CONEFOR_CLI_PATH.name,
-                description=ConeforProcessingSetting.CONEFOR_CLI_PATH.value,
-                default="",
-            )
-        )
+        # ProcessingConfig.settingIcons[self.name()] = self.icon()
+        # ProcessingConfig.addSetting(
+        #     ProcessingSetting(
+        #         group=self.name(),
+        #         name=ConeforProcessingSetting.CONEFOR_CLI_PATH.name,
+        #         description=ConeforProcessingSetting.CONEFOR_CLI_PATH.value,
+        #         default="",
+        #     )
+        # )
         return super().load()
 
     def _load_models(self) -> list[qgis.core.QgsProcessingModelAlgorithm]:
@@ -73,23 +73,25 @@ class ProcessingConeforProvider(qgis.core.QgsProcessingProvider):
     def loadAlgorithms(self):
         self.addAlgorithm(coneforinputs.ConeforInputsPoint())
         self.addAlgorithm(coneforinputs.ConeforInputsPolygon())
-        self.addAlgorithm(coneforprocessor.ConeforNCProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforNLProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforHProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforCCPProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforLCPProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforIICProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforBCProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforBCIICProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforFDistanceProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforAWFDistanceProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforPCDistanceProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforBCPCDistanceProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforFProbabilityProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforAWFProbabilityProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforPCProbabilityProcessor())
-        self.addAlgorithm(coneforprocessor.ConeforBCPCProbabilityProcessor())
-        model_algorithms = self._load_models()
-        for model_algorithm in model_algorithms:
-            self.addAlgorithm(model_algorithm)
+
+        # - these are not ready to be enabled yet
+        # self.addAlgorithm(coneforprocessor.ConeforNCProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforNLProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforHProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforCCPProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforLCPProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforIICProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforBCProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforBCIICProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforFDistanceProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforAWFDistanceProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforPCDistanceProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforBCPCDistanceProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforFProbabilityProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforAWFProbabilityProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforPCProbabilityProcessor())
+        # self.addAlgorithm(coneforprocessor.ConeforBCPCProbabilityProcessor())
+        # model_algorithms = self._load_models()
+        # for model_algorithm in model_algorithms:
+        #     self.addAlgorithm(model_algorithm)
 
