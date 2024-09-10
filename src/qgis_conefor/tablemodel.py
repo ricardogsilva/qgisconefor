@@ -38,7 +38,7 @@ class TableModelItem:
 class ProcessLayerTableModel(QtCore.QAbstractTableModel):
     _header_labels = {
         ModelLabel.LAYER: "Layer",
-        ModelLabel.ID: "Node ID\n(unique)",
+        ModelLabel.ID: "Node ID",
         ModelLabel.ATTRIBUTE: "Node\nattribute",
         ModelLabel.NODES_TO_ADD: "Nodes\nto add",
     }
