@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Removed option for creating an output vector layer with the distances from the main plugin dialog
 
 
 ## [2.0.0-rc4] - 2024-07-28

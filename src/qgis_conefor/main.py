@@ -66,8 +66,6 @@ class QgisConefor:
     dialog: Optional[QtWidgets.QDialog]
     processing_provider: ProcessingConeforProvider
     algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
-    edge_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
-    centroid_distance_processing_model: Optional[qgis.core.QgsProcessingAlgorithm]
     model: Optional[ProcessLayerTableModel]
     processing_context: Optional[qgis.core.QgsProcessingContext]
     _processing_tasks: dict[
@@ -90,8 +88,6 @@ class QgisConefor:
         self.processing_provider = ProcessingConeforProvider()
         self.processing_context = None
         self.algorithm = None
-        self.edge_distance_processing_model = None
-        self.centroid_distance_processing_model = None
         self._processing_tasks = {}
         self._task_results = {}
 
@@ -104,10 +100,6 @@ class QgisConefor:
         processing_registry = qgis.core.QgsApplication.processingRegistry()
         self.algorithm = processing_registry.createAlgorithmById(
             "conefor:inputsfrompolygon")
-        self.edge_distance_processing_model = processing_registry.createAlgorithmById(
-            "conefor:edge_distances")
-        self.centroid_distance_processing_model = processing_registry.createAlgorithmById(
-            "conefor:centroid_distances")
         self.analyzer_task = None
         self.dialog = ConeforDialog(self, model=self.model)
         self.dialog.setModal(True)
@@ -178,72 +170,9 @@ class QgisConefor:
         log(f"Dialog has been closed with result {result!r}")
         self.dialog.hide()
 
-    def _enqueue_centroid_distance_generation_task(
-            self,
-            layer_params: ConeforInputParameters,
-            process_id: str,
-            use_selected_features: bool
-    ):
-        input_layer_param = qgis.core.QgsProcessingFeatureSourceDefinition(
-            source=layer_params.layer.id(),
-            selectedFeaturesOnly=use_selected_features,
-            featureLimit=-1,
-            geometryCheck=self.processing_context.invalidGeometryCheck(),
-        )
-        task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.centroid_distance_processing_model,
-            parameters={
-                "input": input_layer_param,
-                "output": qgis.core.QgsProcessingOutputLayerDefinition(
-                    "memory:", qgis.core.QgsProject.instance()
-                ),
-            },
-            context=self.processing_context
-        )
-        task.executed.connect(
-            functools.partial(
-                self.finalize_task_execution, process_id, layer_params)
-        )
-        self._processing_tasks[process_id] = task
-        log(f"about to enqueue centroid distance task {process_id}...")
-        task_manager = qgis.core.QgsApplication.taskManager()
-        task_manager.addTask(task)
-
-    def _enqueue_edge_distance_generation_task(
-            self,
-            layer_params: ConeforInputParameters,
-            process_id: str,
-            use_selected_features: bool
-    ):
-        input_layer_param = qgis.core.QgsProcessingFeatureSourceDefinition(
-            source=layer_params.layer.id(),
-            selectedFeaturesOnly=use_selected_features,
-            featureLimit=-1,
-            geometryCheck=self.processing_context.invalidGeometryCheck(),
-        )
-        task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.edge_distance_processing_model,
-            parameters={
-                "input": input_layer_param,
-                "output": qgis.core.QgsProcessingOutputLayerDefinition(
-                    "memory:", qgis.core.QgsProject.instance()
-                ),
-            },
-            context=self.processing_context
-        )
-        task.executed.connect(
-            functools.partial(
-                self.finalize_task_execution, process_id, layer_params)
-        )
-        self._processing_tasks[process_id] = task
-        log(f"about to enqueue edge distance task {process_id}...")
-        task_manager = qgis.core.QgsApplication.taskManager()
-        task_manager.addTask(task)
-
     def _process_layer(
             self,
             layer_params: ConeforInputParameters,
-            create_distance_file: bool,
             output_dir: str,
             use_selected_features: bool
     ):
@@ -285,27 +214,6 @@ class QgisConefor:
         task_manager = qgis.core.QgsApplication.taskManager()
         log(f"About to enqueue task with process_id: {process_id!r}")
         task_manager.addTask(task)
-        if create_distance_file:
-            if layer_params.connections_method == schemas.NodeConnectionType.EDGE_DISTANCE:
-                self._enqueue_edge_distance_generation_task(
-                    layer_params,
-                    schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-                        process_id,
-                        "edge_distance",
-                    )),
-                    use_selected_features,
-                )
-            elif layer_params.connections_method == schemas.NodeConnectionType.CENTROID_DISTANCE:
-                self._enqueue_centroid_distance_generation_task(
-                    layer_params,
-                    schemas.PROCESSING_TASK_ID_SEPARATOR.join((
-                        process_id,
-                        "centroid_distance",
-                    )),
-                    use_selected_features,
-                )
-            else:
-                raise NotImplementedError()
 
     def prepare_conefor_inputs(self):
         layer_inputs = set()
@@ -331,9 +239,8 @@ class QgisConefor:
         for layer_to_process in layer_inputs:
             self._process_layer(
                 layer_to_process,
-                self.dialog.create_distances_file_chb.isChecked(),
-                output_dir,
-                only_selected_features,
+                output_dir=output_dir,
+                use_selected_features=only_selected_features,
             )
 
     def get_conefor_input_parameters(
