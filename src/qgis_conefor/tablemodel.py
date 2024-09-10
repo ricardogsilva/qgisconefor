@@ -40,7 +40,7 @@ class ProcessLayerTableModel(QtCore.QAbstractTableModel):
         ModelLabel.LAYER: "Layer",
         ModelLabel.ID: "Node ID",
         ModelLabel.ATTRIBUTE: "Node\nattribute",
-        ModelLabel.NODES_TO_ADD: "Nodes\nto add",
+        ModelLabel.NODES_TO_ADD: "Nodes to add\n(Optional)",
     }
 
     is_runnable_check = QtCore.pyqtSignal()
