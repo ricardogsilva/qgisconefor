@@ -136,7 +136,7 @@ class ConeforInputsBase(base.Base):
                 feature_iterator_factory=source.getFeatures,
                 num_features=source.featureCount(),
                 output_path=(
-                        output_dir / f"connections_centroid-distance_{source.sourceName()}.txt"
+                        output_dir / f"distances_centroids_{source.sourceName()}.txt"
                 ),
                 progress_callback=feedback.setProgress,
                 start_progress=50,
@@ -526,7 +526,7 @@ class ConeforInputsPolygon(ConeforInputsBase):
                 crs=source.sourceCrs(),
                 feature_iterator_factory=source.getFeatures,
                 num_features=source.featureCount(),
-                output_path=output_dir / f"connections_edge-distance_{source.sourceName()}.txt",
+                output_path=output_dir / f"distances_edges_{source.sourceName()}.txt",
                 progress_callback=feedback.setProgress,
                 start_progress=50,
                 info_callback=feedback.pushInfo,
