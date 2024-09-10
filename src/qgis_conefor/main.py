@@ -112,7 +112,7 @@ class QgisConefor:
         )
         self.action.triggered.connect(self.run)
         self.action.setEnabled(False)
-        self.iface.addPluginToVectorMenu(f"&{self._action_title}", self.action)
+        self.iface.addPluginToVectorMenu(None, self.action)
         self.iface.addVectorToolBarIcon(self.action)
         qgis_project = qgis.core.QgsProject.instance()
         qgis_project.legendLayersAdded.connect(self.check_for_new_layers)

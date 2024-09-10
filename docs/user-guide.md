@@ -21,7 +21,7 @@ application.
 
 Once installed, the plugin tools can be reached in different places:
 
-- From the main menu: _vector > Conefor inputs > Conefor inputs_
+- From the main menu: _vector > Conefor inputs_
 - The _Vector_ toolbar also shows a button to launch the plugin dialog
 - _Processing_ toolbox (see below, "Using Conefor inside QGIS" paragraph)
 
