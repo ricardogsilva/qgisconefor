@@ -79,7 +79,7 @@ The options are described here below:
   used, then it can double click on its name and a dropdown will show, allowing to choose any other proper layer 
   loaded in the QGIS project.
 
-- **NODE ID (unique)**: this option allows to choose what is the attribute to be used as unique ID. The plugin is also 
+- **NODE ID**: this option allows to choose what is the attribute to be used as unique ID. The plugin is also 
   able to autogenerate an ID
 
 - **Node Attribute**: this option allows the user to query (extract) one attribute from the table of attributes of the 
