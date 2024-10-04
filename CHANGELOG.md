@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed demo processing algorithms that interface with Conefor standalone
 - Removed option for creating an output vector layer with the distances from the main plugin dialog
 
+### Fixed
+- Will now re-analyze layers whenever their attribute table changes
+
 
 ## [2.0.0-rc4] - 2024-07-28
 

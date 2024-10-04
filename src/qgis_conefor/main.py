@@ -115,14 +115,14 @@ class QgisConefor:
         self.iface.addPluginToVectorMenu(None, self.action)
         self.iface.addVectorToolBarIcon(self.action)
         qgis_project = qgis.core.QgsProject.instance()
-        qgis_project.legendLayersAdded.connect(self.check_for_new_layers)
+        qgis_project.legendLayersAdded.connect(self.start_tracking_layers)
         qgis_project.layersRemoved.connect(self.check_for_removed_layers)
 
     def unload(self):
         processing_registry = qgis.core.QgsApplication.processingRegistry()
         processing_registry.removeProvider(self.processing_provider)
         qgis_project = qgis.core.QgsProject.instance()
-        qgis_project.legendLayersAdded.disconnect(self.check_for_new_layers)
+        qgis_project.legendLayersAdded.disconnect(self.start_tracking_layers)
         qgis_project.layersRemoved.disconnect(self.check_for_removed_layers)
         self.iface.removePluginVectorMenu(f"&{self._action_title}", self.action)
         self.iface.removeVectorToolBarIcon(self.action)
@@ -329,18 +329,40 @@ class QgisConefor:
                 )
             self._task_results = {}
 
-    def check_for_new_layers(self, new_layers: list[qgis.core.QgsMapLayer]):
-        log("inside check_for_new_layers")
+    def start_tracking_layers(self, new_layers: list[qgis.core.QgsMapLayer]):
+        for layer in (
+                l for l in new_layers
+                if l.type() == qgis.core.QgsMapLayer.LayerType.Vector
+        ):
+            layer: qgis.core.QgsVectorLayer
+            if layer.geometryType() == qgis.core.Qgis.GeometryType.Polygon:
+                layer.committedAttributesAdded.connect(self._react_to_layer_attributes_added)
+                layer.committedAttributesDeleted.connect(self._react_to_layer_attributes_deleted)
         self.start_analyzing_layers()
 
     def check_for_removed_layers(self, removed_layer_ids: list[str]):
-        log("inside check_for_removed_layers")
         self.start_analyzing_layers(disregard_ids=removed_layer_ids)
 
     def open_output_dir(self):
         output_dir = load_settings_key(
             schemas.QgisConeforSettingsKey.OUTPUT_DIR)
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(f"file://{output_dir}"))
+
+    def _react_to_layer_attributes_added(
+            self,
+            layer_id: str,
+            added_attributes: list[qgis.core.QgsField]
+    ):
+        log(f"inside _react_to_layer_attributes_added called - {locals()}")
+        self.start_analyzing_layers()
+
+    def _react_to_layer_attributes_deleted(
+            self,
+            layer_id: str,
+            deleted_attributes: list[int],
+    ):
+        log(f"inside _react_to_layer_attributes_deleted called - {locals()}")
+        self.start_analyzing_layers()
 
 
 
