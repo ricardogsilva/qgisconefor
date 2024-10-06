@@ -294,6 +294,18 @@ class QgisConefor:
         log(f"Finalizing task {process_id!r} with layer params {layer_params=} {was_successful=} {results=}")
         unique_part, dynamic_part = process_id.partition(
             schemas.PROCESSING_TASK_ID_SEPARATOR)[::2]
+
+        if results.get("output_generated_layer") is not None:
+            log("loading generated layer onto map canvas...")
+            layer_store = self.processing_context.temporaryLayerStore()
+            temp_store_layer_id = results["output_generated_layer"]
+            log(f"{layer_store.mapLayers()=}")
+            temp_store_output_layer = layer_store.mapLayers()[temp_store_layer_id]
+            output_layer = layer_store.takeMapLayer(temp_store_output_layer)
+            output_layer.setName(f"{layer_params.layer.name()}_conefor")
+            qgis_project = qgis.core.QgsProject.instance()
+            qgis_project.addMapLayer(output_layer)
+
         if dynamic_part != layer_params.layer.name():
             _, distance_part = dynamic_part.rpartition(
                 schemas.PROCESSING_TASK_ID_SEPARATOR)[::2]
