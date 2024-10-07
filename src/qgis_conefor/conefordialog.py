@@ -53,7 +53,7 @@ class ConeforDialog(QtWidgets.QDialog, FORM_CLASS):
         self.edge_distance_rb.setChecked(True)
         self.model = model
         self.tableView.setModel(self.model)
-        self.tableView.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        self.tableView.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         self.iface = plugin_obj.iface
         self.buttonBox.button(self.buttonBox.Help).released.connect(self.show_help)
         self.buttonBox.button(self.buttonBox.Cancel).released.connect(self.reject)
