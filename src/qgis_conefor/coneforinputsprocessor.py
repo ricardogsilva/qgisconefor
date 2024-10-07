@@ -137,18 +137,17 @@ def generate_node_file_by_attribute(
     node_attribute_field_name: str,
     nodes_to_add_field_name: Optional[str],
     feature_iterator_factory: Callable[[], qgis.core.QgsFeatureIterator],
-    num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
+    progress_step: float,
     start_progress: int = 0,
-    end_progress: int = 100,
     info_callback: Optional[Callable[[str], None]] = log,
 
 ) -> Optional[Path]:
     """Generate Conefor node file using each feature's attribute as the node attribute."""
 
     data = []
-    current_progress = 0
+    current_progress = start_progress
     seen_ids = set()
     for feat in feature_iterator_factory():
         info_callback(f"Processing feature {feat.id()}...")
@@ -176,6 +175,8 @@ def generate_node_file_by_attribute(
                     else:
                         data.append((id_, attr))
                     seen_ids.add(id_)
+                    current_progress += progress_step
+                    progress_callback(int(current_progress))
                 else:
                     info_callback(
                         f"Feature with id {id_!r}: Attribute "
@@ -194,8 +195,8 @@ def generate_node_file_by_attribute(
                 f"node id {id_!r} is not unique. Conefor node identifiers must be "
                 f"unique - Please select another layer field."
             )
-        current_progress += (end_progress - start_progress)/num_features
-        progress_callback(int(start_progress + current_progress))
+        # current_progress += (end_progress - start_progress)/num_features
+        # progress_callback(int(start_progress + current_progress))
     info_callback("Writing attribute file...")
     if len(data) > 0:
         return save_text_file(data, output_path)
@@ -211,15 +212,15 @@ def generate_connection_file_with_centroid_distances(
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
+    progress_step: float,
     start_progress: int = 0,
-    end_progress: int = 100,
     info_callback: Optional[Callable[[str], None]] = log,
     cancelled_callback: Optional[Callable[[], bool]] = None,
     distance_threshold: Optional[int] = None,
 ) -> Optional[Path]:
     data = []
     measurer = get_measurer(crs)
-    current_progress = 0
+    current_progress = start_progress
     seen_ids = set()
     for feat in feature_iterator_factory():
         feat_id = feat[node_id_field_name]
@@ -238,12 +239,14 @@ def generate_connection_file_with_centroid_distances(
                     centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
                     if distance_threshold is None or centroid_distance <= distance_threshold:
                         data.append((feat_id, pair_feat_id, centroid_distance))
+                        current_progress += progress_step
+                        progress_callback(int(current_progress))
             else:
                 # this `else` block belongs to the inner `for` block and
                 # it gets executed if the `for` loop is able to run until
                 # completion (i.e. is not stopped by a `break`).
-                current_progress += (end_progress - start_progress) / num_features
-                progress_callback(int(start_progress + current_progress))
+                # current_progress += (end_progress - start_progress) / num_features
+                # progress_callback(int(start_progress + current_progress))
                 continue
             # if the inner loop did not run until completion, then the outer loop should `break` too
             break
@@ -271,8 +274,8 @@ def generate_connection_file_with_edge_distances(
     num_features: int,
     output_path: Path,
     progress_callback: Optional[Callable[[int], None]],
+    progress_step: float,
     start_progress: int = 0,
-    end_progress: int = 100,
     info_callback: Optional[Callable[[str], None]] = log,
     cancelled_callback: Optional[Callable[[], bool]] = None,
     distance_threshold: Optional[int] = None,
@@ -285,7 +288,7 @@ def generate_connection_file_with_edge_distances(
             crs, destination_crs, qgis_project.transformContext())
     else:
         transformer = None
-    current_progress = 0
+    current_progress = start_progress
     info_callback(f"About to start processing {num_features} features...")
     seen_ids = set()
     for feat in feature_iterator_factory():
@@ -309,12 +312,14 @@ def generate_connection_file_with_edge_distances(
                     edge_distance = feat_geom.distance(pair_feat_geom)
                     if distance_threshold is None or edge_distance <= distance_threshold:
                         data.append((feat_id, pair_feat_id, edge_distance))
+                        current_progress += progress_step
+                        progress_callback(int(current_progress))
             else:
                 # this `else` block belongs to the inner `for` block and
                 # it gets executed if the `for` loop is able to run until
                 # completion (i.e. is not stopped by a `break`).
-                current_progress += (end_progress - start_progress) / num_features
-                progress_callback(int(start_progress + current_progress))
+                # current_progress += (end_progress - start_progress) / num_features
+                # progress_callback(int(start_progress + current_progress))
                 continue
             # if the inner loop did not run until completion, then the outer loop should `break` too
             break
