@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   missing properties
 
 ### Changed
+- Adjusted size of columns in the custom dialog so that the last one is not bigger than the rest
 - Renamed distance files from 'connections_[edge|centroid]-distance_*' to the simpler 'distances_[edges|centroids]_*'
 - Simplified UI labels
 
