@@ -358,7 +358,8 @@ class QgisConefor:
     def open_output_dir(self):
         output_dir = load_settings_key(
             schemas.QgisConeforSettingsKey.OUTPUT_DIR)
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(f"file://{output_dir}"))
+        output_dir_url = QtCore.QUrl.fromLocalFile(output_dir)
+        QtGui.QDesktopServices.openUrl(output_dir_url)
 
     def _react_to_layer_attributes_added(
             self,
