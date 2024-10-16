@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+
+## [2.0.0-rc6] - 2024-10-16
+
 ### Fixed
 - Node and connections files are named after their original layer again
 
@@ -106,7 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc5...main
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc6...main
+[2.0.0-rc6]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc5...v2.0.0-rc6
 [2.0.0-rc5]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc4...v2.0.0-rc5
 [2.0.0-rc4]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc3...v2.0.0-rc4
 [2.0.0-rc3]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc2...v2.0.0-rc3
