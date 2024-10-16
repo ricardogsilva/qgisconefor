@@ -26,30 +26,43 @@ Once installed, the plugin tools can be reached in different places:
 - _Processing_ toolbox (see below, "Using Conefor inside QGIS" paragraph)
 
 
-??? note
+??? note "QGIS toolbars"
 
     In QGIS the toolbars can be activated/deactivated by using the following menu:
 
-		_View > toolbars_
+    _View > toolbars_
 
-	The content of a toolbar may vary depending on what tools/plugins are installed/active in a specific QGIS installation
+	The content of a toolbar may vary depending on what tools/plugins are installed/active in a specific QGIS 
+    installation. The Conefor plugin is part of the _Vector Toolbar_ toolbar.
 
 
 ## Usage
 
-This plugin has two main intended usage workflows:
+[//]: # (This plugin has two main intended usage workflows:)
 
-1. As a means for generating the Conefor input files (nodes and connections) from geospatial layers and then running 
-   the standalone Conefor application with the tese input files. For this you can either:
+[//]: # ()
+[//]: # (1. As a means for generating the Conefor input files &#40;nodes and connections&#41; from geospatial layers and then running )
 
-   - Use the plugin's main dialog
-   - Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_
+[//]: # (   the standalone Conefor application with the these input files. For this you can either:)
 
-2. As way to run the Conefor application from inside QGIS. In this workflow you can both prepare the Conefor input files
-   and run the Conefor analysis by combining the Processing algorithms present in _Processing toolbox > Conefor_
+[//]: # ()
+[//]: # (   - Use the plugin's main dialog)
+
+[//]: # (   - Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_)
+
+[//]: # ()
+[//]: # (2. As way to run the Conefor application from inside QGIS. In this workflow you can both prepare the Conefor input files)
+
+[//]: # (   and run the Conefor analysis by combining the Processing algorithms present in _Processing toolbox > Conefor_)
+
+This plugin is used for generating the Conefor input files (nodes and connections) from geospatial layers and then 
+running the standalone Conefor application with the these input files. For this you can either:
+
+- Use the plugin's main dialog
+- Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_
 
 
-## Preparing the inputs for post-processing with Conefor
+## Preparing inputs for Conefor
 
 The icon/shortcut available in the _Vector > conefor inputs_ menu or in the _Vector_ toolbar provides access to an 
 interface that allows you to create the input files to be then processed with the Conefor application. For information
