@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Node and connections files are named after their original layer again
+
 
 ## [2.0.0-rc5] - 2024-10-11
 
