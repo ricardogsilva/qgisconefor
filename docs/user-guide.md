@@ -26,115 +26,224 @@ Once installed, the plugin tools can be reached in different places:
 - _Processing_ toolbox (see below, "Using Conefor inside QGIS" paragraph)
 
 
-??? note
+??? note "QGIS toolbars"
 
     In QGIS the toolbars can be activated/deactivated by using the following menu:
 
-		_View > toolbars_
+    _View > toolbars_
 
-	The content of a toolbar may vary depending on what tools/plugins are installed/active in a specific QGIS installation
+	The content of a toolbar may vary depending on what tools/plugins are installed/active in a specific QGIS 
+    installation. The Conefor plugin is part of the _Vector Toolbar_ toolbar.
 
 
 ## Usage
 
-This plugin has two main intended usage workflows:
+[//]: # (This plugin has two main intended usage workflows:)
 
-1. As a means for generating the Conefor input files (nodes and connections) from geospatial layers and then running 
-   the standalone Conefor application with the tese input files. For this you can either:
+[//]: # ()
+[//]: # (1. As a means for generating the Conefor input files &#40;nodes and connections&#41; from geospatial layers and then running )
 
-   - Use the plugin's main dialog
-   - Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_
+[//]: # (   the standalone Conefor application with the these input files. For this you can either:)
 
-2. As way to run the Conefor application from inside QGIS. In this workflow you can both prepare the Conefor input files
-   and run the Conefor analysis by combining the Processing algorithms present in _Processing toolbox > Conefor_
+[//]: # ()
+[//]: # (   - Use the plugin's main dialog)
+
+[//]: # (   - Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_)
+
+[//]: # ()
+[//]: # (2. As way to run the Conefor application from inside QGIS. In this workflow you can both prepare the Conefor input files)
+
+[//]: # (   and run the Conefor analysis by combining the Processing algorithms present in _Processing toolbox > Conefor_)
+
+This plugin is used for generating the Conefor input files (nodes and connections) from geospatial layers and then 
+running the standalone Conefor application with the these input files. For this you can either:
+
+- Use the plugin's main dialog
+- Use the Processing algorithms present in _Processing toolbox > Conefor > Prepare input files_
 
 
-## Preparing the inputs for post-processing with Conefor
+## Preparing inputs for Conefor
 
-The icon/shortcut available in the _Vector > conefor inputs_ menu or in the _Vector_ toolbar provides access to an 
-interface that allows you to create the input files to be then processed with the Conefor application. For information
-on how to use the Conefor application, see the 
-[Conefor user manual](http://www.conefor.org/files/usuarios/Manual_Conefor_26.pdf). 
 
-The tool allows to compute distance analysis and node (feature) queries:
+### Using the dedicated Conefor plugin dialog
 
-- Distance from edges (for polygon layers)
-- Distance from centroids (for polygon layers)
-- Compute area of polygons (for polygon layers)
+The icon/shortcut available in the _Vector > Conefor inputs_ menu or in the _Vector_ toolbar provides access to a
+dialog that allows you to create the input files to be then processed with the Conefor application. 
+
+The dialog allows to compute distance analysis and node (feature) queries:
+
+- Distance from edges
+- Distance from centroids
+- Compute area of polygons
 - Extract one attribute
 
 The results are placed into (separate) text files (with the .txt file extension) inside an output folder.
 
-For distance queries is available the option to compute also a vector layer that represents 
-the segments with the minimum distance between the input features.
+!!! tip
+    For information on how you would use the plugin-generated files as inputs to Conefor, please see the 
+    [Conefor user manual]. 
 
-Upon opening the tool, it will load all currently selected vector layers. Additional layers can also be selected by
-adding rows to the tool's main table.
 
-{Insert image of the dialog}
+[Conefor user manual]: http://www.conefor.org/files/usuarios/Manual_Conefor_26.pdf
 
-The options are described here below:
+The dialog looks like this:
 
--   **Layer**: the list of loaded layers to be analyzed/queried. If the user mistakenly loads a layer that is not to be 
-    used, then it can double click on its name and a dropdown will show, allowing to choose any other proper layer 
-    loaded in the QGIS project.
+![main-dialog-tour](images/qgisconefor-main-dialog.png)
 
--   **NODE ID**: this option allows to choose what is the attribute to be used as unique ID. The plugin is also 
-    able to autogenerate an ID
+1.  **Layer selector** - When clicked, this turns into a combobox, allowing you to select one of the layers that are 
+    currently loaded in QGIS as the target for Conefor inputs generation;
 
--   **Node Attribute**: this option allows the user to query (extract) one attribute from the table of attributes of the 
-    input layer. Results will be placed in a text file beside the "NODE ID" values. 
 
-    If you select the _<GENERATE_FROM_AREA>_ value, the plugin will the area of each feature as the node attribute. 
-    Areas are computed using the ellipsoid and units defined in the QGIS Project. You can manage them by going to the
-    QGIS main menu _Project > Properties... > General > Measurements_
+2.  **Node ID selector** - Select one of the attributes of the layer to be used as the Conefor node identifier. Only 
+    attributes of type integer are acceptable. Moreover, in order for the attribute to be usable as a node identifier, 
+    each feature in the input layer must have a unique value. 
 
--   **Remove layer/Add layer** buttons: These buttons allow you to remove/add layers to be processed
+    Alternatively to selecting an existing layer attribute, you may also choose the `<AUTOGENERATE>` option. This will 
+    result in the creation of a new in-memory layer named `{layer-name}_conefor` (in which `{layer-name}` is the name 
+    of the original layer), which is a copy of the original input layer, with the addition of a new column 
+    named `conefor_node_id`. This will allow you to match the node ids generated by the plugin to their 
+    corresponding layer features. 
 
--   **Calculate node connections as**:
+    !!! tip
+        Don't forget to save this new layer if you want to keep it, as in-memory layers are 
+        deleted when QGIS closes!
 
-    -   **Edge distances** - When this option is active an output text file will be created and it will contain the 
-        minimum distance between the edges (boundaries) of each feature.
+
+3.  **Node attribute selector** - Select one of the attributes of the layer to be used as the Conefor attribute. Only 
+    numeric attributes are acceptable.
+
+    Similarly to the Node ID selector, you may choose the `<GENERATE_FROM_AREA>` option, which will result in the 
+    creation of a new in-memory layer with a new column named `conefor_node_attribute(area)`. This column has the area 
+    of each feature, which is then used as the Conefor node attribute.
+
+    !!! tip
+        You can combine both the autogeneration of a node id and the autogeneration of a node attribute, which would 
+        result in the generation of a single in-memory QGIS layer with a copy of the original layer and the addition of
+        the two `conefor_node_id` and `conefor_node_attribute(area)` columns.
+
+    ??? info
+        Autogeneration of the Conefor node attribute by using feature areas reuses the following QGIS Processing 
+        toolbox algorithms:
+
+        -  [Add geometry attributes](https://docs.qgis.org/testing/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html#add-geometry-attributes) - Area is calculated using the `ellispoidal` option
+        -  [Drop field(s)](https://docs.qgis.org/testing/en/docs/user_manual/processing_algs/qgis/vectortable.html#qgisdeletecolumn)
+        -  [Rename field](https://docs.qgis.org/testing/en/docs/user_manual/processing_algs/qgis/vectortable.html#qgisrenametablefield)
+
+
+4. **Nodes to add selector** - You can optionally select one of the input layer's attributes that should be used as the
+   Conefor _nodes to add_ field. This attribute must only have integer values of `0` and `1`. Read more this feature on
+   the [Conefor user manual].
+
+
+5.  **Add/Remove layer buttons** - These buttons allow you to add and remove layers to be processed. Note that the 
+    `Remove layer` button always removes the last layer of the list
+
+
+6.  **Node distance method selector** - These radio buttons allow you to select one distance calculation method, which
+    will be used to generate the Conefor distances file. Choose one of:
+
+    -  `Edge distances` - Calculates distances between pairs of features by measuring the distance between their 
+       closest edges
+    -  `Centroid distances` - Calculates distances between pairs of features by measuring the distance between their 
+       geometric centroids
     
-    -   **Centroid distances** - When this option is active an output text file will be created and it will contain the 
-        minimum distance between the centroids of features.
+    !!! info "Distance calculation and Coordinate Reference Systems (CRS)"
+        When calculating distances it is a good idea to ensure that layers use a projected CRS. 
+
+        In this plugin, if the input layer's CRS is projected, then distance calculation uses it directly. On the 
+        contrary, if the CRS of the layer is geographic, the plugin will fallback to using the CRS of the QGIS 
+        project - it simply transforms each input feature into the QGIS project's CRS (expecting it to be projected, 
+        but without checking) perform distance calculations.
+
+        If your input layers use a geographic CRS, such as WGS84 (EPSG:4326), you should either reproject them first 
+        or set an appropriate CRS in the QGIS project settings.
 
 
--   **Only use selected features**: If a selection is made in the QGIS canvas (in one or more input layers) and this 
-    option is checked, then the analysis/queries will be run only using the selected features.
+7.  **Lock field names to first layer selector** - If you add a large number of layers with similar names for 
+    their corresponding attributes, you can opt to specify the `node id`/`node attribute`/`nodes to add` values for the
+    first layer and have this selection be automatically replicated to all layers in the list.
 
--   **Lock field names to first layer**: before running any analysis/query, for each layer it is mandatory to select
-    a few options (a unique ID among the others, see below for details). If the number of layers to be analyzed/queried
-    is high then this can become a tedious operation. By checking this option the user can force the tool to assume
-    that the same analysis/queries have to be run for all the layers. The tool will also assume that all the layers
-    have a unique ID with the same name.
 
-- **Output directory**: the folder where output Conefor nodes and connections files will be placed. The output file 
-  names contain the type of query and the layer name. For example, if the input file name is "espacios_natura2000" 
-  then all the possible outputs will be:
+8.  **Only use selected features selector** - Restrict the Conefor input files to contain information related to the 
+    currently selected features
 
-    - distances_centroids_espacios_natura2000.txt
-    - distances_edges_espacios_natura2000.txt
-    - nodes_calculated_area_espacios_natura2000.txt
-    - nodes_NODE_ATTRIBUTE_espacios_natura2000.txt
-  
-    !!! note
+
+9.  **Output directory selector** - Choose the output directory for the generated Conefor node and connection files. 
+    The output files will be put inside the selected directory and will be named like:
+
+    -  `nodes_{node-column-name}_{layer-name}[_{increment}].txt`
+    -  `distances_{edges | centroids}_{layer-name}[_{increment}].txt`
     
-        When running multiple times the same analysis/query then the output files will not be overwritten, instead an 
-        underscore and a progressive number is added at the end of the output file name, for example:
-        
-        - distances_centroids_espacios_natura2000_2.txt
-        - distances_centroids_espacios_natura2000_2.txt
-        - distances_centroids_espacios_natura2000_3.txt
-        - ...
+    Where `_{increment}` may be present if there is already another file with the same name, in which case the increment
+    is simple numeric increment, used to diferentiate between them.
 
-- **Run** button: to run the analysis/queries. 
+    For example, if a layer is named `espacios_natura2000`, the possible output name combinations will be:
 
-  When running, the plugin dialog will close itself and the processing will be taking place as a background task. 
-  The progress is displayed in QGIS status bar. You can also cancel the execution by clicking on the progress 
-  indicator and then clicking the cancel button.
+    -  `nodes_conefor_node_attribute_(area)_espacios_natura2000.txt`
+    -  `nodes_NODE_ATTRIBUTE_espacios_natura2000.txt`
+    -  `nodes_NODE_ATTRIBUTE_espacios_natura2000_2.txt`
+    -  `distances_centroids_espacios_natura2000.txt`
+    -  `distances_edges_espacios_natura2000.txt`
+    -  `distances_edges_espacios_natura2000_2.txt`
 
-  When finished, the plugin displays a notification to let you know its work is done.
+
+10. **Plugin help button** - Press the `Help` button to be taken to the homepage of the plugin, where you can find 
+    this user guide
+
+11. **OK/Cancel button** - Use the `OK` button to proceed with the generation of the Conefor input files or the `Cancel`
+    button to close the plugin dialog without performing any further action
+
+
+#### Plugin execution
+
+When running, the plugin dialog will close itself and the processing will be taking place as a background task, 
+with the progress being displayed in QGIS status bar (number 1 in the image below).
+
+![qgisconefor-execution](images/qgisconefor-execution.png)
+
+Clicking on the progress indicator opens up a small pop-up dialog where you can inspect the progress with a bit 
+more detail (see number 2 in the image) and cancel ongoing calculations (number 3 in the image). 
+
+When finished, the plugin displays a notification in the main QGIS message bar to let you know its work is done. 
+If something went wrong, it will show an error description.
+
+![processing-done](images/qgisconefor-done.png)
+
+
+### Using the Processing toolbox algorithms
+
+This plugin's execution code is implemented as set of QGIS Processing algorithms. Therefore, regardless of if you are
+using the custom plugin dialog, or the dialogs shown via the Processing toolbox, the code runs in the same way. This 
+means that execution options are mostly the same, with the notable difference that running via Processing uses a generic
+dialog that gets automatically created by QGIS.
+
+!!! tip
+
+    Running via Processing also unlocks integrating this plugin with other algorithms, perhaps by creating complex 
+    Processing workflows with its Model Designer, or via custom scripts.
+
+    The [QGIS documentation has a comprehensive section on Processing](https://docs.qgis.org/3.34/en/docs/user_manual/processing/index.html).
+
+
+Looking at the QGIS Processing Toolbox panel, you will find a section named **Conefor**. Expanding it will show the 
+following structure:
+
+-  `Prepare input files -> Generate input files from point layer` 
+
+-  `Prepare input files -> Generate input files from polygon layer`
+
+Note that even though the custom dialog only allows the processing of vector layers that have _Polygon_ geometries, 
+which is the main use case for this plugin, using the Processing toolbox allows you to make use of layers with _Point_ 
+geometries too, if needed.
+
+![toolbox-structure](images/qgisconefor-processing-toolbox.png)
+
+!!! tip
+
+    You can enable the Processing toolbox by navigating to _Processing -> toolbox_ in the QGIS main menu
+
+When choosing any of these two algorithms a new dialog pops up, with a set of user interface controls that mimick what 
+has been described above in the [section about the custom plugin dialog](#using-the-dedicated-conefor-plugin-dialog)
 
 
 [//]: # (## Using Conefor inside QGIS)
