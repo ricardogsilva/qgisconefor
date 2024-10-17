@@ -216,7 +216,6 @@ def generate_connection_file_with_centroid_distances(
     start_progress: int = 0,
     info_callback: Optional[Callable[[str], None]] = log,
     cancelled_callback: Optional[Callable[[], bool]] = None,
-    distance_threshold: Optional[int] = None,
 ) -> Optional[Path]:
     data = []
     measurer = get_measurer(crs)
@@ -237,10 +236,9 @@ def generate_connection_file_with_centroid_distances(
                     pair_feat_id = pair_feat[node_id_field_name]
                     pair_centroid = pair_feat.geometry().centroid().asPoint()
                     centroid_distance = measurer.measureLine([feat_centroid, pair_centroid])
-                    if distance_threshold is None or centroid_distance <= distance_threshold:
-                        data.append((feat_id, pair_feat_id, centroid_distance))
-                        current_progress += progress_step
-                        progress_callback(int(current_progress))
+                    data.append((feat_id, pair_feat_id, centroid_distance))
+                    current_progress += progress_step
+                    progress_callback(int(current_progress))
             else:
                 # this `else` block belongs to the inner `for` block and
                 # it gets executed if the `for` loop is able to run until
@@ -278,7 +276,6 @@ def generate_connection_file_with_edge_distances(
     start_progress: int = 0,
     info_callback: Optional[Callable[[str], None]] = log,
     cancelled_callback: Optional[Callable[[], bool]] = None,
-    distance_threshold: Optional[int] = None,
 ) -> Optional[Path]:
     data = []
     if crs.isGeographic():
@@ -310,10 +307,9 @@ def generate_connection_file_with_edge_distances(
                     if transformer is not None:
                         pair_feat_geom.transform(transformer)
                     edge_distance = feat_geom.distance(pair_feat_geom)
-                    if distance_threshold is None or edge_distance <= distance_threshold:
-                        data.append((feat_id, pair_feat_id, edge_distance))
-                        current_progress += progress_step
-                        progress_callback(int(current_progress))
+                    data.append((feat_id, pair_feat_id, edge_distance))
+                    current_progress += progress_step
+                    progress_callback(int(current_progress))
             else:
                 # this `else` block belongs to the inner `for` block and
                 # it gets executed if the `for` loop is able to run until

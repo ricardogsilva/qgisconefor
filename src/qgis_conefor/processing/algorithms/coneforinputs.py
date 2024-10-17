@@ -24,7 +24,6 @@ class ConeforInputsBase(base.Base):
         "nodes_to_add_attribute",
         "Which attribute to use for the 'nodes to add' Conefor feature"
     )
-    INPUT_DISTANCE_THRESHOLD = ("distance_threshold", "Distance threshold")
     INPUT_OUTPUT_DIRECTORY = ("output_dir", "Output directory for generated Conefor input files")
     OUTPUT_CONEFOR_NODES_FILE_PATH = ("output_path", "Conefor nodes file")
     OUTPUT_CONEFOR_CONNECTIONS_FILE_PATH = ("output_connections_path", "Conefor connections file")
@@ -114,7 +113,6 @@ class ConeforInputsBase(base.Base):
         source: qgis.core.QgsProcessingFeatureSource,
         output_dir: Path,
         filename_fragment: str,
-        distance_threshold: Optional[int],
         feedback: qgis.core.QgsProcessingFeedback,
         progress_step: float,
         start_progress: int = 0,
@@ -133,7 +131,6 @@ class ConeforInputsBase(base.Base):
                 progress_step=progress_step,
                 info_callback=feedback.pushInfo,
                 cancelled_callback=feedback.isCanceled,
-                distance_threshold=distance_threshold,
             )
         )
 
@@ -186,15 +183,6 @@ class ConeforInputsPoint(ConeforInputsBase):
             )
         )
         self.addParameter(
-            qgis.core.QgsProcessingParameterNumber(
-                name=self.INPUT_DISTANCE_THRESHOLD[0],
-                description=self.tr(self.INPUT_DISTANCE_THRESHOLD[1]),
-                type=qgis.core.QgsProcessingParameterNumber.Integer,
-                optional=True,
-                minValue=0,
-            )
-        )
-        self.addParameter(
             qgis.core.QgsProcessingParameterFolderDestination(
                 name=self.INPUT_OUTPUT_DIRECTORY[0],
                 description=self.tr(self.INPUT_OUTPUT_DIRECTORY[1]),
@@ -229,12 +217,6 @@ class ConeforInputsPoint(ConeforInputsBase):
             node_id_field_name = None
         else:
             node_id_field_name = raw_node_id_field_name
-        raw_distance_threshold = self.parameterAsString(
-            parameters, self.INPUT_DISTANCE_THRESHOLD[0], context)
-        if raw_distance_threshold == "":
-            connections_distance_threshold = None
-        else:
-            connections_distance_threshold = int(raw_distance_threshold)
         output_dir = Path(
             self.parameterAsFile(
                 parameters,
@@ -259,7 +241,6 @@ class ConeforInputsPoint(ConeforInputsBase):
         feedback.pushInfo(f"{node_id_field_name=}")
         feedback.pushInfo(f"{node_attribute_field_name=}")
         feedback.pushInfo(f"{nodes_to_add_field_name=}")
-        feedback.pushInfo(f"{connections_distance_threshold=}")
         feedback.pushInfo(f"{output_dir=}")
 
         result = {
@@ -325,7 +306,6 @@ class ConeforInputsPoint(ConeforInputsBase):
                 source,
                 output_dir,
                 results_name_fragment,
-                connections_distance_threshold,
                 feedback,
                 start_progress=(100 - remaining_progress),
                 progress_step=progress_step,
@@ -423,15 +403,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
             )
         )
         self.addParameter(
-            qgis.core.QgsProcessingParameterNumber(
-                name=self.INPUT_DISTANCE_THRESHOLD[0],
-                description=self.tr(self.INPUT_DISTANCE_THRESHOLD[1]),
-                type=qgis.core.QgsProcessingParameterNumber.Integer,
-                optional=True,
-                minValue=0,
-            )
-        )
-        self.addParameter(
             qgis.core.QgsProcessingParameterFolderDestination(
                 name=self.INPUT_OUTPUT_DIRECTORY[0],
                 description=self.tr(self.INPUT_OUTPUT_DIRECTORY[1]),
@@ -480,12 +451,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
             ]
         )
         feedback.pushInfo(f"{connections_distance_method.value=} ")
-        raw_distance_threshold = self.parameterAsString(
-            parameters, self.INPUT_DISTANCE_THRESHOLD[0], context)
-        if raw_distance_threshold == "":
-            connections_distance_threshold = None
-        else:
-            connections_distance_threshold = int(raw_distance_threshold)
         output_dir = Path(
             self.parameterAsFile(
                 parameters,
@@ -514,7 +479,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
         feedback.pushInfo(f"{node_id_field_name=}")
         feedback.pushInfo(f"{nodes_to_add_field_name=}")
         feedback.pushInfo(f"{connections_distance_method=}")
-        feedback.pushInfo(f"{connections_distance_threshold=}")
         feedback.pushInfo(f"{output_dir=}")
 
         result = {
@@ -600,7 +564,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
                     source,
                     output_dir,
                     results_name_fragment,
-                    connections_distance_threshold,
                     feedback,
                     start_progress=(100 - remaining_progress),
                     progress_step=progress_step,
@@ -611,7 +574,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
                     source,
                     output_dir,
                     results_name_fragment,
-                    connections_distance_threshold,
                     feedback,
                     start_progress=(100 - remaining_progress),
                     progress_step=progress_step,
@@ -630,7 +592,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
         source: qgis.core.QgsProcessingFeatureSource,
         output_dir: Path,
         filename_fragment: str,
-        distance_threshold: Optional[int],
         feedback: qgis.core.QgsProcessingFeedback,
         start_progress: float,
         progress_step: float,
@@ -647,7 +608,6 @@ class ConeforInputsPolygon(ConeforInputsBase):
                 progress_step=progress_step,
                 info_callback=feedback.pushInfo,
                 cancelled_callback=feedback.isCanceled,
-                distance_threshold=distance_threshold
             )
         )
 

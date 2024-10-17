@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Improved user guide
+
+### Removed
+- Removed distance_threshold processing parameter - it was not used in the main plugin dialog
+
 
 
 ## [2.0.0-rc6] - 2024-10-16
