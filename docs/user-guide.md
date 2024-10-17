@@ -210,6 +210,28 @@ If something went wrong, it will show an error description.
 ![processing-done](images/qgisconefor-done.png)
 
 
+##### Geometry-related errors
+
+Whenever an input layer has invalid geometries the plugin will use the same strategy as other Processing algorithms, 
+and which can be configured in the main QGIS settings. Starting in the QGIS main menu, navigate to 
+
+_Settings -> Options... -> Processing -> General -> Invalid features filtering_
+
+There are several options to choose, which affect how the QGIS Processing framework deals with invalid geometries:
+
+- Stop algorithm execution when a geometry is invalid
+- Do not filter (better performance)
+- Skip (ignore) features with invalid geometries
+
+Choose the option which is more appropriate for your use case, keeping in mind that for the Conefor plugin, valid 
+geometries are only needed when autogenerating the node attribute based on the area of a feature.
+
+
+!!! warning
+
+    The settings which control how the Processing framework deal with invalid geometries apply to QGIS as a whole.
+
+
 ### Using the Processing toolbox algorithms
 
 This plugin's execution code is implemented as set of QGIS Processing algorithms. Therefore, regardless of if you are
