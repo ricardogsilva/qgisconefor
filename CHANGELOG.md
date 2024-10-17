@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [2.0.0-rc7] - 2024-10-17
+
 ### Changed
 - Improved user guide
 
 ### Removed
 - Removed distance_threshold processing parameter - it was not used in the main plugin dialog
-
 
 
 ## [2.0.0-rc6] - 2024-10-16
@@ -116,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc6...main
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc7...main
+[2.0.0-rc7]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc6...v2.0.0-rc7
 [2.0.0-rc6]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc5...v2.0.0-rc6
 [2.0.0-rc5]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc4...v2.0.0-rc5
 [2.0.0-rc4]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc3...v2.0.0-rc4
