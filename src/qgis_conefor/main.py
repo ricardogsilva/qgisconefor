@@ -197,7 +197,6 @@ class QgisConefor:
                         layer_params.attribute_field_name or ""),
                 ConeforInputsPolygon.INPUT_NODES_TO_ADD_ATTRIBUTE_NAME[0]: (
                     layer_params.nodes_to_add_field_name or ""),
-                ConeforInputsPolygon.INPUT_DISTANCE_THRESHOLD[0]: "",
                 ConeforInputsPolygon.INPUT_OUTPUT_DIRECTORY[0]: output_dir,
                 ConeforInputsPolygon.INPUT_POLYGON_LAYER[0]: (
                     input_layer_param),

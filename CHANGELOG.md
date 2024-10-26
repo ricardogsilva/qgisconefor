@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [2.0.0-rc8] - 2024-10-26
+
+### Fixed
+- Fixed error due to unused Processing input parameter having been removed, but still called
+
+
 ## [2.0.0-rc7] - 2024-10-17
 
 ### Changed
@@ -118,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc7...main
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc8...main
+[2.0.0-rc8]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc7...v2.0.0-rc8
 [2.0.0-rc7]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc6...v2.0.0-rc7
 [2.0.0-rc6]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc5...v2.0.0-rc6
 [2.0.0-rc5]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc4...v2.0.0-rc5
