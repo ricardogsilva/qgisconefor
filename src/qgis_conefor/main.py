@@ -64,8 +64,7 @@ class QgisConefor:
 
     action: QtWidgets.QAction
     dialog: Optional[QtWidgets.QDialog]
-    processing_provider: ProcessingConeforProvider
-    algorithm: Optional[qgis.core.QgsProcessingAlgorithm]
+    processing_provider: Optional[ProcessingConeforProvider]
     model: Optional[ProcessLayerTableModel]
     processing_context: Optional[qgis.core.QgsProcessingContext]
     _processing_tasks: dict[
@@ -79,35 +78,33 @@ class QgisConefor:
     def __init__(self, iface: qgis.gui.QgisInterface):
         self.iface = iface
         self.dialog = None
+        self.model = None
+        self.processing_provider = None
+        self.processing_context = None
+        self._processing_tasks = {}
+        self._task_results = {}
+
+    def init_processing(self):
+        self.processing_provider = ProcessingConeforProvider()
+        processing_registry = qgis.core.QgsApplication.processingRegistry()
+        processing_registry.addProvider(self.processing_provider)
+
+    def initGui(self):
+        self.init_processing()
+        self.analyzer_task = None
         self.model = ProcessLayerTableModel(
             qgis_layers={},
             initial_layers_to_process=[],
             lock_layers=False,
             dialog=None
         )
-        self.processing_provider = ProcessingConeforProvider()
-        self.processing_context = None
-        self.algorithm = None
-        self._processing_tasks = {}
-        self._task_results = {}
-
-    def init_processing(self):
-        processing_registry = qgis.core.QgsApplication.processingRegistry()
-        processing_registry.addProvider(self.processing_provider)
-
-    def initGui(self):
-        self.init_processing()
-        processing_registry = qgis.core.QgsApplication.processingRegistry()
-        self.algorithm = processing_registry.createAlgorithmById(
-            "conefor:inputsfrompolygon")
-        self.analyzer_task = None
         self.dialog = ConeforDialog(self, model=self.model)
         self.dialog.setModal(True)
         self.dialog.finished.connect(self.handle_dialog_closed)
         self.dialog.accepted.connect(self.prepare_conefor_inputs)
         self.action = QtWidgets.QAction(
             QtGui.QIcon(schemas.ICON_RESOURCE_PATH),
-            self._action_title,
+            f"&{self._action_title}",
             self.iface.mainWindow()
         )
         self.action.triggered.connect(self.run)
@@ -115,16 +112,22 @@ class QgisConefor:
         self.iface.addPluginToVectorMenu(None, self.action)
         self.iface.addVectorToolBarIcon(self.action)
         qgis_project = qgis.core.QgsProject.instance()
+        self.start_tracking_layers(new_layers=qgis_project.mapLayers().values())
         qgis_project.legendLayersAdded.connect(self.start_tracking_layers)
         qgis_project.layersRemoved.connect(self.check_for_removed_layers)
 
     def unload(self):
+        # return
         processing_registry = qgis.core.QgsApplication.processingRegistry()
         processing_registry.removeProvider(self.processing_provider)
         qgis_project = qgis.core.QgsProject.instance()
         qgis_project.legendLayersAdded.disconnect(self.start_tracking_layers)
         qgis_project.layersRemoved.disconnect(self.check_for_removed_layers)
-        self.iface.removePluginVectorMenu(f"&{self._action_title}", self.action)
+        self.action.triggered.disconnect(self.run)
+        # iface.removePluginVectorMenu() does not work here because it assumes it
+        # is dealing with a menu, not a single action
+        vector_menu = self.iface.vectorMenu()
+        vector_menu.removeAction(self.action)
         self.iface.removeVectorToolBarIcon(self.action)
 
     def start_analyzing_layers(self, disregard_ids: Optional[list[str]] = None) -> None:
@@ -188,8 +191,11 @@ class QgisConefor:
         )
         connection_method = ConeforInputsPolygon._NODE_DISTANCE_CHOICES.index(
             layer_params.connections_method.value)
+        processing_registry = qgis.core.QgsApplication.processingRegistry()
+        algorithm = processing_registry.createAlgorithmById(
+            "conefor:inputsfrompolygon")
         task = qgis.core.QgsProcessingAlgRunnerTask(
-            algorithm=self.algorithm,
+            algorithm=algorithm,
             parameters={
                 ConeforInputsPolygon.INPUT_NODE_IDENTIFIER_NAME[0]: (
                         layer_params.id_attribute_field_name or ""),
