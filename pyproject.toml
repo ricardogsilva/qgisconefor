@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "qgisconefor"
-version = "2.0.2"
+version = "2.0.3"
 description = "A QGIS plugin to integrate with the Conefor landscape conectivity analysis software."
 authors = ["Ricardo Garcia Silva <ricardo.garcia.silva@gmail.com>"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
 packages = [
-    { include = "qgis_conefor", from = "src" },
+    { include = "qgisconefor", from = "src" },
     { include = "plugindev", from = "src" },
 ]
 

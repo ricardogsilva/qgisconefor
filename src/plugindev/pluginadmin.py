@@ -20,8 +20,7 @@ from rich import (
 )
 
 LOCAL_ROOT_DIR = Path(__file__).parents[2].resolve()
-SRC_NAME = "qgis_conefor"
-PACKAGE_NAME = SRC_NAME.replace("_", "")
+SRC_NAME = "qgisconefor"
 app = typer.Typer()
 
 
