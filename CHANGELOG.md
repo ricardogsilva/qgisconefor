@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [2.0.2] - 2024-11-11
+
+### Fixed
+- Renamed license file to `LICENSE` and included it in the generated zip for publishing in main QGIS plugins portal
+
+
 ## [2.0.1] - 2024-11-11
 
 ### Fixed
@@ -147,7 +153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.1...main
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.2...main
+[2.0.2]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc9...v2.0.0
 [2.0.0-rc9]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc8...v2.0.0-rc9

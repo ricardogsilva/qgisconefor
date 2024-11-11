@@ -93,6 +93,7 @@ def build(
         print("Could not copy icon")
     compile_resources(output_dir)
     generate_metadata(context, output_dir)
+    copy_license(output_dir)
     return output_dir
 
 
@@ -123,6 +124,14 @@ def copy_source_files(
             target_path = output_dir / child.name
             handler = shutil.copytree if child.is_dir() else shutil.copy
             handler(str(child.resolve()), str(target_path))
+
+
+def copy_license(output_dir: Path):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    license_file_name = "LICENSE"
+    license_path = LOCAL_ROOT_DIR / license_file_name
+    target_path = output_dir / license_file_name
+    shutil.copy(license_path, target_path)
 
 
 @app.command()
