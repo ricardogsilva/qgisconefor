@@ -8,8 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [2.0.1] - 2024-11-11
+
+### Fixed
+- Dropped the 'experimental' flag
+
+
 ## [2.0.0] - 2024-11-11
 
+### Added
 - First public release in 9 years!
 - Update plugin to QGIS v3.x
 - Use native QGIS features like background tasks, main message bar, processing algorithms, etc.
@@ -140,7 +147,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First stable release
 
-[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0...main
+[unreleased]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.1...main
+[2.0.1]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc9...v2.0.0
 [2.0.0-rc9]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc8...v2.0.0-rc9
 [2.0.0-rc8]: https://github.com/ricardogsilva/qgisconefor/compare/v2.0.0-rc7...v2.0.0-rc8
